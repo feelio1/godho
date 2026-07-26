@@ -6,9 +6,11 @@ import '../config/naver_map_config.dart';
 import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../models/operating_period.dart';
+import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
+import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
@@ -27,12 +29,12 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   @override
   void initState() {
     super.initState();
-    if (isNaverMapConfigured) {
-      // 위치 권한은 이 탭 최초 진입 시에만 요청합니다 (CLAUDE.md 하지 말 것 항목 준수).
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(locationProvider.notifier).requestAndFetch();
-      });
-    }
+    // 위치 권한은 이 탭 최초 진입 시에만 요청합니다 (CLAUDE.md 하지 말 것 항목
+    // 준수). 지도 SDK 키 유무와 무관하게 거리/가까운 순 정렬은 이 탭에서 계속
+    // 동작해야 하므로, isNaverMapConfigured 여부와 상관없이 요청한다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(locationProvider.notifier).requestAndFetch();
+    });
   }
 
   Color _markerColor(Hospital hospital) {
@@ -120,8 +122,12 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
 
     final repo = ref.watch(repositoryProvider);
     final location = ref.watch(locationProvider).value;
+    final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
 
-    final markerHospitals = repo.all
+    // 전국 규모(약 1만 곳)에서 지도에 표시할 후보를 선택된 지역으로 먼저
+    // 좁힌다 — 검색 결과와 동일한 지역 필터를 공유한다.
+    final markerHospitals = repo
+        .filterByRegion(repo.all, region)
         .where((h) => h.hasCoordinates && h.status != HospitalStatus.closed)
         .toList();
 

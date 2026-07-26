@@ -7,6 +7,7 @@ class HospitalCard extends StatelessWidget {
   final Hospital hospital;
   final int sameAddressRecordCount;
   final double? distanceKm;
+  final bool hasUserLocation;
   final VoidCallback onTap;
   final bool? isInCompare;
   final VoidCallback? onCompareToggle;
@@ -16,6 +17,7 @@ class HospitalCard extends StatelessWidget {
     required this.hospital,
     required this.sameAddressRecordCount,
     this.distanceKm,
+    this.hasUserLocation = false,
     required this.onTap,
     this.isInCompare,
     this.onCompareToggle,
@@ -27,7 +29,10 @@ class HospitalCard extends StatelessWidget {
     final chips = <String>[
       hospital.operatingPeriodLabel,
       if (sameAddressRecordCount > 1) '동일 주소 기록 $sameAddressRecordCount건',
-      if (distanceKm != null) '${distanceKm!.toStringAsFixed(1)}km',
+      // 좌표가 없는 병원은 목록에서 빼지 않되, 거리 대신 "거리 정보 없음"으로
+      // 표시한다 (스프린트 2 지시서 3).
+      if (hasUserLocation)
+        distanceKm != null ? '${distanceKm!.toStringAsFixed(1)}km' : '거리 정보 없음',
     ];
 
     return Card(

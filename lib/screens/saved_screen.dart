@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/location_provider.dart';
 import '../providers/saved_provider.dart';
 import '../widgets/hospital_card.dart';
 import 'detail_screen.dart';
@@ -15,6 +17,7 @@ class SavedScreen extends ConsumerWidget {
     final repo = ref.watch(repositoryProvider);
     final bundle = ref.watch(bundleProvider).value;
     final savedAsync = ref.watch(savedHospitalsProvider);
+    final location = ref.watch(locationProvider).value;
 
     return Scaffold(
       appBar: AppBar(title: const Text('저장')),
@@ -32,9 +35,17 @@ class SavedScreen extends ConsumerWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               final hospital = hospitals[index];
+              final distance = HospitalRepository.distanceKm(
+                location?.latitude,
+                location?.longitude,
+                hospital.lat,
+                hospital.lng,
+              );
               return HospitalCard(
                 hospital: hospital,
                 sameAddressRecordCount: bundle?.sameAddressRecordCount(hospital) ?? 1,
+                distanceKm: distance,
+                hasUserLocation: location != null,
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => DetailScreen(hospitalId: hospital.id)),
                 ),

@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import '../models/hospital.dart';
 import '../models/hospital_bundle.dart';
+import '../models/hospital_status.dart';
+import '../models/region_filter.dart';
 
 /// Search-result sort options.
 ///
@@ -22,9 +24,32 @@ enum SortOption {
 class HospitalRepository {
   final HospitalBundle bundle;
 
-  const HospitalRepository(this.bundle);
+  HospitalRepository(this.bundle);
 
   List<Hospital> get all => bundle.hospitals;
+
+  /// 시/도 -> 시군구 index, built once and reused (nationwide bundle is
+  /// ~10,584 records, so this is computed lazily on first access rather
+  /// than per screen build). Values come only from what's actually present
+  /// in the data — never hardcoded.
+  late final Map<String, List<String>> _sigunguBySido = _buildRegionIndex();
+
+  late final List<String> sidoList = (_sigunguBySido.keys.toList()..sort());
+
+  Map<String, List<String>> _buildRegionIndex() {
+    final map = <String, Set<String>>{};
+    for (final h in bundle.hospitals) {
+      if (h.sido.isEmpty) continue;
+      final set = map.putIfAbsent(h.sido, () => <String>{});
+      if (h.sigungu.isNotEmpty) set.add(h.sigungu);
+    }
+    return map.map((sido, sigunguSet) {
+      final list = sigunguSet.toList()..sort();
+      return MapEntry(sido, list);
+    });
+  }
+
+  List<String> sigunguListFor(String sido) => _sigunguBySido[sido] ?? const [];
 
   Hospital? byId(String id) {
     for (final h in bundle.hospitals) {
@@ -44,6 +69,35 @@ class HospitalRepository {
             _normalize(h.name).contains(needle) ||
             _normalize(h.roadAddr).contains(needle))
         .toList();
+  }
+
+  List<Hospital> filterByRegion(List<Hospital> hospitals, RegionFilter region) {
+    if (region.isNationwide) return hospitals;
+    return hospitals.where((h) => region.matches(h.sido, h.sigungu)).toList();
+  }
+
+  List<Hospital> filterByStatus(List<Hospital> hospitals, {required bool includeClosed}) {
+    if (includeClosed) return hospitals;
+    return hospitals.where((h) => h.status != HospitalStatus.closed).toList();
+  }
+
+  /// Best-effort "current region" from a GPS fix: the region of the
+  /// nearest hospital with coordinates. Used only to pick a sensible
+  /// default region filter — never shown to the user as a fact about a
+  /// specific hospital.
+  RegionFilter? nearestRegion(double lat, double lng) {
+    Hospital? nearest;
+    double? nearestDistance;
+    for (final h in bundle.hospitals) {
+      if (!h.hasCoordinates) continue;
+      final d = distanceKm(lat, lng, h.lat, h.lng)!;
+      if (nearestDistance == null || d < nearestDistance) {
+        nearestDistance = d;
+        nearest = h;
+      }
+    }
+    if (nearest == null) return null;
+    return RegionFilter(sido: nearest.sido, sigungu: nearest.sigungu);
   }
 
   /// Great-circle distance in kilometers, or null if either point is

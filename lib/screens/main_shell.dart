@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 
+import '../data/hospital_repository.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
+import '../providers/region_provider.dart';
+import '../providers/search_provider.dart';
 import 'home_screen.dart';
 import 'nearby_map_screen.dart';
 import 'saved_screen.dart';
@@ -36,6 +41,24 @@ class _MainShellBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = ref.watch(selectedTabProvider);
+
+    // Watching locationProvider here (via listen) starts its silent,
+    // non-prompting permission check as soon as the shell loads. If
+    // location was already granted in an earlier session, this picks a
+    // default region and sort — but never overrides an explicit user choice
+    // (see RegionNotifier.applyGpsRegionIfUnset / sortManuallySetProvider).
+    ref.listen<AsyncValue<Position?>>(locationProvider, (previous, next) {
+      final position = next.value;
+      if (position == null) return;
+      final repo = ref.read(repositoryProvider);
+      final nearest = repo.nearestRegion(position.latitude, position.longitude);
+      if (nearest != null) {
+        ref.read(regionProvider.notifier).applyGpsRegionIfUnset(nearest);
+      }
+      if (!ref.read(sortManuallySetProvider)) {
+        ref.read(sortOptionProvider.notifier).state = SortOption.distance;
+      }
+    });
 
     return Scaffold(
       body: IndexedStack(
