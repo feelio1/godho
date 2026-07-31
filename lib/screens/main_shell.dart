@@ -8,6 +8,7 @@ import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
+import '../widgets/mascot_message.dart';
 import 'home_screen.dart';
 import 'nearby_map_screen.dart';
 import 'saved_screen.dart';
@@ -27,7 +28,19 @@ class MainShell extends ConsumerWidget {
     final bundleAsync = ref.watch(bundleProvider);
 
     return bundleAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(
+        body: Center(
+          child: MascotMessage(
+            title: '정보를 불러오고 있어요',
+            subtitle: '공개된 동물병원 인허가 정보를 준비 중입니다',
+            trailing: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+          ),
+        ),
+      ),
       error: (error, _) =>
           Scaffold(body: Center(child: Text('데이터를 불러오지 못했습니다: $error'))),
       data: (_) => const _MainShellBody(),

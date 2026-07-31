@@ -10,6 +10,7 @@ import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/hospital_card.dart';
+import '../widgets/mascot_message.dart';
 import '../widgets/region_indicator.dart';
 import 'detail_screen.dart';
 import 'region_select_screen.dart';
@@ -96,9 +97,25 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
           _SortBar(sort: sort),
           Expanded(
             child: query.trim().isEmpty
-                ? const Center(child: Text('검색어를 입력해주세요.'))
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: MascotMessage(
+                        title: '병원명 또는 주소로 검색해보세요',
+                        subtitle: '공개된 인허가 정보를 바로 확인할 수 있어요',
+                      ),
+                    ),
+                  )
                 : results.isEmpty
-                    ? const Center(child: Text('검색 결과가 없습니다.'))
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: MascotMessage(
+                            title: '검색 결과가 없습니다',
+                            subtitle: '다른 이름이나 주소로 다시 검색해보세요',
+                          ),
+                        ),
+                      )
                     : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: results.length,

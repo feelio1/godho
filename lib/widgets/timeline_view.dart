@@ -28,41 +28,46 @@ class _TimelineViewState extends State<TimelineView> {
   Widget build(BuildContext context) {
     final segments = widget.timeline.segments;
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '동일 주소 인허가 기록',
-          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '동일 주소 인허가 기록',
+              style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            for (var i = 0; i < segments.length; i++)
+              _SegmentTile(
+                segment: segments[i],
+                isLast: i == segments.length - 1,
+                expanded: _expanded.contains(i),
+                onToggle: () => setState(() {
+                  if (_expanded.contains(i)) {
+                    _expanded.remove(i);
+                  } else {
+                    _expanded.add(i);
+                  }
+                }),
+              ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.neutralBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                timelineDisclaimer,
+                style: textTheme.bodySmall
+                    ?.copyWith(color: AppColors.neutral, height: 1.4),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        for (var i = 0; i < segments.length; i++)
-          _SegmentTile(
-            segment: segments[i],
-            isLast: i == segments.length - 1,
-            expanded: _expanded.contains(i),
-            onToggle: () => setState(() {
-              if (_expanded.contains(i)) {
-                _expanded.remove(i);
-              } else {
-                _expanded.add(i);
-              }
-            }),
-          ),
-        const SizedBox(height: 4),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.neutralBg,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            timelineDisclaimer,
-            style: textTheme.bodySmall
-                ?.copyWith(color: AppColors.neutral, height: 1.4),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

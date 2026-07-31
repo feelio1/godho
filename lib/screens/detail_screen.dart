@@ -69,6 +69,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
               isInCompare: isInCompare,
               onCompareTap: () => _onCompareTap(context, hospital.id, isInCompare),
             ),
+            const SizedBox(height: 10),
+            const _ReservationButton(),
             const SizedBox(height: 24),
             _FactCardGrid(hospital: hospital, recordCount: recordCount),
             const SizedBox(height: 24),
@@ -250,6 +252,78 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+/// 예약 버튼 자리. 실제 예약 연동은 아직 없고, 눌러도 "준비 중" 안내만
+/// 뜬다 — 지도 준비중 화면과 같은 패턴. 어떤 병원과도 제휴·거래 관계가
+/// 없다는 점을 문구로 분명히 해 중립성을 지킨다 (스프린트 3 지시서).
+class _ReservationButton extends StatelessWidget {
+  const _ReservationButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.secondary,
+              foregroundColor: colorScheme.onSecondary,
+            ),
+            onPressed: () => _showReservationComingSoonSheet(context),
+            icon: const Icon(Icons.event_available_outlined),
+            label: const Text('예약하기'),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '예약 연동 기능은 준비 중이에요',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+
+  void _showReservationComingSoonSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '예약 기능 준비 중',
+                style: Theme.of(sheetContext)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. 펫병원체크는 특정 병원과 '
+                '제휴하거나 거래 관계를 맺지 않으며, 추후 전화·외부 예약 링크 연결 등의 기능을 '
+                '검토하고 있습니다.',
+                style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(height: 1.5),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(sheetContext).pop(),
+                  child: const Text('확인'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FactCardGrid extends StatelessWidget {
   final Hospital hospital;
   final int recordCount;
@@ -300,37 +374,34 @@ class _OperatingInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).dividerColor),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('운영정보', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          _InfoRow('개설신고일', _fmt(hospital.openDate)),
-          _InfoRow('상태', hospital.status.label),
-          _InfoRow('운영기간', hospital.operatingPeriodLabel),
-          _InfoRow('출처', source),
-          _InfoRow('최종갱신', _fmt(generatedAt)),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.neutralBg,
-              borderRadius: BorderRadius.circular(8),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('운영정보', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            _InfoRow('개설신고일', _fmt(hospital.openDate)),
+            _InfoRow('상태', hospital.status.label),
+            _InfoRow('운영기간', hospital.operatingPeriodLabel),
+            _InfoRow('출처', source),
+            _InfoRow('최종갱신', _fmt(generatedAt)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.neutralBg,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '운영기간은 공개된 인허가 기록상 계속 등록된 시점(continuousSince)을 기준으로 계산한 값이며, '
+                '병원의 신뢰도나 진료 품질과는 관련이 없습니다.',
+                style: textTheme.bodySmall?.copyWith(color: AppColors.neutral, height: 1.4),
+              ),
             ),
-            child: Text(
-              '운영기간은 공개된 인허가 기록상 계속 등록된 시점(continuousSince)을 기준으로 계산한 값이며, '
-              '병원의 신뢰도나 진료 품질과는 관련이 없습니다.',
-              style: textTheme.bodySmall?.copyWith(color: AppColors.neutral, height: 1.4),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -373,24 +444,30 @@ class _ExternalLinksSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('외부 링크', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        _LinkTile(
-          label: '네이버지도에서 리뷰 보기',
-          onTap: () => ExternalLinks.openNaverMapReviews(hospital),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 8),
+            Text('외부 링크', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            _LinkTile(
+              label: '네이버지도에서 리뷰 보기',
+              onTap: () => ExternalLinks.openNaverMapReviews(hospital),
+            ),
+            _LinkTile(
+              label: '카카오맵에서 리뷰 보기',
+              onTap: () => ExternalLinks.openKakaoMapReviews(hospital),
+            ),
+            _LinkTile(
+              label: '국가동물보호정보시스템',
+              onTap: ExternalLinks.openAnimalProtectionSystem,
+            ),
+          ],
         ),
-        _LinkTile(
-          label: '카카오맵에서 리뷰 보기',
-          onTap: () => ExternalLinks.openKakaoMapReviews(hospital),
-        ),
-        _LinkTile(
-          label: '국가동물보호정보시스템',
-          onTap: ExternalLinks.openAnimalProtectionSystem,
-        ),
-      ],
+      ),
     );
   }
 }

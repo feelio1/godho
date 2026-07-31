@@ -36,10 +36,24 @@ flutter run --dart-define=NAVER_MAP_CLIENT_ID=발급받은_클라이언트_ID
 - 검색 결과는 기본적으로 영업중 병원만 표시하며, "폐업 병원도 보기"를 켜면 폐업 기록도 함께 나옵니다.
   단, 병원 상세 화면의 동일 주소 타임라인에는 이 필터와 무관하게 항상 모든 기록이 표시됩니다.
 
+## 디자인 시스템 · 마스코트
+
+- 모든 색상은 `lib/theme/app_colors.dart` 토큰만 사용합니다 (하드코딩 금지). 화면 스타일은
+  `lib/theme/app_theme.dart`가 만드는 `ThemeData` 하나로 통일되어 있으니, 새 화면은
+  `Theme.of(context)` 값을 그대로 쓰면 됩니다.
+- 마스코트 "장구름"은 `lib/widgets/mascot_image.dart`가 담당합니다. 지금은 실제 이미지가 없어
+  아이콘 placeholder를 보여주고, 나중에 `assets/mascot/janggureum.png`를 추가하고
+  pubspec.yaml에 등록하면 코드 변경 없이 그 이미지로 자동 교체됩니다. 마스코트는 홈 인사말·빈
+  상태·로딩·지도 준비중 화면처럼 친근함이 필요한 자리에만 쓰고, 병원 상세의 팩트카드·타임라인·
+  진료비처럼 신뢰가 중요한 데이터 영역에는 넣지 않습니다.
+- 병원 상세의 "예약하기" 버튼은 아직 실제 예약 연동이 없는 자리 예약용입니다. 누르면 특정
+  병원과 제휴·거래 관계가 없다는 점을 알리는 안내만 뜹니다.
+
 ## 폴더 구조
 
 - `lib/models` — Hospital, Timeline 등 데이터 모델
 - `lib/data` — 번들 로더, 저장소, 로컬 저장(SharedPreferences)
 - `lib/providers` — Riverpod 프로바이더
 - `lib/screens` — 홈/검색/상세/주변 병원/저장/비교 화면
-- `lib/widgets` — 공용 위젯 (팩트카드, 타임라인, 진료비 섹션 등)
+- `lib/theme` — 색상 토큰(AppColors)과 전역 ThemeData(AppTheme)
+- `lib/widgets` — 공용 위젯 (팩트카드, 타임라인, 진료비 섹션, 마스코트 등)

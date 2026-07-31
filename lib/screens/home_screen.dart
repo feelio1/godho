@@ -13,6 +13,7 @@ import '../providers/recent_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/saved_provider.dart';
 import '../widgets/hospital_card.dart';
+import '../widgets/mascot_image.dart';
 import '../widgets/region_indicator.dart';
 import 'detail_screen.dart';
 import 'info_screens.dart';
@@ -126,21 +127,39 @@ class _HomeBody extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            const MascotImage(size: 44),
+            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                '동물병원 방문 전, 공개된 정보를 확인해보세요',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '안녕하세요, 장구름이에요',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '동물병원 방문 전, 공개된 정보를 확인해보세요',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
-            RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
           ],
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerRight,
+          child: RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
         ),
         const SizedBox(height: 16),
         InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const SearchResultScreen()),
           ),
@@ -148,7 +167,7 @@ class _HomeBody extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               children: [

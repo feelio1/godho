@@ -7,6 +7,7 @@ import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
 import '../theme/app_colors.dart';
 import '../utils/external_links.dart';
+import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 
 const double _labelColumnWidth = 104;
@@ -37,7 +38,15 @@ class CompareScreen extends ConsumerWidget {
         ],
       ),
       body: hospitals.isEmpty
-          ? const Center(child: Text('비교할 병원을 먼저 담아주세요.'))
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: MascotMessage(
+                  title: '비교할 병원을 먼저 담아주세요',
+                  subtitle: '검색 결과나 병원 상세에서 "비교 추가"를 눌러 담을 수 있어요',
+                ),
+              ),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: SingleChildScrollView(

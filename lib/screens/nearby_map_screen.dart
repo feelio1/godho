@@ -12,6 +12,7 @@ import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
+import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
 
@@ -164,26 +165,13 @@ class _MapStub extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('주변 병원')),
-      body: Center(
+      body: const Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.map_outlined, size: 48, color: AppColors.neutral),
-              const SizedBox(height: 16),
-              Text(
-                '주변 병원 지도 준비 중입니다.',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '네이버 지도 연동이 완료되면 이 화면에서 주변 동물병원을 확인할 수 있어요. '
+          padding: EdgeInsets.all(24),
+          child: MascotMessage(
+            title: '주변 병원 지도 준비 중입니다',
+            subtitle: '네이버 지도 연동이 완료되면 이 화면에서 주변 동물병원을 확인할 수 있어요. '
                 '지금은 검색으로 병원을 찾아보세요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.neutral),
-              ),
-            ],
           ),
         ),
       ),
