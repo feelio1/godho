@@ -24,6 +24,10 @@ final includeClosedProvider = StateProvider<bool>((ref) => false);
 /// [regionProvider], status-filtered by [includeClosedProvider], and sorted
 /// by [sortOptionProvider]. Requires [bundleProvider] to already be loaded.
 ///
+/// With an empty query this returns the whole selected region (스프린트 4
+/// 지시서 1: 검색 화면 진입 시 지역 기준 목록을 바로 표시) instead of an
+/// empty list — typing narrows that same list by name/address.
+///
 /// This filtering is scoped to the search list only — the detail screen's
 /// same-address timeline always shows every record regardless of these
 /// filters (스프린트 2 지시서 1: 상세 타임라인은 절대 필터링하지 말 것).
@@ -35,7 +39,7 @@ final searchResultsProvider = Provider<List<Hospital>>((ref) {
   final region = ref.watch(regionProvider).value?.filter;
   final includeClosed = ref.watch(includeClosedProvider);
 
-  var results = repo.search(query);
+  var results = query.trim().isEmpty ? repo.all : repo.search(query);
   if (region != null) {
     results = repo.filterByRegion(results, region);
   }

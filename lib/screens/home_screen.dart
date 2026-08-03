@@ -4,9 +4,9 @@ import 'package:geolocator/geolocator.dart';
 
 import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
-import '../models/hospital_status.dart';
 import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/home_section_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/recent_provider.dart';
@@ -99,29 +99,11 @@ class _HomeBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(repositoryProvider);
-    final recentIds = ref.watch(recentHospitalsProvider).value ?? const [];
     final savedIds = ref.watch(savedHospitalsProvider).value ?? const [];
     final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
     final location = ref.watch(locationProvider).value;
 
-    final recentHospitals =
-        recentIds.map(repo.byId).whereType<Hospital>().toList();
-    final savedHospitals =
-        savedIds.map(repo.byId).whereType<Hospital>().toList();
-
-    final showFallback = recentHospitals.isEmpty && savedHospitals.isEmpty;
-    final fallbackHospitals = showFallback
-        ? repo
-            .sortHospitals(
-              repo
-                  .filterByRegion(repo.all, region)
-                  .where((h) => h.status == HospitalStatus.open)
-                  .toList(),
-              SortOption.recentOpen,
-            )
-            .take(10)
-            .toList()
-        : const <Hospital>[];
+    final savedHospitals = savedIds.map(repo.byId).whereType<Hospital>().toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -193,27 +175,163 @@ class _HomeBody extends ConsumerWidget {
           label: const Text('내 주변 병원'),
         ),
         const SizedBox(height: 28),
-        if (recentHospitals.isNotEmpty)
-          _HospitalSection(
-            title: '최근 확인한 병원',
-            hospitals: recentHospitals,
-            location: location,
-          ),
+        _BrowseSection(region: region, location: location),
         if (savedHospitals.isNotEmpty) ...[
-          if (recentHospitals.isNotEmpty) const SizedBox(height: 24),
+          const SizedBox(height: 24),
           _HospitalSection(
             title: '저장한 병원',
             hospitals: savedHospitals,
             location: location,
           ),
         ],
-        if (showFallback)
-          _HospitalSection(
-            title: '내 지역 최근 개원 병원',
-            hospitals: fallbackHospitals,
-            location: location,
+      ],
+    );
+  }
+}
+
+/// 홈의 "병원 둘러보기" 섹션 — 보기 기준 탭으로 전환 가능
+/// (스프린트 4 지시서 2). '가까운 순'은 위치가 없으면 비활성 표시되고,
+/// 기본 탭은 '최근 개원 순'이라 위치 유무와 무관하게 항상 의미 있는
+/// 목록을 보여준다.
+class _BrowseSection extends ConsumerWidget {
+  final RegionFilter region;
+  final Position? location;
+
+  const _BrowseSection({required this.region, required this.location});
+
+  static const _maxItems = 10;
+
+  String _emptyMessageFor(HomeSectionTab tab) {
+    if (tab == HomeSectionTab.recentlyViewed) {
+      return '최근 확인한 병원이 없습니다';
+    }
+    return '이 지역에는 표시할 병원이 없습니다';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final repo = ref.watch(repositoryProvider);
+    final bundle = ref.watch(bundleProvider).value;
+    final selectedTab = ref.watch(homeSectionTabProvider);
+    final recentIds = ref.watch(recentHospitalsProvider).value ?? const [];
+    final hasLocation = location != null;
+
+    // 위치 없이 '가까운 순'이 선택된 상태로 남아 있으면(예: 위치 권한이
+    // 나중에 거부된 경우) 안전하게 '최근 개원 순'으로 대체한다.
+    final effectiveTab =
+        selectedTab == HomeSectionTab.near && !hasLocation ? HomeSectionTab.recentOpen : selectedTab;
+
+    final regionOpenHospitals = repo.filterByStatus(
+      repo.filterByRegion(repo.all, region),
+      includeClosed: false,
+    );
+
+    List<Hospital> hospitals;
+    switch (effectiveTab) {
+      case HomeSectionTab.near:
+        hospitals = repo.sortHospitals(
+          regionOpenHospitals,
+          SortOption.distance,
+          currentLat: location?.latitude,
+          currentLng: location?.longitude,
+        );
+      case HomeSectionTab.longestOperating:
+        hospitals = repo.sortHospitals(regionOpenHospitals, SortOption.operatingLength);
+      case HomeSectionTab.recentOpen:
+        hospitals = repo.sortHospitals(regionOpenHospitals, SortOption.recentOpen);
+      case HomeSectionTab.recentlyViewed:
+        hospitals = recentIds.map(repo.byId).whereType<Hospital>().toList();
+    }
+    hospitals = hospitals.take(_maxItems).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '병원 둘러보기',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        _TabChipRow(
+          selected: selectedTab,
+          hasLocation: hasLocation,
+          onSelected: (tab) => ref.read(homeSectionTabProvider.notifier).state = tab,
+        ),
+        const SizedBox(height: 10),
+        if (hospitals.isEmpty)
+          SizedBox(
+            height: 80,
+            child: Center(
+              child: Text(
+                _emptyMessageFor(effectiveTab),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 150,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: hospitals.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final hospital = hospitals[index];
+                final distance = HospitalRepository.distanceKm(
+                  location?.latitude,
+                  location?.longitude,
+                  hospital.lat,
+                  hospital.lng,
+                );
+                return SizedBox(
+                  width: 260,
+                  child: HospitalCard(
+                    hospital: hospital,
+                    sameAddressRecordCount: bundle?.sameAddressRecordCount(hospital) ?? 1,
+                    distanceKm: distance,
+                    hasUserLocation: hasLocation,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => DetailScreen(hospitalId: hospital.id)),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
       ],
+    );
+  }
+}
+
+class _TabChipRow extends StatelessWidget {
+  final HomeSectionTab selected;
+  final bool hasLocation;
+  final ValueChanged<HomeSectionTab> onSelected;
+
+  const _TabChipRow({
+    required this.selected,
+    required this.hasLocation,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: HomeSectionTab.values.map((tab) {
+          final disabled = tab == HomeSectionTab.near && !hasLocation;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(disabled ? '${tab.label} · 준비 중' : tab.label),
+              selected: selected == tab,
+              onSelected: disabled ? null : (_) => onSelected(tab),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }

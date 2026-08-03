@@ -15,6 +15,11 @@ import '../widgets/region_indicator.dart';
 import 'detail_screen.dart';
 import 'region_select_screen.dart';
 
+/// Above this result count, a nationwide ("전체") scope shows a hint
+/// nudging the user to narrow their region (스프린트 4 지시서 1: "과다하면
+/// 상단 안내 + 지역 좁히기 유도"). The list itself is never blocked.
+const int _regionHintThreshold = 200;
+
 class SearchResultScreen extends ConsumerStatefulWidget {
   final String? initialQuery;
 
@@ -67,7 +72,9 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
       appBar: AppBar(
         title: TextField(
           controller: _controller,
-          autofocus: widget.initialQuery == null,
+          // 진입 시 지역 목록을 바로 보여주는 것이 우선이라(스프린트 4
+          // 지시서 1), 자동으로 키보드를 띄워 목록을 가리지 않는다.
+          autofocus: false,
           textInputAction: TextInputAction.search,
           decoration: const InputDecoration(
             hintText: '병원명 또는 주소로 검색',
@@ -95,28 +102,25 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
             ),
           ),
           _SortBar(sort: sort),
+          if (region.isNationwide && results.length > _regionHintThreshold)
+            _NarrowRegionHint(onTap: _changeRegion, count: results.length),
           Expanded(
-            child: query.trim().isEmpty
-                ? const Center(
+            child: results.isEmpty
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: MascotMessage(
-                        title: '병원명 또는 주소로 검색해보세요',
-                        subtitle: '공개된 인허가 정보를 바로 확인할 수 있어요',
-                      ),
+                      padding: const EdgeInsets.all(24),
+                      child: query.trim().isEmpty
+                          ? const MascotMessage(
+                              title: '이 지역에는 표시할 병원이 없습니다',
+                              subtitle: '지역을 변경하거나 "폐업 병원도 보기"를 켜보세요',
+                            )
+                          : const MascotMessage(
+                              title: '검색 결과가 없습니다',
+                              subtitle: '다른 이름이나 주소로 다시 검색해보세요',
+                            ),
                     ),
                   )
-                : results.isEmpty
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: MascotMessage(
-                            title: '검색 결과가 없습니다',
-                            subtitle: '다른 이름이나 주소로 다시 검색해보세요',
-                          ),
-                        ),
-                      )
-                    : ListView.separated(
+                : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: results.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 10),
@@ -159,6 +163,50 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
                       ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NarrowRegionHint extends StatelessWidget {
+  final VoidCallback onTap;
+  final int count;
+
+  const _NarrowRegionHint({required this.onTap, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Material(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 18, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '전체 지역 $count곳이 표시 중이에요. 지역을 좁히면 더 빠르게 찾을 수 있어요.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                Text(
+                  '지역 선택',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
