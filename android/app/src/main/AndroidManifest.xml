@@ -3,6 +3,8 @@
     <!-- 위치 권한은 '주변 병원' 탭 최초 진입 시에만 요청합니다 (앱 시작 시 강제 요청 금지). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 카카오맵 SDK 요구사항 (OpenGL ES 2.0 이상). -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
     <application
         android:label="petcliniccheck"
         android:name="${applicationName}"
@@ -34,6 +36,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- AdMob App ID. Value is injected by app/build.gradle.kts from the
+             gitignored android/secrets.properties (falls back to Google's
+             public test App ID when that file/key is absent — see
+             android/secrets.properties.example). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="${admobAppId}" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

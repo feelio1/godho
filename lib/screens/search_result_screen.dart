@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ads/global_banner_ad.dart';
 import '../data/hospital_repository.dart';
 import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
@@ -83,7 +84,10 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
           onChanged: (value) => ref.read(searchQueryProvider.notifier).state = value,
         ),
       ),
-      bottomNavigationBar: const CompareFloatingBar(),
+      bottomNavigationBar: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [CompareFloatingBar(), GlobalBannerAd()],
+      ),
       body: Column(
         children: [
           Padding(

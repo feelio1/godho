@@ -38,9 +38,10 @@ dependencies:
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.2
   intl: ^0.20.3
-  flutter_naver_map: ^1.4.4
   geolocator: ^14.0.3
   share_plus: ^13.3.0
+  kakao_map_sdk: ^1.2.6
+  google_mobile_ads: ^9.1.0
 
 dev_dependencies:
   flutter_test:

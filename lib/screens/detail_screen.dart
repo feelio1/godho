@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../ads/global_banner_ad.dart';
 import '../models/hospital.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
@@ -57,7 +58,10 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
 
     return Scaffold(
       appBar: AppBar(),
-      bottomNavigationBar: const CompareFloatingBar(),
+      bottomNavigationBar: const Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [CompareFloatingBar(), GlobalBannerAd()],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),

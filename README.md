@@ -11,14 +11,36 @@ flutter pub get
 flutter run
 ```
 
-### 네이버 지도 연동 (선택)
+### 카카오맵 연동 (선택)
 
-네이버 클라우드 플랫폼에서 발급받은 Maps Client ID가 있다면 아래처럼 전달하세요.
-없어도 앱은 정상 빌드되며, '주변 병원' 탭은 준비 중 화면으로 대체됩니다.
+카카오 개발자 사이트에서 발급받은 **네이티브 앱 키**가 있다면 아래처럼 전달하세요.
+없어도 앱은 정상 빌드되며, '주변 병원' 탭은 준비 중 화면으로 대체됩니다(지도 인증에 실패해도
+같은 화면으로 안전하게 전환됩니다).
 
 ```bash
-flutter run --dart-define=NAVER_MAP_CLIENT_ID=발급받은_클라이언트_ID
+flutter run --dart-define=KAKAO_NATIVE_KEY=발급받은_네이티브_앱_키
 ```
+
+### 애드몹 연동 (선택)
+
+배너·앱 오프닝 광고 단위 ID는 `--dart-define`으로 주입합니다. 지정하지 않으면 구글이 공식
+문서에서 공개한 **테스트 광고 단위 ID**로 자동 대체되어, 키 없이도 앱이 정상 빌드·실행되고
+테스트 광고가 표시됩니다. 실제 서비스에는 반드시 본인의 광고 단위 ID로 교체하세요.
+
+```bash
+flutter run \
+  --dart-define=ADMOB_BANNER_UNIT_ID=발급받은_배너_광고_단위_ID \
+  --dart-define=ADMOB_APP_OPEN_UNIT_ID=발급받은_앱오프닝_광고_단위_ID
+```
+
+애드몹 **App ID**는 Dart 코드가 아니라 AndroidManifest 값이라 dart-define으로 줄 수 없습니다.
+대신 `android/secrets.properties.example`을 `android/secrets.properties`로 복사하고(이
+파일은 `.gitignore` 처리되어 커밋되지 않습니다) `ADMOB_APP_ID`에 실제 값을 채워넣으세요.
+값을 채우지 않으면 역시 구글의 공개 테스트 App ID로 자동 대체됩니다.
+
+하단 배너 광고는 홈·검색·상세·저장·주변 병원 화면 하단에 항상 노출되며, 앱 오프닝 광고는
+마지막 노출로부터 4시간이 지난 뒤 앱을 다시 포그라운드로 가져올 때만(콜드 스타트·로딩 중 제외)
+미리 로드된 경우에 한해 표시됩니다.
 
 ## 데이터
 

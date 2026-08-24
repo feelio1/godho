@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../ads/global_banner_ad.dart';
 import '../data/hospital_repository.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/location_provider.dart';
@@ -82,14 +83,22 @@ class _MainShellBody extends ConsumerWidget {
           SavedScreen(),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) =>
-            ref.read(selectedTabProvider.notifier).state = index,
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-          NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변 병원'),
-          NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 하단 탭 바 위에 전역 배너 광고 (스프린트 5 지시서 2). 홈/주변
+          // 병원/저장 세 탭 모두 이 한 곳에서 커버된다.
+          const GlobalBannerAd(),
+          NavigationBar(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (index) =>
+                ref.read(selectedTabProvider.notifier).state = index,
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
+              NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변 병원'),
+              NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
+            ],
+          ),
         ],
       ),
     );
