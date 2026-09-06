@@ -60,3 +60,14 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Explicit, pinned WorkManager dependency (google_mobile_ads only pulls it
+    // in transitively via play-services-ads). This is what MainApplication.kt
+    // compiles against for its manual, safe WorkManager.initialize() call, and
+    // pinning one concrete version here also settles any silent version skew
+    // between whatever multiple transitive requesters would otherwise resolve
+    // to — the likely root cause of the WorkDatabase creation crash this
+    // works around (see AndroidManifest.xml and MainApplication.kt).
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
+}

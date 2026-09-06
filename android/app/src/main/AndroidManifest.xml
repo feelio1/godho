@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 위치 권한은 '주변 병원' 탭 최초 진입 시에만 요청합니다 (앱 시작 시 강제 요청 금지). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -7,7 +8,7 @@
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
     <application
         android:label="petcliniccheck"
-        android:name="${applicationName}"
+        android:name=".MainApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -43,6 +44,26 @@
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="${admobAppId}" />
+        <!-- google_mobile_ads pulls in androidx.work (WorkManager) for its own
+             internal background telemetry. Its default androidx.startup-based
+             auto-initializer was crashing the whole process at cold start
+             (java.lang.RuntimeException: Failed to create an instance of
+             androidx.work.impl.WorkDatabase, thrown from
+             androidx.work.WorkManagerInitializer during
+             InitializationProvider.onCreate — i.e. before any Flutter/Dart
+             code runs, so this cannot be fixed from the Dart side). We opt
+             out of that automatic initialization here and initialize
+             WorkManager ourselves instead, safely, in MainApplication. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
