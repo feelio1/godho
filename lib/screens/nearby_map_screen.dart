@@ -2,31 +2,47 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 import '../config/kakao_map_config.dart';
 import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../models/hospital_status.dart';
-import '../models/operating_period.dart';
 import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
+import '../utils/map_clustering.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
+
+/// 마스코트 "장구름" 마커 자리. 실제 이미지가 아직 없어 지금은 중립
+/// placeholder 아이콘을 쓴다 — `MascotImage`와 같은 방식으로, 나중에 이
+/// 경로에 실제 파일을 추가하고 pubspec.yaml에 등록하면 코드 변경 없이 그
+/// 이미지로 자동 교체된다(`_assetExists`가 성공하기 시작하므로).
+const String _markerAssetPath = 'assets/mascot/marker.png';
 
 /// 서울시청 — 위치 권한도, 선택 지역에 좌표 있는 병원도 없을 때의 최종 기본
 /// 지도 중심.
 const LatLng _defaultCenter = LatLng(37.5665, 126.9780);
 
-/// 지도 위 마커 성능/가독성을 위한 상한. 필터·검색 결과 자체를 줄이는 것이
-/// 아니라 지도 렌더링에만 적용되는 안전장치다(클러스터링은 다음 스프린트 예고).
+/// 지도 위 마커 성능을 위한 상한. 필터·검색 결과 자체를 줄이는 것이 아니라
+/// 지도 렌더링에만 적용되는 안전장치다.
 const int _markerCap = 300;
+
+const String _myLocationPoiId = '__my_location__';
+
+/// 이 줌 레벨 이상에서만 개별 마커에 병원 이름 라벨을 보여준다(겹침 방지).
+const int _labelZoomThreshold = 16;
+
+/// 이 줌 레벨 이상에서는 클러스터링 없이 모두 개별 마커로 표시한다.
+const int _clusterDisabledZoom = 17;
 
 class NearbyMapScreen extends ConsumerStatefulWidget {
   const NearbyMapScreen({super.key});
@@ -37,6 +53,15 @@ class NearbyMapScreen extends ConsumerStatefulWidget {
 
 class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   bool _mapFailed = false;
+  KakaoMapController? _controller;
+  PoiStyle? _hospitalStyle;
+  PoiStyle? _clusterStyle;
+  PoiStyle? _myLocationStyle;
+  List<Hospital> _markerCandidates = const [];
+  List<Poi> _renderedPois = const [];
+  Poi? _myLocationPoi;
+  int _currentZoom = 15;
+  RegionFilter? _lastRenderedRegion;
 
   @override
   void initState() {
@@ -49,12 +74,28 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     });
   }
 
-  static Future<Uint8List> _dotIconBytes(Color color, double diameter) async {
+  // --- 아이콘 생성 (에셋이 없을 때만 쓰는 가벼운 placeholder) ---
+
+  static Future<bool> _assetExists(String path) async {
+    try {
+      await rootBundle.load(path);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<Uint8List> _circleBytes(
+    double diameter,
+    Color fillColor, {
+    IconData? glyph,
+    Color glyphColor = Colors.white,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final radius = diameter / 2;
     final center = Offset(radius, radius);
-    canvas.drawCircle(center, radius - 1.5, Paint()..color = color);
+    canvas.drawCircle(center, radius - 1.5, Paint()..color = fillColor);
     canvas.drawCircle(
       center,
       radius - 1.5,
@@ -63,15 +104,167 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
+    if (glyph != null) {
+      final painter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(glyph.codePoint),
+          style: TextStyle(
+            fontSize: diameter * 0.5,
+            fontFamily: glyph.fontFamily,
+            package: glyph.fontPackage,
+            color: glyphColor,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      painter.paint(canvas, Offset(radius - painter.width / 2, radius - painter.height / 2));
+    }
     final picture = recorder.endRecording();
     final image = await picture.toImage(diameter.toInt(), diameter.toInt());
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
 
-  Future<PoiStyle> _dotStyle(Color color, {double diameter = 32}) async {
-    final bytes = await _dotIconBytes(color, diameter);
-    return PoiStyle(icon: KImage.fromData(bytes, diameter.toInt(), diameter.toInt()));
+  /// 병원 마커 스타일. 마스코트 asset이 있으면 그 이미지를, 없으면 중립
+  /// placeholder 아이콘을 쓴다. 상태(영업/신규 등)와 무관하게 모든 병원이
+  /// 동일한 외형이다 — 지도 위 색으로 상태를 구분하지 않는다(CLAUDE.md 평가
+  /// 금지 원칙, 스프린트 6 지시서 2). 상태·운영기간 같은 사실은 마커 탭 시
+  /// 하단 카드/상세에서 그대로 제공된다.
+  Future<PoiStyle> _buildHospitalStyle() async {
+    const size = 44.0;
+    final hasAsset = await _assetExists(_markerAssetPath);
+    final icon = hasAsset
+        ? KImage.fromAsset(_markerAssetPath, size.toInt(), size.toInt())
+        : KImage.fromData(
+            await _circleBytes(size, AppColors.primarySoft, glyph: Icons.pets, glyphColor: AppColors.primaryDark),
+            size.toInt(),
+            size.toInt(),
+          );
+    final style = PoiStyle(icon: icon, textStyle: const []);
+    // 일정 줌 레벨 이상으로 확대했을 때만 병원 이름 라벨을 노출한다(겹침 방지,
+    // 스프린트 6 지시서 1).
+    style.addStyle(
+      zoomLevel: _labelZoomThreshold,
+      icon: icon,
+      textStyle: const [
+        PoiTextStyle(size: 28, color: Colors.black, stroke: 3, strokeColor: Colors.white),
+      ],
+    );
+    return style;
+  }
+
+  Future<PoiStyle> _buildClusterStyle() async {
+    const size = 48.0;
+    final bytes = await _circleBytes(size, AppColors.primary);
+    return PoiStyle(
+      icon: KImage.fromData(bytes, size.toInt(), size.toInt()),
+      textStyle: const [PoiTextStyle(size: 26, color: Colors.white)],
+    );
+  }
+
+  Future<PoiStyle> _buildMyLocationStyle() async {
+    const size = 28.0;
+    final bytes = await _circleBytes(size, const Color(0xFF4285F4));
+    return PoiStyle(icon: KImage.fromData(bytes, size.toInt(), size.toInt()));
+  }
+
+  bool _isRenderingMarkers = false;
+
+  /// 클러스터 재계산 + 마커 다시 그리기. `onCameraMoveEnd`/지역 변경 등
+  /// 여러 경로에서 겹쳐 호출될 수 있어 재진입 가드를 둔다(겹치면 add/remove
+  /// 순서가 꼬여 중복 id 오류가 날 수 있음).
+  Future<void> _renderMarkers() async {
+    if (_isRenderingMarkers) return;
+    _isRenderingMarkers = true;
+    try {
+      final controller = _controller;
+      final hospitalStyle = _hospitalStyle;
+      final clusterStyle = _clusterStyle;
+      if (controller == null || hospitalStyle == null || clusterStyle == null) return;
+
+      // 겹치는 id로 인한 등록 실패를 피하기 위해 기존 마커를 먼저 지운 뒤 다시
+      // 그린다.
+      for (final poi in _renderedPois) {
+        await controller.labelLayer.removePoi(poi);
+      }
+      _renderedPois = const [];
+
+      final groups = clusterHospitals(
+        _markerCandidates,
+        _currentZoom,
+        clusterDisabledZoom: _clusterDisabledZoom,
+      );
+      final newPois = await Future.wait(groups.map((group) {
+        if (!group.isCluster) {
+          final hospital = group.hospitals.first;
+          return controller.labelLayer.addPoi(
+            LatLng(hospital.lat!, hospital.lng!),
+            style: hospitalStyle,
+            id: hospital.id,
+            text: hospital.name,
+            onClick: () => _showHospitalSheet(hospital),
+          );
+        }
+        final center = group.position;
+        final centroid = LatLng(center.lat, center.lng);
+        return controller.labelLayer.addPoi(
+          centroid,
+          style: clusterStyle,
+          text: '${group.hospitals.length}',
+          onClick: () => _onClusterTap(centroid),
+        );
+      }));
+      _renderedPois = newPois;
+    } finally {
+      _isRenderingMarkers = false;
+    }
+  }
+
+  Future<void> _onClusterTap(LatLng centroid) async {
+    final nextZoom = (_currentZoom + 2).clamp(1, 20);
+    await _controller?.moveCamera(
+      CameraUpdate.newCenterPosition(centroid, zoomLevel: nextZoom),
+      animation: const CameraAnimation(300),
+    );
+  }
+
+  // --- 내 위치 ---
+
+  Future<void> _updateMyLocationMarker(LatLng position) async {
+    final controller = _controller;
+    if (controller == null) return;
+    _myLocationStyle ??= await _buildMyLocationStyle();
+    if (_myLocationPoi != null) {
+      await controller.labelLayer.removePoi(_myLocationPoi!);
+      _myLocationPoi = null;
+    }
+    _myLocationPoi = await controller.labelLayer.addPoi(
+      position,
+      style: _myLocationStyle!,
+      id: _myLocationPoiId,
+    );
+  }
+
+  Future<void> _onMyLocationTap() async {
+    var location = ref.read(locationProvider).value;
+    if (location == null) {
+      await ref.read(locationProvider.notifier).requestAndFetch();
+      location = ref.read(locationProvider).value;
+    }
+    if (location == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('위치를 확인할 수 없습니다. 위치 권한을 확인해주세요.')),
+        );
+      }
+      return;
+    }
+    final target = LatLng(location.latitude, location.longitude);
+    await _updateMyLocationMarker(target);
+    await _controller?.moveCamera(
+      CameraUpdate.newCenterPosition(target, zoomLevel: 16),
+      animation: const CameraAnimation(300),
+    );
   }
 
   void _showHospitalSheet(Hospital hospital) {
@@ -158,6 +351,14 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
       return const _MapStub();
     }
 
+    // 위치가 나중에(맵이 이미 뜬 뒤) 확인되는 경우에도 내 위치 마커를 갱신한다.
+    ref.listen<AsyncValue<Position?>>(locationProvider, (previous, next) {
+      final position = next.value;
+      if (position != null) {
+        _updateMyLocationMarker(LatLng(position.latitude, position.longitude));
+      }
+    });
+
     final repo = ref.watch(repositoryProvider);
     final location = ref.watch(locationProvider).value;
     final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
@@ -179,39 +380,52 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
       ).take(_markerCap).toList();
     }
 
+    _markerCandidates = markerHospitals;
+    if (_controller != null && _lastRenderedRegion != null && _lastRenderedRegion != region) {
+      // 지도가 이미 떠 있는 상태에서 지역이 바뀌면 마커를 다시 그린다.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _renderMarkers());
+    }
+    _lastRenderedRegion = region;
+
     final initialTarget = location != null
         ? LatLng(location.latitude, location.longitude)
         : _centroidOrDefault(markerHospitals);
+    final initialZoom = location != null ? 15 : 12;
 
     return Scaffold(
       appBar: AppBar(title: const Text('주변 병원')),
-      body: KakaoMap(
-        option: KakaoMapOption(
-          position: initialTarget,
-          zoomLevel: location != null ? 15 : 12,
-        ),
-        onMapReady: (controller) async {
-          final openStyle = await _dotStyle(AppColors.open);
-          final newStyle = await _dotStyle(AppColors.neutral);
-          final unknownStyle = await _dotStyle(AppColors.neutral.withValues(alpha: 0.45));
-
-          await Future.wait(markerHospitals.map((hospital) {
-            final style = hospital.status == HospitalStatus.unknown
-                ? unknownStyle
-                : hospital.operatingPeriodCategory == OperatingPeriodCategory.newHospital
-                    ? newStyle
-                    : openStyle;
-            return controller.labelLayer.addPoi(
-              LatLng(hospital.lat!, hospital.lng!),
-              style: style,
-              id: hospital.id,
-              onClick: () => _showHospitalSheet(hospital),
-            );
-          }));
-        },
-        onMapError: (error) {
-          if (mounted) setState(() => _mapFailed = true);
-        },
+      body: Stack(
+        children: [
+          KakaoMap(
+            option: KakaoMapOption(position: initialTarget, zoomLevel: initialZoom),
+            onMapReady: (controller) async {
+              _controller = controller;
+              _currentZoom = initialZoom;
+              _hospitalStyle = await _buildHospitalStyle();
+              _clusterStyle = await _buildClusterStyle();
+              await _renderMarkers();
+              if (location != null) {
+                await _updateMyLocationMarker(LatLng(location.latitude, location.longitude));
+              }
+            },
+            onCameraMoveEnd: (position, gestureType) {
+              _currentZoom = position.zoomLevel;
+              _renderMarkers();
+            },
+            onMapError: (error) {
+              if (mounted) setState(() => _mapFailed = true);
+            },
+          ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton(
+              heroTag: 'nearby_my_location_fab',
+              onPressed: _onMyLocationTap,
+              child: const Icon(Icons.my_location),
+            ),
+          ),
+        ],
       ),
     );
   }
