@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -28,6 +29,13 @@ import 'detail_screen.dart';
 /// 이미지로 자동 교체된다(`_assetExists`가 성공하기 시작하므로).
 const String _markerAssetPath = 'assets/mascot/marker.png';
 
+/// 마스코트 "장구름"의 '내 위치' 전용 마커 자리. 병원 마커(`_markerAssetPath`)와
+/// 경로를 분리해 두어, 이 이미지만 따로 준비되어도 코드 변경 없이 교체된다.
+/// 내 위치는 지도에 하나뿐이고 의미(병원이 아니라 "나")가 다르므로, 실제
+/// 이미지가 없는 동안에도 병원 마커와는 다른 후광(halo) placeholder를 쓴다
+/// (스프린트 7 지시서 문제 1).
+const String _myLocationAssetPath = 'assets/mascot/my_location.png';
+
 /// 서울시청 — 위치 권한도, 선택 지역에 좌표 있는 병원도 없을 때의 최종 기본
 /// 지도 중심.
 const LatLng _defaultCenter = LatLng(37.5665, 126.9780);
@@ -39,10 +47,15 @@ const int _markerCap = 300;
 const String _myLocationPoiId = '__my_location__';
 
 /// 이 줌 레벨 이상에서만 개별 마커에 병원 이름 라벨을 보여준다(겹침 방지).
-const int _labelZoomThreshold = 16;
+/// [_clusterDisabledZoom]과 같은 값으로 맞춰, 개별 마커가 보이기 시작하는
+/// 순간 이름도 함께 보이도록 한다(스프린트 7 지시서 문제 3).
+const int _labelZoomThreshold = 14;
 
-/// 이 줌 레벨 이상에서는 클러스터링 없이 모두 개별 마커로 표시한다.
-const int _clusterDisabledZoom = 17;
+/// 이 줌 레벨 이상에서는 클러스터링 없이 모두 개별 마커로 표시한다. 기존
+/// 값(17)이 지나치게 높아 "아주 많이 확대해야만" 개별 병원이 보였던 문제를
+/// 고쳐, 기본 시작 줌(15)보다 낮춰 적당한 확대에서 개별 마커가 보이게
+/// 한다(스프린트 7 지시서 문제 3).
+const int _clusterDisabledZoom = 14;
 
 class NearbyMapScreen extends ConsumerStatefulWidget {
   const NearbyMapScreen({super.key});
@@ -162,19 +175,79 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     );
   }
 
+  /// '내 위치' 마커 스타일. 표준 파란 점 대신 마스코트 자리를 쓴다 — 실제
+  /// 장구름 이미지가 없는 동안에도 병원 마커와 헷갈리지 않도록 후광이 있는
+  /// 전용 placeholder로 표시한다(스프린트 7 지시서 문제 1).
   Future<PoiStyle> _buildMyLocationStyle() async {
-    const size = 28.0;
-    final bytes = await _circleBytes(size, const Color(0xFF4285F4));
-    return PoiStyle(icon: KImage.fromData(bytes, size.toInt(), size.toInt()));
+    const size = 56.0;
+    final hasAsset = await _assetExists(_myLocationAssetPath);
+    final icon = hasAsset
+        ? KImage.fromAsset(_myLocationAssetPath, size.toInt(), size.toInt())
+        : KImage.fromData(
+            await _myLocationHaloBytes(size),
+            size.toInt(),
+            size.toInt(),
+          );
+    return PoiStyle(icon: icon);
+  }
+
+  /// 실제 마스코트 이미지가 없을 때만 쓰는 '내 위치' placeholder. 병원
+  /// 마커(`_circleBytes`)와 달리 바깥에 반투명 후광을 둘러, 지도 위에 하나뿐인
+  /// 내 위치 지점임을 병원 마커와 한눈에 구분할 수 있게 한다. 색은 상태·신뢰도
+  /// 표현이 아니라 순수한 시각적 구분 용도다(CLAUDE.md 중립 원칙 유지).
+  static Future<Uint8List> _myLocationHaloBytes(double diameter) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final center = Offset(diameter / 2, diameter / 2);
+    canvas.drawCircle(center, diameter / 2, Paint()..color = AppColors.primary.withValues(alpha: 0.20));
+    final innerRadius = diameter * 0.34;
+    canvas.drawCircle(center, innerRadius, Paint()..color = AppColors.primary);
+    canvas.drawCircle(
+      center,
+      innerRadius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+    final painter = TextPainter(
+      text: TextSpan(
+        text: String.fromCharCode(Icons.pets.codePoint),
+        style: TextStyle(
+          fontSize: innerRadius,
+          fontFamily: Icons.pets.fontFamily,
+          package: Icons.pets.fontPackage,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, Offset(center.dx - painter.width / 2, center.dy - painter.height / 2));
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(diameter.toInt(), diameter.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   bool _isRenderingMarkers = false;
 
+  /// 렌더링 도중 새 요청(줌 변경 등)이 들어오면 무시하지 않고 기억해 뒀다가,
+  /// 현재 렌더링이 끝난 직후 한 번 더 실행한다 — 빠른 핀치줌처럼 짧은
+  /// 시간에 연속으로 요청이 들어와도 마지막 상태가 반드시 반영되게 하기
+  /// 위함이다(스프린트 7 지시서 문제 2: 예전엔 겹치면 그냥 버려져 특정 줌
+  /// 구간에서 마커가 갱신되지 않고 비어 보일 수 있었다).
+  bool _renderPending = false;
+
   /// 클러스터 재계산 + 마커 다시 그리기. `onCameraMoveEnd`/지역 변경 등
   /// 여러 경로에서 겹쳐 호출될 수 있어 재진입 가드를 둔다(겹치면 add/remove
-  /// 순서가 꼬여 중복 id 오류가 날 수 있음).
+  /// 순서가 꼬여 중복 id 오류가 날 수 있음). 개별 POI 하나의 제거/추가가
+  /// 실패해도(예: SDK 쪽에서 이미 사라진 POI) 나머지는 계속 그려, 하나의
+  /// 오류로 지도 전체가 빈 채로 남지 않게 한다.
   Future<void> _renderMarkers() async {
-    if (_isRenderingMarkers) return;
+    if (_isRenderingMarkers) {
+      _renderPending = true;
+      return;
+    }
     _isRenderingMarkers = true;
     try {
       final controller = _controller;
@@ -183,9 +256,14 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
       if (controller == null || hospitalStyle == null || clusterStyle == null) return;
 
       // 겹치는 id로 인한 등록 실패를 피하기 위해 기존 마커를 먼저 지운 뒤 다시
-      // 그린다.
+      // 그린다. 개별 제거 실패는 무시하고 계속 진행한다(하나 때문에 전체
+      // 갱신이 중단되지 않도록).
       for (final poi in _renderedPois) {
-        await controller.labelLayer.removePoi(poi);
+        try {
+          await controller.labelLayer.removePoi(poi);
+        } catch (_) {
+          // 이미 사라졌거나 일시적 오류 — 다음 마커 제거를 계속 진행한다.
+        }
       }
       _renderedPois = const [];
 
@@ -194,29 +272,39 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
         _currentZoom,
         clusterDisabledZoom: _clusterDisabledZoom,
       );
-      final newPois = await Future.wait(groups.map((group) {
-        if (!group.isCluster) {
-          final hospital = group.hospitals.first;
-          return controller.labelLayer.addPoi(
-            LatLng(hospital.lat!, hospital.lng!),
-            style: hospitalStyle,
-            id: hospital.id,
-            text: hospital.name,
-            onClick: () => _showHospitalSheet(hospital),
-          );
+      final newPois = <Poi>[];
+      for (final group in groups) {
+        try {
+          if (!group.isCluster) {
+            final hospital = group.hospitals.first;
+            newPois.add(await controller.labelLayer.addPoi(
+              LatLng(hospital.lat!, hospital.lng!),
+              style: hospitalStyle,
+              id: hospital.id,
+              text: hospital.name,
+              onClick: () => _showHospitalSheet(hospital),
+            ));
+          } else {
+            final center = group.position;
+            final centroid = LatLng(center.lat, center.lng);
+            newPois.add(await controller.labelLayer.addPoi(
+              centroid,
+              style: clusterStyle,
+              text: '${group.hospitals.length}',
+              onClick: () => _onClusterTap(centroid),
+            ));
+          }
+        } catch (_) {
+          // 이 그룹 하나만 건너뛰고 나머지 마커/클러스터는 계속 그린다.
         }
-        final center = group.position;
-        final centroid = LatLng(center.lat, center.lng);
-        return controller.labelLayer.addPoi(
-          centroid,
-          style: clusterStyle,
-          text: '${group.hospitals.length}',
-          onClick: () => _onClusterTap(centroid),
-        );
-      }));
+      }
       _renderedPois = newPois;
     } finally {
       _isRenderingMarkers = false;
+      if (_renderPending) {
+        _renderPending = false;
+        unawaited(_renderMarkers());
+      }
     }
   }
 
