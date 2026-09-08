@@ -6,6 +6,7 @@ import '../ads/global_banner_ad.dart';
 import '../models/hospital.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
+import '../providers/designated_provider.dart';
 import '../providers/recent_provider.dart';
 import '../providers/saved_provider.dart';
 import '../theme/app_colors.dart';
@@ -53,6 +54,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
 
     final savedIds = ref.watch(savedHospitalsProvider).value ?? const [];
     final isSaved = savedIds.contains(hospital.id);
+    final designatedIds = ref.watch(designatedHospitalsProvider).value ?? const [];
+    final isDesignated = designatedIds.contains(hospital.id);
     final compareIds = ref.watch(compareListProvider);
     final isInCompare = compareIds.contains(hospital.id);
 
@@ -66,7 +69,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
           children: [
-            _Header(hospital: hospital, isSaved: isSaved, generatedAt: bundle?.generatedAt),
+            _Header(
+              hospital: hospital,
+              isSaved: isSaved,
+              isDesignated: isDesignated,
+              generatedAt: bundle?.generatedAt,
+            ),
             const SizedBox(height: 20),
             _ActionRow(
               hospital: hospital,
@@ -119,9 +127,15 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
 class _Header extends ConsumerWidget {
   final Hospital hospital;
   final bool isSaved;
+  final bool isDesignated;
   final DateTime? generatedAt;
 
-  const _Header({required this.hospital, required this.isSaved, this.generatedAt});
+  const _Header({
+    required this.hospital,
+    required this.isSaved,
+    required this.isDesignated,
+    this.generatedAt,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,6 +151,15 @@ class _Header extends ConsumerWidget {
                 hospital.name,
                 style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
               ),
+            ),
+            IconButton(
+              tooltip: isDesignated ? '지정 병원 해제' : '지정 병원으로 등록',
+              icon: Icon(
+                isDesignated ? Icons.push_pin : Icons.push_pin_outlined,
+                color: isDesignated ? Theme.of(context).colorScheme.primary : null,
+              ),
+              onPressed: () =>
+                  ref.read(designatedHospitalsProvider.notifier).toggle(hospital.id),
             ),
             IconButton(
               icon: Icon(

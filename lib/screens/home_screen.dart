@@ -6,16 +6,19 @@ import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/designated_provider.dart';
 import '../providers/home_section_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/recent_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/saved_provider.dart';
+import '../widgets/designated_hospital_card.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/region_indicator.dart';
 import 'detail_screen.dart';
+import 'health_record_screen.dart';
 import 'info_screens.dart';
 import 'region_select_screen.dart';
 import 'search_result_screen.dart';
@@ -100,10 +103,12 @@ class _HomeBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(repositoryProvider);
     final savedIds = ref.watch(savedHospitalsProvider).value ?? const [];
+    final designatedIds = ref.watch(designatedHospitalsProvider).value ?? const [];
     final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
     final location = ref.watch(locationProvider).value;
 
     final savedHospitals = savedIds.map(repo.byId).whereType<Hospital>().toList();
+    final designatedHospitals = designatedIds.map(repo.byId).whereType<Hospital>().toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -134,6 +139,12 @@ class _HomeBody extends ConsumerWidget {
             ),
           ],
         ),
+        if (designatedHospitals.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _DesignatedHospitalsSection(hospitals: designatedHospitals),
+        ],
+        const SizedBox(height: 20),
+        const _HealthRecordEntryCard(),
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
@@ -331,6 +342,80 @@ class _TabChipRow extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+/// 홈 상단 "지정 병원" 섹션 — 사용자가 지정한 단골 병원을 카드로 보여주고
+/// 카드에서 바로 전화·길찾기·상세로 이동할 수 있다(스프린트 8 지시서 1).
+/// 영업시간·실시간 영업여부는 표시하지 않는다(데이터 없음, 추정 금지).
+class _DesignatedHospitalsSection extends StatelessWidget {
+  final List<Hospital> hospitals;
+
+  const _DesignatedHospitalsSection({required this.hospitals});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '지정 병원',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 10),
+        ...hospitals.map(
+          (hospital) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: DesignatedHospitalCard(
+              hospital: hospital,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DetailScreen(hospitalId: hospital.id)),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "우리 아이"(반려동물 건강기록) 진입점. 하단 탭을 늘리지 않고 홈 안의
+/// 카드 하나로 처리한다 — CLAUDE.md의 하단 탭 3개 원칙과 "정보구조 과밀
+/// 주의"(스프린트 8 지시서 2)를 함께 지키기 위함.
+class _HealthRecordEntryCard extends StatelessWidget {
+  const _HealthRecordEntryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const HealthRecordScreen()),
+        ),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(Icons.pets_outlined),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('우리 아이 건강기록', style: TextStyle(fontWeight: FontWeight.w700)),
+                    Text('진료 기록과 몸무게를 기기에 남겨보세요', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
       ),
     );
   }
