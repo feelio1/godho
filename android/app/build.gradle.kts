@@ -27,6 +27,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications(zonedSchedule)가 요구함 — 없으면 릴리스
+        // 빌드가 :app:checkReleaseAarMetadata에서 실패한다.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -70,4 +73,10 @@ dependencies {
     // to — the likely root cause of the WorkDatabase creation crash this
     // works around (see AndroidManifest.xml and MainApplication.kt).
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+
+    // flutter_local_notifications requires core library desugaring to be
+    // enabled (its zonedSchedule implementation uses java.time APIs) — see
+    // isCoreLibraryDesugaringEnabled above. Version per the plugin's own
+    // setup docs.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
