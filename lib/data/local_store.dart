@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../models/region_filter.dart';
@@ -19,6 +20,7 @@ class LocalStore {
   static const _designatedKey = 'designated_hospital_ids';
   static const _petsKey = 'pets_json_v1';
   static const _medicalRecordsKey = 'medical_records_json_v1';
+  static const _appointmentsKey = 'appointments_json_v1';
 
   const LocalStore();
 
@@ -127,6 +129,25 @@ class LocalStore {
     await prefs.setString(
       _medicalRecordsKey,
       jsonEncode(records.map((r) => r.toJson()).toList()),
+    );
+  }
+
+  // --- 진료 예약 + 알림 (스프린트 9) ---
+  // 같은 "JSON 배열 문자열 하나" 패턴을 그대로 따른다.
+
+  Future<List<Appointment>> loadAppointments() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_appointmentsKey);
+    if (raw == null) return const [];
+    final list = jsonDecode(raw) as List<dynamic>;
+    return list.map((e) => Appointment.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> saveAppointments(List<Appointment> appointments) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _appointmentsKey,
+      jsonEncode(appointments.map((a) => a.toJson()).toList()),
     );
   }
 }

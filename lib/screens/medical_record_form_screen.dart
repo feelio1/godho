@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -6,18 +5,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../models/hospital.dart';
 import '../models/medical_record.dart';
-import '../providers/bundle_provider.dart';
 import '../providers/medical_record_provider.dart';
-import '../theme/app_colors.dart';
+import '../widgets/hospital_picker_field.dart';
+import '../widgets/photo_attach_field.dart';
 
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
 
-/// 진료/방문 기록 추가·수정 폼(스프린트 8 지시서 2). 병원은 우리 DB에서
-/// 검색해 고르거나 직접 입력할 수 있다. 몸무게·진료비는 기록으로만 남기고
-/// 판정·평가 문구는 어디에도 붙이지 않는다(건강·안전 원칙).
+/// 진료/방문 기록 추가·수정 폼(스프린트 8 지시서 2, 스프린트 9에서 필드
+/// 라벨·사진 첨부 UI 개선). 병원은 우리 DB에서 검색해 고르거나 직접 입력할
+/// 수 있다. 몸무게·진료비는 기록으로만 남기고 판정·평가 문구는 어디에도
+/// 붙이지 않는다(건강·안전 원칙).
 class MedicalRecordFormScreen extends ConsumerStatefulWidget {
   final String petId;
   final MedicalRecord? existing;
@@ -89,14 +88,6 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     }
   }
 
-  void _selectHospital(Hospital hospital) {
-    setState(() {
-      _selectedHospitalId = hospital.id;
-      _hospitalController.text = hospital.name;
-      _showSuggestions = false;
-    });
-  }
-
   void _save() {
     final hospitalName = _hospitalController.text.trim();
     if (hospitalName.isEmpty) {
@@ -132,12 +123,6 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
 
   @override
   Widget build(BuildContext context) {
-    final repo = ref.watch(repositoryProvider);
-    final query = _hospitalController.text.trim();
-    final suggestions = _showSuggestions && query.isNotEmpty
-        ? repo.search(query).take(6).toList()
-        : const <Hospital>[];
-
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null ? '진료 기록 추가' : '진료 기록 수정'),
@@ -157,53 +142,23 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               trailing: const Icon(Icons.calendar_today_outlined),
               onTap: _pickDate,
             ),
-            const SizedBox(height: 8),
-            TextField(
+            const SizedBox(height: 12),
+            HospitalPickerField(
               controller: _hospitalController,
-              decoration: InputDecoration(
-                labelText: '병원 (검색해서 선택 또는 직접 입력)',
-                border: const OutlineInputBorder(),
-                suffixIcon: _selectedHospitalId != null
-                    ? IconButton(
-                        icon: const Icon(Icons.close),
-                        tooltip: '선택 해제하고 직접 입력',
-                        onPressed: () => setState(() => _selectedHospitalId = null),
-                      )
-                    : null,
-              ),
-              onChanged: (_) => setState(() {
+              selectedHospitalId: _selectedHospitalId,
+              showSuggestions: _showSuggestions,
+              onTextChanged: (_) => setState(() {
                 _selectedHospitalId = null;
                 _showSuggestions = true;
               }),
-              onTap: () => setState(() => _showSuggestions = true),
+              onHospitalSelected: (h) => setState(() {
+                _selectedHospitalId = h.id;
+                _hospitalController.text = h.name;
+                _showSuggestions = false;
+              }),
+              onSelectionCleared: () => setState(() => _selectedHospitalId = null),
+              onFieldTapped: () => setState(() => _showSuggestions = true),
             ),
-            if (_selectedHospitalId != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '우리 DB에서 선택된 병원입니다',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.primary),
-                ),
-              ),
-            if (suggestions.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: suggestions
-                      .map((h) => ListTile(
-                            dense: true,
-                            title: Text(h.name),
-                            subtitle: Text(h.roadAddr, overflow: TextOverflow.ellipsis),
-                            onTap: () => _selectHospital(h),
-                          ))
-                      .toList(),
-                ),
-              ),
             const SizedBox(height: 16),
             TextField(
               controller: _memoController,
@@ -241,25 +196,10 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                if (_photoPath != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(File(_photoPath!), width: 64, height: 64, fit: BoxFit.cover),
-                  ),
-                if (_photoPath != null) const SizedBox(width: 12),
-                TextButton.icon(
-                  onPressed: _pickPhoto,
-                  icon: const Icon(Icons.photo_outlined),
-                  label: Text(_photoPath == null ? '사진 추가 (선택)' : '사진 변경'),
-                ),
-                if (_photoPath != null)
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => setState(() => _photoPath = null),
-                  ),
-              ],
+            PhotoAttachField(
+              photoPath: _photoPath,
+              onPick: _pickPhoto,
+              onClear: () => setState(() => _photoPath = null),
             ),
             const SizedBox(height: 24),
             FilledButton(onPressed: _save, child: const Text('저장')),

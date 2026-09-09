@@ -10,11 +10,13 @@ import '../providers/nav_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
 import '../widgets/mascot_message.dart';
+import 'health_record_screen.dart';
 import 'home_screen.dart';
 import 'nearby_map_screen.dart';
 import 'saved_screen.dart';
 
-/// Root shell holding the 3 bottom tabs: 홈 / 주변 병원 / 저장.
+/// Root shell holding the 4 bottom tabs: 홈 / 주변 병원 / 진료기록 / 저장
+/// (스프린트 9 지시서 1 — 건강기록을 홈 진입 카드에서 탭으로 승격).
 ///
 /// Every tab reads from [repositoryProvider], which requires the bundle to
 /// already be loaded — so the whole shell waits for it here rather than
@@ -80,14 +82,15 @@ class _MainShellBody extends ConsumerWidget {
         children: const [
           HomeScreen(),
           NearbyMapScreen(),
+          HealthRecordScreen(),
           SavedScreen(),
         ],
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 하단 탭 바 위에 전역 배너 광고 (스프린트 5 지시서 2). 홈/주변
-          // 병원/저장 세 탭 모두 이 한 곳에서 커버된다.
+          // 하단 탭 바 위에 전역 배너 광고 (스프린트 5 지시서 2). 네 탭 모두
+          // 이 한 곳에서 커버된다.
           const GlobalBannerAd(),
           NavigationBar(
             selectedIndex: selectedIndex,
@@ -96,6 +99,7 @@ class _MainShellBody extends ConsumerWidget {
             destinations: const [
               NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
               NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변 병원'),
+              NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
               NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
             ],
           ),

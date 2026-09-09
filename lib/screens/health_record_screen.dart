@@ -4,19 +4,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
+import '../providers/appointment_provider.dart';
 import '../providers/medical_record_provider.dart';
 import '../providers/pet_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mascot_message.dart';
+import 'appointment_form_screen.dart';
 import 'medical_record_form_screen.dart';
 import 'pet_profile_form_screen.dart';
 
-/// "우리 아이" 반려동물 건강기록 — 로컬 최소 버전(스프린트 8 지시서 2).
-/// 하단 탭이 아니라 홈의 진입점 카드에서 들어오는 별도 화면이다(CLAUDE.md
-/// 하단 탭 3개 원칙 유지). 지금은 반려동물 1마리만 다루지만, 데이터 구조는
-/// 여러 마리를 담을 수 있다.
+/// "진료기록" 탭의 메인 화면 — 반려동물 건강기록(스프린트 8) + 다가오는
+/// 예약(스프린트 9). 스프린트 8에서는 홈의 진입 카드로만 들어올 수 있어
+/// 찾기 어렵다는 문제가 있었고, 스프린트 9에서 하단 탭으로 승격했다(하단
+/// 탭 4개: 홈/주변 병원/진료기록/저장). 지금은 반려동물 1마리만 다루지만,
+/// 데이터 구조는 여러 마리를 담을 수 있다.
 class HealthRecordScreen extends ConsumerWidget {
   const HealthRecordScreen({super.key});
 
@@ -25,7 +29,7 @@ class HealthRecordScreen extends ConsumerWidget {
     final petsAsync = ref.watch(petsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('우리 아이')),
+      appBar: AppBar(title: const Text('진료기록')),
       body: petsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),
@@ -64,6 +68,7 @@ class _PetHealthBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final records = ref.watch(recordsForPetProvider(pet.id));
+    final upcoming = ref.watch(upcomingAppointmentsForPetProvider(pet.id));
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -91,6 +96,41 @@ class _PetHealthBody extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         _SummaryRow(records: records),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Text(
+              '다가오는 예약',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => AppointmentFormScreen(petId: pet.id)),
+              ),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('예약 추가'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (upcoming.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: Text(
+                '다가오는 예약이 없습니다',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          )
+        else
+          ...upcoming.map(
+            (a) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _AppointmentTile(appointment: a, petId: pet.id),
+            ),
+          ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -236,6 +276,75 @@ class _SummaryItem extends StatelessWidget {
           const SizedBox(height: 2),
           Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.neutral)),
         ],
+      ),
+    );
+  }
+}
+
+/// "다가오는 예약" 한 건 — 병원·날짜시간·진료 내용과, 설정해 둔 알림
+/// 시각들을 칩으로 보여준다. 판정 문구는 없다(건강·안전 원칙).
+class _AppointmentTile extends StatelessWidget {
+  final Appointment appointment;
+  final String petId;
+
+  const _AppointmentTile({required this.appointment, required this.petId});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColors.primarySoft,
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => AppointmentFormScreen(petId: petId, existing: appointment),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    DateFormat('yyyy.MM.dd HH:mm').format(appointment.dateTime),
+                    style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                appointment.hospitalName,
+                style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (appointment.reason.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(appointment.reason, style: textTheme.bodyMedium),
+              ],
+              if (appointment.reminders.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: appointment.reminders
+                      .map((r) => Chip(
+                            avatar: const Icon(Icons.notifications_outlined, size: 14),
+                            label: Text(r.label, style: const TextStyle(fontSize: 11)),
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: EdgeInsets.zero,
+                          ))
+                      .toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

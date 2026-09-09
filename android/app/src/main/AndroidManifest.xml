@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- 카카오맵 SDK 요구사항 (OpenGL ES 2.0 이상). -->
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+    <!-- 진료 예약 알림(Android 13+). 예약에 알림을 처음 추가하는 시점에만
+         런타임으로 요청한다 — 앱 시작 시 강제 요청 금지(nearby_map과 같은
+         원칙). 거부되어도 앱은 정상 동작하고 알림만 비활성화된다. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="petcliniccheck"
         android:name=".MainApplication"

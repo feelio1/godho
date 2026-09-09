@@ -18,7 +18,6 @@ import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/region_indicator.dart';
 import 'detail_screen.dart';
-import 'health_record_screen.dart';
 import 'info_screens.dart';
 import 'region_select_screen.dart';
 import 'search_result_screen.dart';
@@ -143,9 +142,7 @@ class _HomeBody extends ConsumerWidget {
           const SizedBox(height: 20),
           _DesignatedHospitalsSection(hospitals: designatedHospitals),
         ],
-        const SizedBox(height: 20),
-        const _HealthRecordEntryCard(),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
           child: RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
@@ -377,46 +374,6 @@ class _DesignatedHospitalsSection extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// "우리 아이"(반려동물 건강기록) 진입점. 하단 탭을 늘리지 않고 홈 안의
-/// 카드 하나로 처리한다 — CLAUDE.md의 하단 탭 3개 원칙과 "정보구조 과밀
-/// 주의"(스프린트 8 지시서 2)를 함께 지키기 위함.
-class _HealthRecordEntryCard extends StatelessWidget {
-  const _HealthRecordEntryCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const HealthRecordScreen()),
-        ),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(Icons.pets_outlined),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('우리 아이 건강기록', style: TextStyle(fontWeight: FontWeight.w700)),
-                    Text('진료 기록과 몸무게를 기기에 남겨보세요', style: TextStyle(fontSize: 12)),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

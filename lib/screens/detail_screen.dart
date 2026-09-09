@@ -153,15 +153,7 @@ class _Header extends ConsumerWidget {
               ),
             ),
             IconButton(
-              tooltip: isDesignated ? '지정 병원 해제' : '지정 병원으로 등록',
-              icon: Icon(
-                isDesignated ? Icons.push_pin : Icons.push_pin_outlined,
-                color: isDesignated ? Theme.of(context).colorScheme.primary : null,
-              ),
-              onPressed: () =>
-                  ref.read(designatedHospitalsProvider.notifier).toggle(hospital.id),
-            ),
-            IconButton(
+              tooltip: isSaved ? '저장 해제' : '저장',
               icon: Icon(
                 isSaved ? Icons.favorite : Icons.favorite_border,
                 color: isSaved ? Theme.of(context).colorScheme.primary : null,
@@ -171,6 +163,21 @@ class _Header extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: 4),
+        // "저장(♡)"과는 별개인 지정(단골) 병원 등록. 아이콘만으로는 잘 안
+        // 보인다는 스프린트 9 피드백(지시서 2)에 따라, 글자 라벨이 있는
+        // 칩으로 확실히 눈에 띄게 하고 눌렀을 때 스낵바로 확인해준다.
+        FilterChip(
+          avatar: Icon(
+            isDesignated ? Icons.push_pin : Icons.push_pin_outlined,
+            size: 18,
+            color: isDesignated ? Theme.of(context).colorScheme.onPrimaryContainer : null,
+          ),
+          label: Text(isDesignated ? '지정 병원' : '지정 병원으로 등록'),
+          selected: isDesignated,
+          onSelected: (_) => _toggleDesignated(context, ref),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             StatusBadge(status: hospital.status),
@@ -186,6 +193,15 @@ class _Header extends ConsumerWidget {
           style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
         ),
       ],
+    );
+  }
+
+  void _toggleDesignated(BuildContext context, WidgetRef ref) {
+    ref.read(designatedHospitalsProvider.notifier).toggle(hospital.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isDesignated ? '지정 병원에서 해제했습니다.' : '지정 병원으로 등록했습니다. 홈 상단에서 바로 볼 수 있어요.'),
+      ),
     );
   }
 }
