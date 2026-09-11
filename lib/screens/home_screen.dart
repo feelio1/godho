@@ -14,6 +14,7 @@ import '../providers/recent_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/saved_provider.dart';
 import '../widgets/designated_hospital_card.dart';
+import '../widgets/home_banner.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/region_indicator.dart';
@@ -30,7 +31,14 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('펫병원체크'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            MascotImage(size: 28),
+            SizedBox(width: 8),
+            Text('펫병원체크'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
@@ -112,42 +120,6 @@ class _HomeBody extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const MascotImage(size: 44),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '안녕하세요, 장구름이에요',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  Text(
-                    '동물병원 방문 전, 공개된 정보를 확인해보세요',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        if (designatedHospitals.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _DesignatedHospitalsSection(hospitals: designatedHospitals),
-        ],
-        const SizedBox(height: 16),
-        Align(
-          alignment: Alignment.centerRight,
-          child: RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
-        ),
-        const SizedBox(height: 16),
         InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => Navigator.of(context).push(
@@ -170,6 +142,17 @@ class _HomeBody extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 16),
+        const HomeBanner(),
+        if (designatedHospitals.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _DesignatedHospitalsSection(hospitals: designatedHospitals),
+        ],
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerRight,
+          child: RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
         ),
         const SizedBox(height: 12),
         FilledButton.tonalIcon(

@@ -11,12 +11,17 @@ class MascotMessage extends StatelessWidget {
   final double mascotSize;
   final Widget? trailing;
 
+  /// 검색 결과 없음(empty_search.png), 빈 진료기록/저장(empty_record.png)
+  /// 처럼 상황에 맞는 장구름 그림으로 바꿀 수 있다. 기본은 janggureum.png.
+  final String assetPath;
+
   const MascotMessage({
     super.key,
     required this.title,
     this.subtitle,
     this.mascotSize = 72,
     this.trailing,
+    this.assetPath = MascotImage.defaultAssetPath,
   });
 
   @override
@@ -25,7 +30,7 @@ class MascotMessage extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        MascotImage(size: mascotSize),
+        MascotImage(size: mascotSize, assetPath: assetPath),
         const SizedBox(height: 16),
         Text(
           title,

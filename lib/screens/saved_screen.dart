@@ -7,6 +7,7 @@ import '../providers/bundle_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/saved_provider.dart';
 import '../widgets/hospital_card.dart';
+import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import 'detail_screen.dart';
 
@@ -34,6 +35,7 @@ class SavedScreen extends ConsumerWidget {
                 child: MascotMessage(
                   title: '저장한 병원이 없습니다',
                   subtitle: '관심 있는 병원을 저장하면 여기서 바로 확인할 수 있어요',
+                  assetPath: MascotImage.emptyRecordAssetPath,
                 ),
               ),
             );

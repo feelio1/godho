@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/hospital.dart';
+import 'hospital_thumbnail.dart';
 import 'status_badge.dart';
 
 class HospitalCard extends StatelessWidget {
@@ -39,33 +40,57 @@ class HospitalCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const HospitalThumbnail(),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      hospital.name,
-                      style: textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                hospital.name,
+                                style: textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            StatusBadge(status: hospital.status),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          hospital.roadAddr,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (hospital.phone != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            hospital.phone!,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  StatusBadge(status: hospital.status),
                 ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                hospital.roadAddr,
-                style: textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
               Wrap(

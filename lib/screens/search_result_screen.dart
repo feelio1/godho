@@ -11,6 +11,7 @@ import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/hospital_card.dart';
+import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/region_indicator.dart';
 import 'detail_screen.dart';
@@ -117,10 +118,12 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
                           ? const MascotMessage(
                               title: '이 지역에는 표시할 병원이 없습니다',
                               subtitle: '지역을 변경하거나 "폐업 병원도 보기"를 켜보세요',
+                              assetPath: MascotImage.emptySearchAssetPath,
                             )
                           : const MascotMessage(
                               title: '검색 결과가 없습니다',
                               subtitle: '다른 이름이나 주소로 다시 검색해보세요',
+                              assetPath: MascotImage.emptySearchAssetPath,
                             ),
                     ),
                   )

@@ -80,14 +80,22 @@ flutter run \
 
 ## 디자인 시스템 · 마스코트
 
-- 모든 색상은 `lib/theme/app_colors.dart` 토큰만 사용합니다 (하드코딩 금지). 화면 스타일은
-  `lib/theme/app_theme.dart`가 만드는 `ThemeData` 하나로 통일되어 있으니, 새 화면은
-  `Theme.of(context)` 값을 그대로 쓰면 됩니다.
-- 마스코트 "장구름"은 `lib/widgets/mascot_image.dart`가 담당합니다. 지금은 실제 이미지가 없어
-  아이콘 placeholder를 보여주고, 나중에 `assets/mascot/janggureum.png`를 추가하고
-  pubspec.yaml에 등록하면 코드 변경 없이 그 이미지로 자동 교체됩니다. 마스코트는 홈 인사말·빈
-  상태·로딩·지도 준비중 화면처럼 친근함이 필요한 자리에만 쓰고, 병원 상세의 팩트카드·타임라인·
-  진료비처럼 신뢰가 중요한 데이터 영역에는 넣지 않습니다.
+- 브랜드 톤은 민트/세이지 그린(`AppColors.primary`) + 따뜻한 회갈색 텍스트(`AppColors.textPrimary`,
+  장구름 캐릭터와 어울리는 배색)입니다. 모든 색상은 `lib/theme/app_colors.dart` 토큰만 사용합니다
+  (하드코딩 금지). 화면 스타일은 `lib/theme/app_theme.dart`가 만드는 `ThemeData` 하나로 통일되어
+  있으니, 새 화면은 `Theme.of(context)` 값을 그대로 쓰면 됩니다.
+- 폐업은 빨강이 아니라 회색(`AppColors.closed`)입니다 — 평가가 아니라 인허가 기록상 사실일
+  뿐이라는 뜻입니다(CLAUDE.md 평가 금지 원칙). 빨강(`AppColors.error`)은 데이터 로드 실패 같은
+  실제 시스템 오류에만 쓰고, 폐업 색과는 완전히 분리된 값입니다.
+- 마스코트 "장구름"은 `lib/widgets/mascot_image.dart`(`MascotImage`)가 담당합니다.
+  `assets/mascot/`에 등록된 장구름 그림 중 상황에 맞는 것을 `assetPath`로 골라 쓸 수 있고
+  (기본은 `janggureum.png`), 이미지가 없으면 조용히 아이콘 placeholder로 대체됩니다. 검색 결과
+  없음은 `empty_search.png`, 진료기록·저장이 비어 있을 때는 `empty_record.png`를 씁니다. 마스코트는
+  홈 배너·빈 상태·로딩·지도 준비중 화면처럼 친근함이 필요한 자리에만 쓰고, 병원 상세의 팩트카드·
+  타임라인·진료비처럼 신뢰가 중요한 데이터 영역에는 넣지 않습니다.
+- 병원 사진은 실제로 수집하지 않습니다(크롤링 금지) — `lib/widgets/hospital_thumbnail.dart`
+  (`HospitalThumbnail`)가 모든 병원에 동일한 `hospital_placeholder.png`를 보여줘, 어떤 병원의
+  사진이 있고 없고로 인상이 갈리지 않게 합니다.
 - 병원 상세의 "예약하기" 버튼은 아직 실제 예약 연동이 없는 자리 예약용입니다. 누르면 특정
   병원과 제휴·거래 관계가 없다는 점을 알리는 안내만 뜹니다.
 

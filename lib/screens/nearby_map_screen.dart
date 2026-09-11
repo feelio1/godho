@@ -19,6 +19,7 @@ import '../providers/location_provider.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../utils/map_clustering.dart';
+import '../widgets/hospital_thumbnail.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
@@ -366,21 +367,35 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const HospitalThumbnail(width: 56, height: 56, borderRadius: 12),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      hospital.name,
-                      style: Theme.of(sheetContext)
-                          .textTheme
-                          .titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                hospital.name,
+                                style: Theme.of(sheetContext)
+                                    .textTheme
+                                    .titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            StatusBadge(status: hospital.status),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(hospital.roadAddr),
+                      ],
                     ),
                   ),
-                  StatusBadge(status: hospital.status),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(hospital.roadAddr),
               const SizedBox(height: 16),
               Row(
                 children: [

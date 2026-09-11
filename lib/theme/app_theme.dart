@@ -21,7 +21,7 @@ class AppTheme {
           onSurface: AppColors.textPrimary,
           surfaceContainerHighest: AppColors.surfaceMutedLight,
           onSurfaceVariant: AppColors.textSecondary,
-          error: AppColors.closed,
+          error: AppColors.error,
         ),
         scaffoldBackground: AppColors.backgroundLight,
       );
@@ -35,7 +35,7 @@ class AppTheme {
           secondary: AppColors.accent,
           surface: AppColors.surfaceDark,
           surfaceContainerHighest: AppColors.surfaceMutedDark,
-          error: AppColors.closed,
+          error: AppColors.error,
         ),
         scaffoldBackground: AppColors.backgroundDark,
       );
@@ -71,12 +71,15 @@ class AppTheme {
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(
-        elevation: 0,
+        // 목업 톤: 또렷한 둥근 카드 + 옅은 그림자(스프린트 10 지시서 1).
+        elevation: 1.5,
+        shadowColor: AppColors.textPrimary.withValues(alpha: 0.12),
+        surfaceTintColor: Colors.transparent,
         color: colorScheme.surface,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.7)),
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.6)),
         ),
       ),
       chipTheme: base.chipTheme.copyWith(

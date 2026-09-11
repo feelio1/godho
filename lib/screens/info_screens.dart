@@ -59,18 +59,26 @@ class GuideScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
+          children: [
+            Center(
+              child: Image.asset(
+                'assets/mascot/logo.png',
+                height: 160,
+                errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
               '펫병원체크는 동물병원을 평가하거나 순위를 매기지 않습니다. '
               '공개된 행정·인허가 정보를 있는 그대로 보여드려, 방문 전 보호자가 스스로 판단할 수 있도록 돕는 팩트체크 앱입니다.',
             ),
-            SizedBox(height: 16),
-            Text(
+            const SizedBox(height: 16),
+            const Text(
               '운영기간이 길다고 해서 더 좋은 병원이라는 뜻은 아니며, 신규 병원이라고 해서 문제가 있다는 뜻도 아닙니다. '
               '데이터가 없는 항목은 추정하지 않고 "확인 불가"로 표시합니다.',
             ),
-            SizedBox(height: 16),
-            Text(
+            const SizedBox(height: 16),
+            const Text(
               '동일 주소에서 여러 인허가 기록이 확인되더라도, 각 기록의 운영자가 동일한 사람인지는 알 수 없습니다.',
             ),
           ],

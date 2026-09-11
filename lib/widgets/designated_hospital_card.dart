@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import '../models/hospital.dart';
 import '../theme/app_colors.dart';
 import '../utils/external_links.dart';
+import 'hospital_thumbnail.dart';
 import 'status_badge.dart';
 
-/// 홈 상단 "지정 병원" 섹션의 카드. 목록에서 바로 전화·길찾기·상세로 갈 수
-/// 있어야 한다는 스프린트 8 지시서 1을 따른다. 영업시간/실시간 영업여부는
-/// 표시하지 않는다(데이터 없음 — 추정 금지) — 대신 상세 화면의 외부 링크로
-/// 안내한다.
+/// 홈 상단 "지정 병원" 섹션의 카드. 목록에서 바로 전화·길찾기로 갈 수
+/// 있어야 한다는 스프린트 8 지시서 1을 따른다(카드를 탭하면 상세로 이동 —
+/// 별도 "상세보기" 버튼은 중복이라 스프린트 10에서 정리). 영업시간/실시간
+/// 영업여부는 표시하지 않는다(데이터 없음 — 추정 금지) — 대신 상세 화면의
+/// 외부 링크로 안내한다.
 class DesignatedHospitalCard extends StatelessWidget {
   final Hospital hospital;
   final VoidCallback onTap;
@@ -24,58 +26,57 @@ class DesignatedHospitalCard extends StatelessWidget {
       elevation: 0,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
+          padding: const EdgeInsets.all(12),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      hospital.name,
-                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              const HospitalThumbnail(width: 56, height: 56, borderRadius: 12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            hospital.name,
+                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        StatusBadge(status: hospital.status),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hospital.roadAddr,
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  StatusBadge(status: hospital.status),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                hospital.roadAddr,
-                style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 10),
-              Row(
+              const SizedBox(width: 8),
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: _MiniAction(
-                      icon: Icons.call_outlined,
-                      label: '전화',
-                      enabled: hospital.phone != null,
-                      onTap: () => ExternalLinks.call(hospital.phone!),
-                    ),
+                  _CircleAction(
+                    icon: Icons.call,
+                    tooltip: '전화',
+                    filled: true,
+                    enabled: hospital.phone != null,
+                    onTap: () => ExternalLinks.call(hospital.phone!),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniAction(
-                      icon: Icons.directions_outlined,
-                      label: '길찾기',
-                      onTap: () => ExternalLinks.openDirections(hospital),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _MiniAction(
-                      icon: Icons.info_outline,
-                      label: '상세보기',
-                      onTap: onTap,
-                    ),
+                  const SizedBox(height: 6),
+                  _CircleAction(
+                    icon: Icons.directions_outlined,
+                    tooltip: '길찾기',
+                    onTap: () => ExternalLinks.openDirections(hospital),
                   ),
                 ],
               ),
@@ -87,35 +88,46 @@ class DesignatedHospitalCard extends StatelessWidget {
   }
 }
 
-class _MiniAction extends StatelessWidget {
+class _CircleAction extends StatelessWidget {
   final IconData icon;
-  final String label;
+  final String tooltip;
   final VoidCallback onTap;
+  final bool filled;
   final bool enabled;
 
-  const _MiniAction({
+  const _CircleAction({
     required this.icon,
-    required this.label,
+    required this.tooltip,
     required this.onTap,
+    this.filled = false,
     this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      onPressed: enabled ? onTap : null,
-      style: OutlinedButton.styleFrom(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 11)),
-        ],
-      ),
-    );
+    final colorScheme = Theme.of(context).colorScheme;
+    return filled
+        ? IconButton.filled(
+            tooltip: tooltip,
+            onPressed: enabled ? onTap : null,
+            icon: Icon(icon, size: 18),
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+              minimumSize: const Size(36, 36),
+              padding: EdgeInsets.zero,
+            ),
+          )
+        : IconButton.outlined(
+            tooltip: tooltip,
+            onPressed: enabled ? onTap : null,
+            icon: Icon(icon, size: 18),
+            style: IconButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+              side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.4)),
+              minimumSize: const Size(36, 36),
+              padding: EdgeInsets.zero,
+            ),
+          );
   }
 }
