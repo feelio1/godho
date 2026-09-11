@@ -156,12 +156,16 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
           );
     final style = PoiStyle(icon: icon, textStyle: const []);
     // 일정 줌 레벨 이상으로 확대했을 때만 병원 이름 라벨을 노출한다(겹침 방지,
-    // 스프린트 6 지시서 1).
+    // 스프린트 6 지시서 1). 라벨은 마커 이미지 아래쪽에 배치하고(textGravity
+    // bottom) padding으로 아이콘과 텍스트 사이에 여백을 둬, 이름이 장구름
+    // 마커 이미지 위에 겹쳐 보이던 문제를 해결한다(스프린트 11 지시서 2).
     style.addStyle(
       zoomLevel: _labelZoomThreshold,
       icon: icon,
+      textGravity: const MapGravity(HorizontalAlign.center, VerticalAlign.bottom),
+      padding: size * 0.28,
       textStyle: const [
-        PoiTextStyle(size: 28, color: Colors.black, stroke: 3, strokeColor: Colors.white),
+        PoiTextStyle(size: 26, color: Colors.black, stroke: 4, strokeColor: Colors.white),
       ],
     );
     return style;

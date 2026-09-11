@@ -388,10 +388,12 @@ class _FactCardGrid extends StatelessWidget {
         note: hospital.operatingPeriodCategory.neutralNote,
       ),
       FactCard(label: '영업상태', value: hospital.status.label),
+      // 상세 안내(지역 시세 준비 중 문구)는 하단 FeeSection 한 곳에서만
+      // 보여준다 — 여기서는 "준비 중" 한 줄 요약만(스프린트 11 지시서 1:
+      // 같은 "준비 중" 안내가 화면에 두 번 나오지 않게).
       const FactCard(
         label: '진료비 정보',
         value: '준비 중',
-        note: '지역 시세 데이터는 다음 업데이트에서 제공될 예정입니다.',
       ),
       FactCard(label: '동일 주소 기록', value: '$recordCount건'),
     ];
