@@ -10,6 +10,12 @@
          런타임으로 요청한다 — 앱 시작 시 강제 요청 금지(nearby_map과 같은
          원칙). 거부되어도 앱은 정상 동작하고 알림만 비활성화된다. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 예약 알림을 지정한 시각에 정확히 울리기 위한 권한(Android 12+).
+         USE_EXACT_ALARM(자동 부여)은 알람·캘린더류 앱 전용으로 스토어 정책상
+         제한이 있어, 사용자가 직접 허용하는 SCHEDULE_EXACT_ALARM을 쓴다 —
+         알림을 처음 설정할 때 NotificationService가 안내·요청하고, 거부되면
+         근사 시각(inexact) 알림으로 자동 대체된다(스프린트 12 지시서 1). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <application
         android:label="petcliniccheck"
         android:name=".MainApplication"

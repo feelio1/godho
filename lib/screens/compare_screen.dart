@@ -226,7 +226,7 @@ class _ActionsRow extends StatelessWidget {
               child: Column(
                 children: [
                   OutlinedButton(
-                    onPressed: h.phone != null ? () => ExternalLinks.call(h.phone!) : null,
+                    onPressed: () => ExternalLinks.call(context, h.phone),
                     child: const Text('전화'),
                   ),
                   const SizedBox(height: 8),

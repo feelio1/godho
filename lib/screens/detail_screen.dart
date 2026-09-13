@@ -231,8 +231,7 @@ class _ActionRow extends StatelessWidget {
           child: _ActionButton(
             icon: Icons.call_outlined,
             label: '전화',
-            enabled: hospital.phone != null,
-            onTap: () => ExternalLinks.call(hospital.phone!),
+            onTap: () => ExternalLinks.call(context, hospital.phone),
           ),
         ),
         const SizedBox(width: 8),
@@ -269,14 +268,12 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool enabled;
   final bool active;
 
   const _ActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.enabled = true,
     this.active = false,
   });
 
@@ -284,7 +281,7 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = active ? Theme.of(context).colorScheme.primary : null;
     return OutlinedButton(
-      onPressed: enabled ? onTap : null,
+      onPressed: onTap,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 12),
         foregroundColor: color,

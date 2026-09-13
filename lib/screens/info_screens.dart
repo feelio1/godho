@@ -2,16 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../notifications/notification_service.dart';
 import '../providers/bundle_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  Future<void> _sendTestNotification(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await NotificationService.instance.sendTestNotification();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? '1분 뒤 테스트 알림이 울립니다. 안 오면 알림 권한·배터리 최적화 설정을 확인해주세요.'
+              : '테스트 알림을 예약하지 못했습니다. 알림 권한을 확인해주세요.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
-      body: const Center(child: Text('설정 항목은 준비 중입니다.')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '예약 알림 테스트',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '진료 예약에 등록한 알림이 실제로 울리는지 확인하고 싶다면, 아래 버튼으로 1분 뒤 '
+                    '테스트 알림을 받아보세요. 알림 권한과 정확한 시각 알림 권한을 이 시점에 함께 확인·'
+                    '요청합니다.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _sendTestNotification(context),
+                      icon: const Icon(Icons.notifications_active_outlined),
+                      label: const Text('1분 뒤 테스트 알림 보내기'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Center(child: Text('그 외 설정 항목은 준비 중입니다.')),
+        ],
+      ),
     );
   }
 }

@@ -69,8 +69,7 @@ class DesignatedHospitalCard extends StatelessWidget {
                     icon: Icons.call,
                     tooltip: '전화',
                     filled: true,
-                    enabled: hospital.phone != null,
-                    onTap: () => ExternalLinks.call(hospital.phone!),
+                    onTap: () => ExternalLinks.call(context, hospital.phone),
                   ),
                   const SizedBox(height: 6),
                   _CircleAction(
@@ -93,14 +92,12 @@ class _CircleAction extends StatelessWidget {
   final String tooltip;
   final VoidCallback onTap;
   final bool filled;
-  final bool enabled;
 
   const _CircleAction({
     required this.icon,
     required this.tooltip,
     required this.onTap,
     this.filled = false,
-    this.enabled = true,
   });
 
   @override
@@ -109,7 +106,7 @@ class _CircleAction extends StatelessWidget {
     return filled
         ? IconButton.filled(
             tooltip: tooltip,
-            onPressed: enabled ? onTap : null,
+            onPressed: onTap,
             icon: Icon(icon, size: 18),
             style: IconButton.styleFrom(
               backgroundColor: colorScheme.primary,
@@ -120,7 +117,7 @@ class _CircleAction extends StatelessWidget {
           )
         : IconButton.outlined(
             tooltip: tooltip,
-            onPressed: enabled ? onTap : null,
+            onPressed: onTap,
             icon: Icon(icon, size: 18),
             style: IconButton.styleFrom(
               foregroundColor: colorScheme.primary,
