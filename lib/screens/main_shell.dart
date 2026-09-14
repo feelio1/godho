@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -51,11 +52,45 @@ class MainShell extends ConsumerWidget {
   }
 }
 
-class _MainShellBody extends ConsumerWidget {
+class _MainShellBody extends ConsumerStatefulWidget {
   const _MainShellBody();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MainShellBody> createState() => _MainShellBodyState();
+}
+
+class _MainShellBodyState extends ConsumerState<_MainShellBody> {
+  static const _exitConfirmWindow = Duration(seconds: 2);
+  DateTime? _lastBackPressAt;
+
+  /// 뒤로가기 처리(스프린트 13 지시서 3): 탭 화면 위에 더 push된 화면이
+  /// 없는(=이 Scaffold가 곧 최상단 라우트인) 상태에서 시스템 뒤로가기를
+  /// 눌렀을 때만 호출된다 — 상세 등 push된 화면 위에서는 그 화면이 먼저
+  /// pop되므로 건드릴 필요가 없다.
+  /// - 홈이 아닌 탭이면: 홈 탭으로 이동(바로 앱 종료 금지).
+  /// - 홈 탭이면: 처음 누르면 "한 번 더 누르면 종료됩니다" 안내, 일정
+  ///   시간 안에 한 번 더 누르면 그때 앱을 종료한다.
+  void _handleBackPress() {
+    final selectedIndex = ref.read(selectedTabProvider);
+    if (selectedIndex != 0) {
+      ref.read(selectedTabProvider.notifier).state = 0;
+      return;
+    }
+
+    final now = DateTime.now();
+    final last = _lastBackPressAt;
+    if (last != null && now.difference(last) < _exitConfirmWindow) {
+      SystemNavigator.pop();
+      return;
+    }
+    _lastBackPressAt = now;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('한 번 더 누르면 종료됩니다'), duration: _exitConfirmWindow),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedTabProvider);
 
     // Watching locationProvider here (via listen) starts its silent,
@@ -76,34 +111,41 @@ class _MainShellBody extends ConsumerWidget {
       }
     });
 
-    return Scaffold(
-      body: IndexedStack(
-        index: selectedIndex,
-        children: const [
-          HomeScreen(),
-          NearbyMapScreen(),
-          HealthRecordScreen(),
-          SavedScreen(),
-        ],
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 하단 탭 바 위에 전역 배너 광고 (스프린트 5 지시서 2). 네 탭 모두
-          // 이 한 곳에서 커버된다.
-          const GlobalBannerAd(),
-          NavigationBar(
-            selectedIndex: selectedIndex,
-            onDestinationSelected: (index) =>
-                ref.read(selectedTabProvider.notifier).state = index,
-            destinations: const [
-              NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-              NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변 병원'),
-              NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
-              NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
-            ],
-          ),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBackPress();
+      },
+      child: Scaffold(
+        body: IndexedStack(
+          index: selectedIndex,
+          children: const [
+            HomeScreen(),
+            NearbyMapScreen(),
+            HealthRecordScreen(),
+            SavedScreen(),
+          ],
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 하단 탭 바 위에 전역 배너 광고 (스프린트 5 지시서 2). 네 탭 모두
+            // 이 한 곳에서 커버된다.
+            const GlobalBannerAd(),
+            NavigationBar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (index) =>
+                  ref.read(selectedTabProvider.notifier).state = index,
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
+                NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변 병원'),
+                NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
+                NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

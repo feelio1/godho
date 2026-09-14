@@ -7,7 +7,6 @@ import '../models/hospital.dart';
 import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/designated_provider.dart';
-import '../providers/home_section_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/recent_provider.dart';
@@ -22,6 +21,15 @@ import 'detail_screen.dart';
 import 'info_screens.dart';
 import 'region_select_screen.dart';
 import 'search_result_screen.dart';
+
+/// 오래 운영된 병원 섹션에 들어가는 최소 운영 연수 기준. 사실 기준일 뿐
+/// "오래됨=좋음" 같은 서사를 담지 않는다(CLAUDE.md 원칙 2).
+const int _longOperatingYearsThreshold = 20;
+
+/// 홈 각 리스트 섹션에 보여줄 최대 개수. "내 주변 가까운 병원"은 5개 +
+/// "전체 병원 보기"로 안내하고, 가로 스크롤 섹션들은 조금 더 넉넉히 둔다.
+const int _nearbyMaxItems = 5;
+const int _horizontalSectionMaxItems = 10;
 
 /// Only ever mounted once [MainShell] has confirmed the bundle is loaded.
 class HomeScreen extends StatelessWidget {
@@ -94,6 +102,12 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
+/// 홈 화면 본문(스프린트 13 지시서 2 — 병원 리스트 섹션을 세로로 채워
+/// 스크롤감 있게 재구성). 검색창 → 배너 → 지정 병원 → 내 주변 가까운
+/// 병원 → 운영 20년 이상 병원 → 최근 개원한 병원 → 최근 확인한 병원 →
+/// 저장한 병원 순. 각 섹션은 데이터가 없으면 조용히 숨는다 — "추천/베스트"
+/// 같은 평가 표현 없이 정렬 기준(가까운 순/오래 운영된 순/최근 개원 순)만
+/// 사실로 표기한다.
 class _HomeBody extends ConsumerWidget {
   const _HomeBody();
 
@@ -111,11 +125,34 @@ class _HomeBody extends ConsumerWidget {
     final repo = ref.watch(repositoryProvider);
     final savedIds = ref.watch(savedHospitalsProvider).value ?? const [];
     final designatedIds = ref.watch(designatedHospitalsProvider).value ?? const [];
+    final recentIds = ref.watch(recentHospitalsProvider).value ?? const [];
     final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
     final location = ref.watch(locationProvider).value;
 
     final savedHospitals = savedIds.map(repo.byId).whereType<Hospital>().toList();
     final designatedHospitals = designatedIds.map(repo.byId).whereType<Hospital>().toList();
+    final recentHospitals = recentIds.map(repo.byId).whereType<Hospital>().toList();
+
+    // 선택 지역(전체 포함) 안의 영업중 병원 — 아래 세 섹션이 공유하는
+    // 기본 후보군. 폐업 병원은 검색 화면의 "폐업 병원도 보기"에서만 다룬다.
+    final regionOpenHospitals = repo.filterByStatus(
+      repo.filterByRegion(repo.all, region),
+      includeClosed: false,
+    );
+
+    final nearbyHospitals = repo.sortHospitals(
+      regionOpenHospitals,
+      SortOption.distance,
+      currentLat: location?.latitude,
+      currentLng: location?.longitude,
+    );
+
+    final longOperatingHospitals = repo
+        .sortHospitals(regionOpenHospitals, SortOption.operatingLength)
+        .where((h) => (h.operatingYears ?? -1) >= _longOperatingYearsThreshold)
+        .toList();
+
+    final recentlyOpenedHospitals = repo.sortHospitals(regionOpenHospitals, SortOption.recentOpen);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -143,30 +180,59 @@ class _HomeBody extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         const HomeBanner(),
         if (designatedHospitals.isNotEmpty) ...[
           const SizedBox(height: 20),
           _DesignatedHospitalsSection(hospitals: designatedHospitals),
         ],
         const SizedBox(height: 16),
-        Align(
-          alignment: Alignment.centerRight,
-          child: RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.tonalIcon(
+                onPressed: () {
+                  // "내 주변 병원" 최초 사용 시 위치 권한을 요청한다
+                  // (CLAUDE.md: 앱 시작 시 강제 요청 금지).
+                  ref.read(locationProvider.notifier).requestAndFetch();
+                  ref.read(selectedTabProvider.notifier).state = 1;
+                },
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('지도에서 보기'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
+          ],
         ),
-        const SizedBox(height: 12),
-        FilledButton.tonalIcon(
-          onPressed: () {
-            // "내 주변 병원" 최초 사용 시 위치 권한을 요청한다
-            // (CLAUDE.md: 앱 시작 시 강제 요청 금지).
-            ref.read(locationProvider.notifier).requestAndFetch();
-            ref.read(selectedTabProvider.notifier).state = 1;
-          },
-          icon: const Icon(Icons.near_me_outlined),
-          label: const Text('내 주변 병원'),
-        ),
-        const SizedBox(height: 28),
-        _BrowseSection(region: region, location: location),
+        if (nearbyHospitals.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _NearbyHospitalsSection(hospitals: nearbyHospitals, location: location),
+        ],
+        if (longOperatingHospitals.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _HospitalSection(
+            title: '운영 $_longOperatingYearsThreshold년 이상 병원',
+            hospitals: longOperatingHospitals.take(_horizontalSectionMaxItems).toList(),
+            location: location,
+          ),
+        ],
+        if (recentlyOpenedHospitals.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _HospitalSection(
+            title: '최근 개원한 병원',
+            hospitals: recentlyOpenedHospitals.take(_horizontalSectionMaxItems).toList(),
+            location: location,
+          ),
+        ],
+        if (recentHospitals.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _HospitalSection(
+            title: '최근 확인한 병원',
+            hospitals: recentHospitals,
+            location: location,
+          ),
+        ],
         if (savedHospitals.isNotEmpty) ...[
           const SizedBox(height: 24),
           _HospitalSection(
@@ -180,149 +246,60 @@ class _HomeBody extends ConsumerWidget {
   }
 }
 
-/// 홈의 "병원 둘러보기" 섹션 — 보기 기준 탭으로 전환 가능
-/// (스프린트 4 지시서 2). '가까운 순'은 위치가 없으면 비활성 표시되고,
-/// 기본 탭은 '최근 개원 순'이라 위치 유무와 무관하게 항상 의미 있는
-/// 목록을 보여준다.
-class _BrowseSection extends ConsumerWidget {
-  final RegionFilter region;
+/// "내 주변 가까운 병원" — 세로 리스트 카드 [_nearbyMaxItems]개 + 전체
+/// 보기(스프린트 13 지시서 2 신규 섹션). 위치가 없으면 선택 지역 기준
+/// 목록을 그대로 보여준다(거리 정렬은 위치가 있을 때만 의미가 있음 —
+/// `HospitalRepository.sortHospitals`가 이미 이 경우를 안전하게 처리한다).
+class _NearbyHospitalsSection extends ConsumerWidget {
+  final List<Hospital> hospitals;
   final Position? location;
 
-  const _BrowseSection({required this.region, required this.location});
-
-  static const _maxItems = 10;
-
-  String _emptyMessageFor(HomeSectionTab tab) {
-    if (tab == HomeSectionTab.recentlyViewed) {
-      return '최근 확인한 병원이 없습니다';
-    }
-    return '이 지역에는 표시할 병원이 없습니다';
-  }
+  const _NearbyHospitalsSection({required this.hospitals, required this.location});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final repo = ref.watch(repositoryProvider);
     final bundle = ref.watch(bundleProvider).value;
-    final selectedTab = ref.watch(homeSectionTabProvider);
-    final recentIds = ref.watch(recentHospitalsProvider).value ?? const [];
     final hasLocation = location != null;
-
-    // 위치 없이 '가까운 순'이 선택된 상태로 남아 있으면(예: 위치 권한이
-    // 나중에 거부된 경우) 안전하게 '최근 개원 순'으로 대체한다.
-    final effectiveTab =
-        selectedTab == HomeSectionTab.near && !hasLocation ? HomeSectionTab.recentOpen : selectedTab;
-
-    final regionOpenHospitals = repo.filterByStatus(
-      repo.filterByRegion(repo.all, region),
-      includeClosed: false,
-    );
-
-    List<Hospital> hospitals;
-    switch (effectiveTab) {
-      case HomeSectionTab.near:
-        hospitals = repo.sortHospitals(
-          regionOpenHospitals,
-          SortOption.distance,
-          currentLat: location?.latitude,
-          currentLng: location?.longitude,
-        );
-      case HomeSectionTab.longestOperating:
-        hospitals = repo.sortHospitals(regionOpenHospitals, SortOption.operatingLength);
-      case HomeSectionTab.recentOpen:
-        hospitals = repo.sortHospitals(regionOpenHospitals, SortOption.recentOpen);
-      case HomeSectionTab.recentlyViewed:
-        hospitals = recentIds.map(repo.byId).whereType<Hospital>().toList();
-    }
-    hospitals = hospitals.take(_maxItems).toList();
+    final visible = hospitals.take(_nearbyMaxItems).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '병원 둘러보기',
+          '내 주변 가까운 병원',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 10),
-        _TabChipRow(
-          selected: selectedTab,
-          hasLocation: hasLocation,
-          onSelected: (tab) => ref.read(homeSectionTabProvider.notifier).state = tab,
-        ),
-        const SizedBox(height: 10),
-        if (hospitals.isEmpty)
-          SizedBox(
-            height: 80,
-            child: Center(
-              child: Text(
-                _emptyMessageFor(effectiveTab),
-                style: Theme.of(context).textTheme.bodySmall,
+        ...visible.map((hospital) {
+          final distance = HospitalRepository.distanceKm(
+            location?.latitude,
+            location?.longitude,
+            hospital.lat,
+            hospital.lng,
+          );
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: HospitalCard(
+              hospital: hospital,
+              sameAddressRecordCount: bundle?.sameAddressRecordCount(hospital) ?? 1,
+              distanceKm: distance,
+              hasUserLocation: hasLocation,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DetailScreen(hospitalId: hospital.id)),
               ),
             ),
-          )
-        else
-          SizedBox(
-            height: 150,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: hospitals.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final hospital = hospitals[index];
-                final distance = HospitalRepository.distanceKm(
-                  location?.latitude,
-                  location?.longitude,
-                  hospital.lat,
-                  hospital.lng,
-                );
-                return SizedBox(
-                  width: 260,
-                  child: HospitalCard(
-                    hospital: hospital,
-                    sameAddressRecordCount: bundle?.sameAddressRecordCount(hospital) ?? 1,
-                    distanceKm: distance,
-                    hasUserLocation: hasLocation,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => DetailScreen(hospitalId: hospital.id)),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _TabChipRow extends StatelessWidget {
-  final HomeSectionTab selected;
-  final bool hasLocation;
-  final ValueChanged<HomeSectionTab> onSelected;
-
-  const _TabChipRow({
-    required this.selected,
-    required this.hasLocation,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: HomeSectionTab.values.map((tab) {
-          final disabled = tab == HomeSectionTab.near && !hasLocation;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(disabled ? '${tab.label} · 준비 중' : tab.label),
-              selected: selected == tab,
-              onSelected: disabled ? null : (_) => onSelected(tab),
-            ),
           );
-        }).toList(),
-      ),
+        }),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SearchResultScreen()),
+            ),
+            child: const Text('전체 병원 보기'),
+          ),
+        ),
+      ],
     );
   }
 }
