@@ -25,8 +25,13 @@ class AppColors {
   /// 액센트 틴트 — 아이콘·배지 배경 등 아주 옅은 강조 영역.
   static const primarySoft = Color(0xFFEAF1FE);
 
-  static const accent = Color(0xFFFF6F59);
-  static const accentSoft = Color(0xFFFFE6E1);
+  /// `ColorScheme.secondary`용 — Petcli는 단일 블루 브랜드 톤이라 별도
+  /// 강조색을 쓰지 않는다(스프린트 14 이전 세이지그린/코랄 시절의 잔재를
+  /// 정리 — 방치하면 Material 위젯이 기본으로 `colorScheme.secondary`를
+  /// 쓸 때 파란 화면 위에 낯선 색이 튀어나온다). [primary]/[primaryDark]와
+  /// 같은 값을 써 항상 블루로 보이게 한다.
+  static const accent = primary;
+  static const accentSoft = primarySoft;
 
   // Status — 영업/폐업/신규(확인불가)에만 사용. 다른 용도로 재사용 금지.
   // 폐업·정보부족은 빨강이 아니라 회색이다 — 평가·경고가 아니라 그저

@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/external_links.dart';
 import 'hospital_avatar.dart';
+import 'hospital_card.dart';
 import 'status_badge.dart';
 
 /// 홈 상단 "지정 병원" 섹션의 카드. 목록에서 바로 전화·길찾기로 갈 수
@@ -58,7 +59,7 @@ class DesignatedHospitalCard extends StatelessWidget {
                     Text(
                       [
                         hospital.roadAddr,
-                        if (hospital.operatingYears != null) '운영 ${hospital.operatingYears! + 1}년차',
+                        hospitalOperatingLabel(hospital),
                       ].join(' · '),
                       style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis,

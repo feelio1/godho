@@ -8,6 +8,18 @@ import '../theme/app_dimens.dart';
 import 'hospital_avatar.dart';
 import 'status_badge.dart';
 
+/// 운영기간 표기 — 뭉뚱그린 구간(운영 X년 이상)이 아니라 정확한 "운영
+/// N년차"(영업중)/"운영 N년"(폐업 — 개설~폐업 범위)으로 보여준다. 신규/
+/// 정보 부족(continuousSince 없거나 1년 미만)은 CLAUDE.md 원칙대로
+/// "공개 데이터가 적어요"로 솔직히 표기한다(운영기간이 부족=나쁘다는
+/// 뜻이 아니다). 병원 카드·상세 화면이 함께 쓴다.
+String hospitalOperatingLabel(Hospital hospital) {
+  final years = hospital.operatingYears;
+  if (years == null || years == 0) return '공개 데이터가 적어요';
+  if (hospital.status == HospitalStatus.closed) return '운영 $years년';
+  return '운영 ${years + 1}년차';
+}
+
 /// 병원 카드(스프린트 14, Petcli 시안): 아바타(건물 아이콘, 틴트 배경) +
 /// 병원명 + 상태 pill + 메타(개설·운영·거리) + "진료비 준비 중" 회색 칩 +
 /// 우측 chevron(저장 화면 등에서는 채워진 북마크로 대체 가능). 폐업
@@ -42,25 +54,10 @@ class HospitalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final isClosed = hospital.status == HospitalStatus.closed;
-    final years = hospital.operatingYears;
-
-    // 운영 기간은 뭉뚱그린 구간(운영 X년 이상)이 아니라 실제 시안처럼
-    // 정확한 "운영 N년차"(영업중)/"운영 N년"(폐업 — 개설~폐업 범위)으로
-    // 보여준다. 신규/정보 부족(continuousSince 없거나 1년 미만)은
-    // CLAUDE.md 원칙대로 "공개 데이터가 적어요"로 솔직히 표기한다
-    // (운영기간이 부족=나쁘다는 뜻이 아니다).
-    final String operatingLabel;
-    if (years == null || years == 0) {
-      operatingLabel = '공개 데이터가 적어요';
-    } else if (isClosed) {
-      operatingLabel = '운영 $years년';
-    } else {
-      operatingLabel = '운영 ${years + 1}년차';
-    }
 
     final metaParts = <String>[
       if (hospital.openDate != null) '${DateFormat('yyyy.MM').format(hospital.openDate!)} 개설',
-      operatingLabel,
+      hospitalOperatingLabel(hospital),
       // 좌표가 없는 병원은 목록에서 빼지 않되, 거리 대신 "거리 정보 없음"으로
       // 표시한다 (스프린트 2 지시서 3).
       if (hasUserLocation)

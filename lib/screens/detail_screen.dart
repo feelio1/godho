@@ -14,6 +14,7 @@ import '../utils/external_links.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fact_card.dart';
 import '../widgets/fee_section.dart';
+import '../widgets/hospital_card.dart';
 import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
@@ -300,16 +301,11 @@ class _ReservationButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: colorScheme.secondary,
-              foregroundColor: colorScheme.onSecondary,
-            ),
             onPressed: () => _showReservationComingSoonSheet(context),
             icon: const Icon(Icons.event_available_outlined),
             label: const Text('예약하기'),
@@ -375,8 +371,7 @@ class _FactCardGrid extends StatelessWidget {
     final cards = [
       FactCard(
         label: '운영기간',
-        value: hospital.operatingPeriodLabel,
-        note: hospital.operatingPeriodCategory.neutralNote,
+        value: hospitalOperatingLabel(hospital),
       ),
       FactCard(label: '영업상태', value: hospital.status.label),
       // 상세 안내(지역 시세 준비 중 문구)는 하단 FeeSection 한 곳에서만
@@ -426,7 +421,7 @@ class _OperatingInfoSection extends StatelessWidget {
             const SizedBox(height: 12),
             _InfoRow('개설신고일', _fmt(hospital.openDate)),
             _InfoRow('상태', hospital.status.label),
-            _InfoRow('운영기간', hospital.operatingPeriodLabel),
+            _InfoRow('운영기간', hospitalOperatingLabel(hospital)),
             _InfoRow('출처', source),
             _InfoRow('최종갱신', _fmt(generatedAt)),
             const SizedBox(height: 12),
