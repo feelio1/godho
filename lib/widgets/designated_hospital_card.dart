@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../models/hospital.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
 import '../utils/external_links.dart';
-import 'hospital_thumbnail.dart';
+import 'hospital_avatar.dart';
 import 'status_badge.dart';
 
 /// 홈 상단 "지정 병원" 섹션의 카드. 목록에서 바로 전화·길찾기로 갈 수
@@ -11,6 +12,9 @@ import 'status_badge.dart';
 /// 별도 "상세보기" 버튼은 중복이라 스프린트 10에서 정리). 영업시간/실시간
 /// 영업여부는 표시하지 않는다(데이터 없음 — 추정 금지) — 대신 상세 화면의
 /// 외부 링크로 안내한다.
+///
+/// 스프린트 14(Petcli 시안): 다른 병원 카드와 같은 흰 카드 톤 위에
+/// 전화·길찾기 버튼만 얹은 형태로 통일했다.
 class DesignatedHospitalCard extends StatelessWidget {
   final Hospital hospital;
   final VoidCallback onTap;
@@ -22,17 +26,15 @@ class DesignatedHospitalCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Card(
       margin: EdgeInsets.zero,
-      color: AppColors.primarySoft,
-      elevation: 0,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.card),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(AppSpacing.card),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const HospitalThumbnail(width: 56, height: 56, borderRadius: 12),
+              const HospitalAvatar(size: 52),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -44,7 +46,7 @@ class DesignatedHospitalCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             hospital.name,
-                            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                            style: textTheme.titleSmall,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -52,10 +54,10 @@ class DesignatedHospitalCard extends StatelessWidget {
                         StatusBadge(status: hospital.status),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 5),
                     Text(
                       hospital.roadAddr,
-                      style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],

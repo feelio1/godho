@@ -14,7 +14,6 @@ import '../utils/external_links.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fact_card.dart';
 import '../widgets/fee_section.dart';
-import '../widgets/hospital_thumbnail.dart';
 import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
@@ -68,13 +67,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: HospitalThumbnail(width: double.infinity, height: 160, borderRadius: 18),
-            ),
-            const SizedBox(height: 16),
             _Header(
               hospital: hospital,
               isSaved: isSaved,

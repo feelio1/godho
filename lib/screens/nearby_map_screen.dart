@@ -18,8 +18,9 @@ import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
 import '../utils/map_clustering.dart';
-import '../widgets/hospital_thumbnail.dart';
+import '../widgets/hospital_avatar.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
@@ -29,13 +30,6 @@ import 'detail_screen.dart';
 /// 경로에 실제 파일을 추가하고 pubspec.yaml에 등록하면 코드 변경 없이 그
 /// 이미지로 자동 교체된다(`_assetExists`가 성공하기 시작하므로).
 const String _markerAssetPath = 'assets/mascot/marker.png';
-
-/// 마스코트 "장구름"의 '내 위치' 전용 마커 자리. 병원 마커(`_markerAssetPath`)와
-/// 경로를 분리해 두어, 이 이미지만 따로 준비되어도 코드 변경 없이 교체된다.
-/// 내 위치는 지도에 하나뿐이고 의미(병원이 아니라 "나")가 다르므로, 실제
-/// 이미지가 없는 동안에도 병원 마커와는 다른 후광(halo) placeholder를 쓴다
-/// (스프린트 7 지시서 문제 1).
-const String _myLocationAssetPath = 'assets/mascot/my_location.png';
 
 /// 서울시청 — 위치 권한도, 선택 지역에 좌표 있는 병원도 없을 때의 최종 기본
 /// 지도 중심.
@@ -180,54 +174,33 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     );
   }
 
-  /// '내 위치' 마커 스타일. 표준 파란 점 대신 마스코트 자리를 쓴다 — 실제
-  /// 장구름 이미지가 없는 동안에도 병원 마커와 헷갈리지 않도록 후광이 있는
-  /// 전용 placeholder로 표시한다(스프린트 7 지시서 문제 1).
+  /// '내 위치' 마커 스타일 — 파란 점(스프린트 14, Petcli 시안: "내 위치(파란
+  /// 점)"). 병원은 장구름 마커로, 나는 표준 파란 점으로 구분한다는 뜻이라
+  /// 마스코트 이미지 유무와 상관없이 항상 파란 점으로 그린다(스프린트 7의
+  /// 마스코트 후광 placeholder는 이 스프린트에서 되돌렸다).
   Future<PoiStyle> _buildMyLocationStyle() async {
-    const size = 56.0;
-    final hasAsset = await _assetExists(_myLocationAssetPath);
-    final icon = hasAsset
-        ? KImage.fromAsset(_myLocationAssetPath, size.toInt(), size.toInt())
-        : KImage.fromData(
-            await _myLocationHaloBytes(size),
-            size.toInt(),
-            size.toInt(),
-          );
+    const size = 40.0;
+    final icon = KImage.fromData(await _myLocationDotBytes(size), size.toInt(), size.toInt());
     return PoiStyle(icon: icon);
   }
 
-  /// 실제 마스코트 이미지가 없을 때만 쓰는 '내 위치' placeholder. 병원
-  /// 마커(`_circleBytes`)와 달리 바깥에 반투명 후광을 둘러, 지도 위에 하나뿐인
-  /// 내 위치 지점임을 병원 마커와 한눈에 구분할 수 있게 한다. 색은 상태·신뢰도
-  /// 표현이 아니라 순수한 시각적 구분 용도다(CLAUDE.md 중립 원칙 유지).
-  static Future<Uint8List> _myLocationHaloBytes(double diameter) async {
+  /// 파란 점 + 흰 테두리 + 옅은 후광의 표준 '내 위치' 마커. 상태·신뢰도
+  /// 표현이 아니라 순수한 위치 표시 용도다(CLAUDE.md 중립 원칙 유지).
+  static Future<Uint8List> _myLocationDotBytes(double diameter) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final center = Offset(diameter / 2, diameter / 2);
     canvas.drawCircle(center, diameter / 2, Paint()..color = AppColors.primary.withValues(alpha: 0.20));
-    final innerRadius = diameter * 0.34;
-    canvas.drawCircle(center, innerRadius, Paint()..color = AppColors.primary);
+    final dotRadius = diameter * 0.3;
+    canvas.drawCircle(center, dotRadius, Paint()..color = AppColors.primary);
     canvas.drawCircle(
       center,
-      innerRadius,
+      dotRadius,
       Paint()
         ..color = Colors.white
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );
-    final painter = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(Icons.pets.codePoint),
-        style: TextStyle(
-          fontSize: innerRadius,
-          fontFamily: Icons.pets.fontFamily,
-          package: Icons.pets.fontPackage,
-          color: Colors.white,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    painter.paint(canvas, Offset(center.dx - painter.width / 2, center.dy - painter.height / 2));
     final picture = recorder.endRecording();
     final image = await picture.toImage(diameter.toInt(), diameter.toInt());
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -363,6 +336,9 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   void _showHospitalSheet(Hospital hospital) {
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+      ),
       builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -370,10 +346,21 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.borderInput,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                ),
+              ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const HospitalThumbnail(width: 56, height: 56, borderRadius: 12),
+                  const HospitalAvatar(size: 52),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -384,17 +371,20 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                             Expanded(
                               child: Text(
                                 hospital.name,
-                                style: Theme.of(sheetContext)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
+                                style: Theme.of(sheetContext).textTheme.titleSmall,
                               ),
                             ),
                             StatusBadge(status: hospital.status),
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(hospital.roadAddr),
+                        const SizedBox(height: 5),
+                        Text(
+                          hospital.roadAddr,
+                          style: Theme.of(sheetContext)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
                       ],
                     ),
                   ),
