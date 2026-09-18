@@ -8,12 +8,20 @@ import '../models/appointment.dart';
 import '../models/reminder_offset.dart';
 import '../notifications/notification_service.dart';
 import '../providers/appointment_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
+import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
 
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
 
 const _reminderDayChoices = [0, 1, 2, 3, 7];
+
+/// 방문 목적 칩에 쓰는 자주 쓰는 문구 — [Appointment.reason]은 여전히
+/// 자유 입력 문자열이라(모델 변경 없음), 칩은 그 필드를 빠르게 채워주는
+/// 단축 입력일 뿐이다. 직접 타이핑도 그대로 가능하다.
+const _visitPurposeChoices = ['정기검진', '예방접종', '중성화', '발치', '건강검진', '기타'];
 
 /// 진료 예약 추가·수정 폼(스프린트 9 지시서 3). 병원은 우리 DB에서 검색해
 /// 고르거나 직접 입력할 수 있고(진료기록 폼과 같은 위젯 재사용), 알림은
@@ -181,31 +189,9 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.page),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('예약 날짜'),
-                    subtitle: Text(DateFormat('yyyy.MM.dd').format(_date)),
-                    trailing: const Icon(Icons.calendar_today_outlined),
-                    onTap: _pickDate,
-                  ),
-                ),
-                Expanded(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('시간'),
-                    subtitle: Text(_time.format(context)),
-                    trailing: const Icon(Icons.access_time_outlined),
-                    onTap: _pickTime,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+            const FormFieldLabel('병원'),
             HospitalPickerField(
               controller: _hospitalController,
               selectedHospitalId: _selectedHospitalId,
@@ -222,25 +208,62 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
               onSelectionCleared: () => setState(() => _selectedHospitalId = null),
               onFieldTapped: () => setState(() => _showSuggestions = true),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.formField),
+            Row(
+              children: [
+                Expanded(
+                  child: _DateTimeField(
+                    label: '예약 날짜',
+                    value: DateFormat('yyyy.MM.dd').format(_date),
+                    icon: Icons.calendar_today_outlined,
+                    onTap: _pickDate,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _DateTimeField(
+                    label: '시간',
+                    value: _time.format(context),
+                    icon: Icons.access_time_outlined,
+                    onTap: _pickTime,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('방문 목적 (선택)'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _visitPurposeChoices
+                  .map((choice) => ChoiceChip(
+                        label: Text(choice),
+                        selected: _reasonController.text == choice,
+                        onSelected: (_) => setState(() => _reasonController.text = choice),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: _reasonController,
-              decoration: const InputDecoration(
-                labelText: '진료 내용 (선택, 예: 발치, 중성화)',
-                border: OutlineInputBorder(),
-              ),
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(hintText: '직접 입력도 가능해요 (예: 발치, 중성화)'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('메모 (선택)'),
             TextField(
               controller: _memoController,
               maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: '메모 (선택)',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
+              decoration: const InputDecoration(hintText: '메모를 남겨보세요'),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpacing.section),
+            _PreviewBanner(
+              hospitalName: _hospitalController.text.trim(),
+              date: _date,
+              time: _time,
+              reason: _reasonController.text.trim(),
+            ),
+            const SizedBox(height: AppSpacing.section),
             Row(
               children: [
                 Text('알림', style: Theme.of(context).textTheme.labelLarge),
@@ -272,9 +295,117 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
                     .toList(),
               ),
             const SizedBox(height: 24),
-            FilledButton(onPressed: _save, child: const Text('저장')),
+            SizedBox(width: double.infinity, child: FilledButton(onPressed: _save, child: const Text('저장'))),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _DateTimeField extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _DateTimeField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FormFieldLabel(label),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.field),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppColors.inputFill,
+              borderRadius: BorderRadius.circular(AppRadius.field),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: AppColors.textPlaceholder),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 저장 전 이 예약이 어떻게 기록될지 한눈에 보여주는 미리보기 배너
+/// (스프린트 14 시안). 현재 입력값을 그대로 반영할 뿐 별도 데이터는 갖지
+/// 않는다 — 저장 로직(Appointment 생성)은 [_AppointmentFormScreenState._save]
+/// 그대로다.
+class _PreviewBanner extends StatelessWidget {
+  final String hospitalName;
+  final DateTime date;
+  final TimeOfDay time;
+  final String reason;
+
+  const _PreviewBanner({
+    required this.hospitalName,
+    required this.date,
+    required this.time,
+    required this.reason,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+    final hospitalLabel = hospitalName.isEmpty ? '병원 미입력' : hospitalName;
+    final timeLabel = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    final dateLabel = '${DateFormat('M월 d일').format(date)} (${weekdayLabels[date.weekday - 1]})';
+    final parts = [
+      '$dateLabel $timeLabel',
+      if (reason.isNotEmpty) reason,
+    ];
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.card),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.event_available_outlined, color: AppColors.primary, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hospitalLabel,
+                  style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  parts.join(' · '),
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.primaryTextTone),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,8 @@ import 'package:intl/intl.dart';
 import '../models/pet.dart';
 import '../providers/pet_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
+import '../widgets/form_field_label.dart';
 
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
@@ -78,6 +80,22 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
     if (picked != null) setState(() => _birthday = picked);
   }
 
+  /// 생일로부터 화면에만 보여주는 나이 계산 — 별도 저장 필드 없이 그때그때
+  /// 계산한다(스프린트 14 시안: "생년월일(→자동 나이)").
+  static String _ageLabel(DateTime birthday) {
+    final now = DateTime.now();
+    var years = now.year - birthday.year;
+    var months = now.month - birthday.month;
+    if (now.day < birthday.day) months -= 1;
+    if (months < 0) {
+      years -= 1;
+      months += 12;
+    }
+    if (years <= 0) return '생후 $months개월';
+    if (months == 0) return '$years살';
+    return '$years살 $months개월';
+  }
+
   void _save() {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -104,7 +122,7 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
       appBar: AppBar(title: Text(widget.existing == null ? '반려동물 등록' : '반려동물 정보 수정')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.page),
           children: [
             Center(
               child: GestureDetector(
@@ -122,14 +140,11 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
             Center(
               child: TextButton(onPressed: _pickPhoto, child: const Text('사진 선택')),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: '이름', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            Text('종', style: Theme.of(context).textTheme.labelLarge),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('이름'),
+            TextField(controller: _nameController, decoration: const InputDecoration(hintText: '반려동물 이름')),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('종'),
             SegmentedButton<PetSpecies>(
               segments: PetSpecies.values
                   .map((s) => ButtonSegment(value: s, label: Text(s.label)))
@@ -137,35 +152,53 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
               selected: {_species},
               onSelectionChanged: (selection) => setState(() => _species = selection.first),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('품종 (선택)'),
             TextField(
               controller: _breedController,
-              decoration: const InputDecoration(
-                labelText: '품종 (선택)',
-                border: OutlineInputBorder(),
-              ),
+              decoration: const InputDecoration(hintText: '예: 말티즈, 코리안숏헤어'),
             ),
-            const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('생일 (선택)'),
-              subtitle: Text(
-                _birthday != null ? DateFormat('yyyy.MM.dd').format(_birthday!) : '설정 안 함',
-              ),
-              trailing: Wrap(
-                spacing: 4,
-                children: [
-                  IconButton(icon: const Icon(Icons.calendar_today_outlined), onPressed: _pickBirthday),
-                  if (_birthday != null)
-                    IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () => setState(() => _birthday = null),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('생일 (선택)'),
+            InkWell(
+              onTap: _pickBirthday,
+              borderRadius: BorderRadius.circular(AppRadius.field),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textPlaceholder),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _birthday != null
+                            ? '${DateFormat('yyyy.MM.dd').format(_birthday!)}  ·  ${_ageLabel(_birthday!)}'
+                            : '설정 안 함',
+                        style: TextStyle(
+                          color: _birthday != null ? AppColors.textPrimary : AppColors.textPlaceholder,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                ],
+                    if (_birthday != null)
+                      IconButton(
+                        icon: const Icon(Icons.clear, size: 18),
+                        onPressed: () => setState(() => _birthday = null),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
-            FilledButton(onPressed: _save, child: const Text('저장')),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(onPressed: _save, child: const Text('저장')),
+            ),
           ],
         ),
       ),
