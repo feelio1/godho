@@ -226,9 +226,9 @@ class _PetProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final subtitleParts = <String>[
-      pet.species.label,
-      if (pet.breed != null && pet.breed!.isNotEmpty) pet.breed!,
-      if (pet.birthday != null) '생일 ${DateFormat('yyyy.MM.dd').format(pet.birthday!)}',
+      if (pet.breed != null && pet.breed!.isNotEmpty) pet.breed! else pet.species.label,
+      if (pet.ageLabel != null) pet.ageLabel!,
+      if (pet.weightKg != null) '${pet.weightKg}kg',
     ];
     return Card(
       child: Padding(
