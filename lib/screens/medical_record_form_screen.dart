@@ -7,6 +7,9 @@ import 'package:intl/intl.dart';
 
 import '../models/medical_record.dart';
 import '../providers/medical_record_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
+import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
 import '../widgets/photo_attach_field.dart';
 
@@ -133,16 +136,32 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpacing.page),
           children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('날짜'),
-              subtitle: Text(DateFormat('yyyy.MM.dd').format(_date)),
-              trailing: const Icon(Icons.calendar_today_outlined),
+            const FormFieldLabel('날짜'),
+            InkWell(
               onTap: _pickDate,
+              borderRadius: BorderRadius.circular(AppRadius.field),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textPlaceholder),
+                    const SizedBox(width: 10),
+                    Text(
+                      DateFormat('yyyy.MM.dd').format(_date),
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('병원'),
             HospitalPickerField(
               controller: _hospitalController,
               selectedHospitalId: _selectedHospitalId,
@@ -159,50 +178,54 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               onSelectionCleared: () => setState(() => _selectedHospitalId = null),
               onFieldTapped: () => setState(() => _showSuggestions = true),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('진료 내용 메모 (선택)'),
             TextField(
               controller: _memoController,
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: '진료 내용 메모 (선택)',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
+              decoration: const InputDecoration(hintText: '어떤 진료를 받았는지 남겨보세요'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.formField),
             Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _weightController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: '몸무게 (kg, 선택)',
-                      border: OutlineInputBorder(),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FormFieldLabel('몸무게 (kg, 선택)'),
+                      TextField(
+                        controller: _weightController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(hintText: '0.0'),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: TextField(
-                    controller: _costController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: '진료비 (원, 선택)',
-                      border: OutlineInputBorder(),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FormFieldLabel('진료비 (원, 선택)'),
+                      TextField(
+                        controller: _costController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(hintText: '0'),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('사진 (선택)'),
             PhotoAttachField(
               photoPath: _photoPath,
               onPick: _pickPhoto,
               onClear: () => setState(() => _photoPath = null),
             ),
-            const SizedBox(height: 24),
-            FilledButton(onPressed: _save, child: const Text('저장')),
+            const SizedBox(height: 28),
+            SizedBox(width: double.infinity, child: FilledButton(onPressed: _save, child: const Text('저장'))),
           ],
         ),
       ),
