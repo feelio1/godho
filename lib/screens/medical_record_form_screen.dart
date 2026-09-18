@@ -257,7 +257,11 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
                       TextField(
                         controller: _weightController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
+                        decoration: const InputDecoration(
+                          hintText: '0.0',
+                          suffixText: 'kg',
+                          suffixStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ),
@@ -271,7 +275,11 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
                       TextField(
                         controller: _costController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(hintText: '0', suffixText: '원'),
+                        decoration: const InputDecoration(
+                          hintText: '0',
+                          suffixText: '원',
+                          suffixStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                        ),
                       ),
                     ],
                   ),

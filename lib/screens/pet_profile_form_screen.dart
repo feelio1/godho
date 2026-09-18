@@ -244,7 +244,11 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
                   TextField(
                     controller: _weightController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
+                    decoration: const InputDecoration(
+                      hintText: '0.0',
+                      suffixText: 'kg',
+                      suffixStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
