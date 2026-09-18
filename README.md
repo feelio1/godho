@@ -1,8 +1,12 @@
-# 펫병원체크 (PetClinicCheck)
+# 펫병원체크 (PetClinicCheck) — 앱 내 표시명 "Petcli"
 
 동물병원 방문 전, 공개된 행정·인허가 정보를 확인하는 팩트체크 앱입니다.
 병원을 평가·판정하지 않고, 보호자가 스스로 판단할 수 있도록 공공데이터 사실만 보여줍니다.
 자세한 원칙과 워딩 규칙은 `CLAUDE.md`를 참고하세요.
+
+스프린트 14부터 앱 안에서 보이는 브랜드명은 "Petcli"(펫 클리닉 줄임말)입니다. 지금은
+`lib/widgets/brand_mark.dart`(`BrandMark`)가 텍스트로 그리고, 나중에 로고 이미지가 준비되면
+이 위젯 내부만 바꾸면 됩니다. 프로젝트/저장소 이름과 CLAUDE.md의 원칙 문서 제목은 그대로 둡니다.
 
 ## 시작하기
 
@@ -101,27 +105,33 @@ flutter run \
 
 ## 디자인 시스템 · 마스코트
 
-- 브랜드 톤은 또렷한 딥블루(`AppColors.primary`, 마스코트 "장구름"의 구름과 어울리는 의료·신뢰의
-  색) + 흰 배경 + 진한 회색/네이비 텍스트(`AppColors.textPrimary`)입니다. 파스텔로 흐리지 않고
-  카드·버튼·강조 요소가 또렷하게 보이도록 합니다. 마스코트 이미지 자체는 색과 무관하게 그대로
-  쓰고, 이번 톤 변경은 UI 크롬(배경·버튼·카드 테두리 등) 색에만 적용됩니다. 모든 색상은
-  `lib/theme/app_colors.dart` 토큰만 사용합니다(하드코딩 금지). 화면 스타일은
-  `lib/theme/app_theme.dart`가 만드는 `ThemeData` 하나로 통일되어 있으니, 새 화면은
-  `Theme.of(context)` 값을 그대로 쓰면 됩니다.
-- 폐업은 빨강이 아니라 회색(`AppColors.closed`)입니다 — 평가가 아니라 인허가 기록상 사실일
-  뿐이라는 뜻입니다(CLAUDE.md 평가 금지 원칙). 빨강(`AppColors.error`)은 데이터 로드 실패 같은
-  실제 시스템 오류에만 쓰고, 폐업 색과는 완전히 분리된 값입니다.
+- 스프린트 14부터 "Petcli" 디자인 시안을 따릅니다: 딥블루 액센트(`AppColors.primary`
+  `#2563EB`) + 흰 카드 + 옅은 회색 페이지 배경(`#F1F5F9`), Gothic A1 폰트(400~900 굵기).
+  모든 색·간격·모양·그림자는 `lib/theme/app_colors.dart`/`app_dimens.dart` 토큰만 사용합니다
+  (하드코딩 금지). 화면 스타일은 `lib/theme/app_theme.dart`가 만드는 `ThemeData` 하나로
+  통일되어 있으니, 새 화면은 `Theme.of(context)` 값을 그대로 쓰면 됩니다.
+- Gothic A1은 `google_fonts` 패키지(런타임 네트워크 페치)가 아니라 `assets/fonts/`에 정적으로
+  번들링해 씁니다 — 오프라인 우선 앱 구조(정적 JSON 번들, 서버 없음)와 맞추기 위해서입니다.
+  `pubspec.yaml`의 `fonts:` 항목에 등록되어 있고, `fontFamily: 'Gothic A1'`로 참조합니다.
+- 폐업·정보부족은 빨강이 아니라 회색(`AppColors.closedText`/`closedBg`/`closedDot`)입니다 —
+  평가가 아니라 인허가 기록상 사실일 뿐이라는 뜻입니다(CLAUDE.md 평가 금지 원칙). 빨강
+  (`AppColors.error`)은 데이터 로드 실패 같은 실제 시스템 오류에만 쓰고, 폐업 색과는 완전히
+  분리된 값입니다.
 - 마스코트 "장구름"은 `lib/widgets/mascot_image.dart`(`MascotImage`)가 담당합니다.
   `assets/mascot/`에 등록된 장구름 그림 중 상황에 맞는 것을 `assetPath`로 골라 쓸 수 있고
-  (기본은 `janggureum.png`), 이미지가 없으면 조용히 아이콘 placeholder로 대체됩니다. 검색 결과
-  없음은 `empty_search.png`, 진료기록·저장이 비어 있을 때는 `empty_record.png`를 씁니다. 마스코트는
+  (기본은 `janggureum.png`), 이미지가 없으면 조용히 아이콘 placeholder로 대체됩니다. 빈 상태
+  공용 컴포넌트(`lib/widgets/mascot_message.dart`)는 장구름을 112px 원형 틴트 배지 안에 넣고
+  상황에 맞는 작은 아이콘(검색 없음=돋보기, 저장 없음=북마크 등)을 우하단에 얹습니다. 마스코트는
   홈 배너·빈 상태·로딩·지도 준비중 화면처럼 친근함이 필요한 자리에만 쓰고, 병원 상세의 팩트카드·
   타임라인·진료비처럼 신뢰가 중요한 데이터 영역에는 넣지 않습니다.
-- 병원 사진은 실제로 수집하지 않습니다(크롤링 금지) — `lib/widgets/hospital_thumbnail.dart`
-  (`HospitalThumbnail`)가 모든 병원에 동일한 `hospital_placeholder.png`를 보여줘, 어떤 병원의
-  사진이 있고 없고로 인상이 갈리지 않게 합니다.
+- 병원 사진은 실제로 수집하지 않습니다(크롤링 금지) — `lib/widgets/hospital_avatar.dart`
+  (`HospitalAvatar`)가 모든 병원에 동일한 건물 아이콘 + 틴트 배경 아바타를 보여줘, 어떤
+  병원의 사진이 있고 없고로 인상이 갈리지 않게 합니다(스프린트 10의 사진 placeholder
+  `HospitalThumbnail`을 스프린트 14에서 대체).
 - 병원 상세의 "예약하기" 버튼은 아직 실제 예약 연동이 없는 자리 예약용입니다. 누르면 특정
   병원과 제휴·거래 관계가 없다는 점을 알리는 안내만 뜹니다.
+- 바텀시트 피커(지역 선택, 예약 알림 추가 등)는 `lib/widgets/picker_sheet_chrome.dart`
+  (`PickerSheetChrome`, 그랩바+제목+X버튼)를 공유합니다.
 
 ## 주변 병원 지도
 
@@ -136,10 +146,12 @@ flutter run \
   레벨에 따라 격자 크기를 바꿔가며 가까운 병원들을 직접 묶습니다. 격자 크기는 줌아웃할수록
   상한 없이 계속 커지도록 만들어, 아무리 멀리 축소해도 클러스터 개수("N")나 개별 마커 중
   하나는 항상 화면에 보입니다. 탭하면 확대되며 개별 마커로 풀립니다.
-- 내 위치는 표준 파란 점이 아니라 마스코트(장구름) 자리에 후광을 두른 전용 placeholder로
-  표시되어 병원 마커와 한눈에 구분됩니다. 지도 우하단의 버튼으로 현재 위치로 이동할 수
-  있습니다. 위치 권한이 없으면 버튼을 눌렀을 때 권한을 요청하고, 그래도 위치를 알 수 없으면
-  안내만 뜨고 앱은 정상 동작합니다.
+- 내 위치는 표준 파란 점으로 표시되어 마스코트(장구름) 병원 마커와 한눈에 구분됩니다(스프린트
+  7에서는 마스코트 후광 placeholder였으나 스프린트 14 시안에 맞춰 되돌렸습니다). 지도
+  우하단의 버튼으로 현재 위치로 이동할 수 있습니다. 위치 권한이 없으면 버튼을 눌렀을 때
+  권한을 요청하고, 그래도 위치를 알 수 없으면 안내만 뜨고 앱은 정상 동작합니다.
+- 지도 상단의 검색바를 누르면 검색 화면으로 이동합니다. 옆의 목록 버튼도 같은 검색 화면을
+  띄웁니다(별도의 지도 전용 목록 상태는 두지 않았습니다).
 
 ## 폴더 구조
 
@@ -148,6 +160,7 @@ flutter run \
 - `lib/providers` — Riverpod 프로바이더
 - `lib/notifications` — 진료 예약 로컬 알림(`flutter_local_notifications`) 서비스
 - `lib/screens` — 홈/검색/상세/주변 병원/진료기록/저장/비교 화면
-- `lib/theme` — 색상 토큰(AppColors)과 전역 ThemeData(AppTheme)
+- `lib/theme` — 색상 토큰(AppColors), 간격/모양/그림자 토큰(AppDimens), 전역 ThemeData(AppTheme)
 - `lib/utils` — 외부 링크, 지도 클러스터링 등 화면에 종속되지 않는 유틸리티
-- `lib/widgets` — 공용 위젯 (팩트카드, 타임라인, 진료비 섹션, 마스코트, 병원 검색 필드, 사진 첨부 필드 등)
+- `lib/widgets` — 공용 위젯 (팩트카드, 타임라인, 진료비 섹션, 마스코트, 검색 세트 카드, 병원
+  아바타, 폼 필드 라벨, 바텀시트 뼈대, 브랜드 마크, 병원 검색 필드, 사진 첨부 필드 등)
