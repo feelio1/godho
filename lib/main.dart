@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
@@ -33,6 +34,12 @@ class PetClinicCheckApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
+      // 전체가 한국어 앱이라 시간 선택 등 Flutter 기본 위젯(TimeOfDay.format
+      // 등)도 "오후 9:27" 같은 한국어 표기를 쓰게 로케일을 고정한다 — 지역화
+      // 델리게이트가 없으면 영어 "9:27 PM"로 표시돼 화면 전체 톤과 어긋난다.
+      locale: const Locale('ko'),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('ko')],
       home: const AppOpenAdGate(child: MainShell()),
     );
   }
