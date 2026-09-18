@@ -24,6 +24,7 @@ import '../widgets/hospital_avatar.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
+import 'search_result_screen.dart';
 
 /// 마스코트 "장구름" 마커 자리. 실제 이미지가 아직 없어 지금은 중립
 /// placeholder 아이콘을 쓴다 — `MascotImage`와 같은 방식으로, 나중에 이
@@ -514,6 +515,19 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
             },
           ),
           Positioned(
+            left: AppSpacing.page,
+            right: AppSpacing.page,
+            top: 12,
+            child: _MapSearchBar(
+              onSearchTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SearchResultScreen()),
+              ),
+              onListTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SearchResultScreen()),
+              ),
+            ),
+          ),
+          Positioned(
             right: 16,
             bottom: 16,
             child: FloatingActionButton(
@@ -524,6 +538,65 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 지도 상단 검색바 — 홈의 검색 세트 카드와 같은 탭-이동 패턴(누르면
+/// 검색 화면으로 이동)에, 목록으로 바로 전환하는 버튼을 더했다. 실제
+/// 목록은 이미 있는 검색결과 화면을 그대로 재사용한다(새 목록 상태를
+/// 따로 만들지 않음).
+class _MapSearchBar extends StatelessWidget {
+  final VoidCallback onSearchTap;
+  final VoidCallback onListTap;
+
+  const _MapSearchBar({required this.onSearchTap, required this.onListTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Material(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            elevation: 3,
+            shadowColor: const Color(0x330F172A),
+            child: InkWell(
+              onTap: onSearchTap,
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, size: 20, color: AppColors.textPlaceholder),
+                    const SizedBox(width: 8),
+                    Text(
+                      '병원명 또는 주소로 검색',
+                      style: TextStyle(color: AppColors.textPlaceholder, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Material(
+          color: AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          elevation: 3,
+          shadowColor: const Color(0x330F172A),
+          child: InkWell(
+            onTap: onListTap,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            child: const Padding(
+              padding: EdgeInsets.all(13),
+              child: Icon(Icons.view_list_outlined, size: 20, color: AppColors.primary),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
