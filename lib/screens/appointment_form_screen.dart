@@ -155,6 +155,18 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
     }
   }
 
+  /// 미리 알림 필드에 보여줄 문구 — 지금 값이 프리셋 중 하나와 정확히
+  /// 같으면 그 프리셋의 자연어 라벨("하루 전 · 오전 9:00")을, 아니면
+  /// (기존에 저장된, 프리셋에 없는 값이면) ReminderOffset.label 그대로.
+  String _reminderDisplayLabel() {
+    final reminder = _reminder;
+    if (reminder == null) return '설정 안 함';
+    for (final preset in _reminderPresets) {
+      if (preset.resolve(_date, _time) == reminder) return preset.label;
+    }
+    return reminder.label;
+  }
+
   Future<void> _save() async {
     final hospitalName = _hospitalController.text.trim();
     if (hospitalName.isEmpty) {
@@ -264,7 +276,7 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
             _DateTimeField(
               label: '',
               hideLabel: true,
-              value: _reminder?.label ?? '설정 안 함',
+              value: _reminderDisplayLabel(),
               icon: Icons.notifications_outlined,
               onTap: _pickReminder,
             ),
