@@ -287,7 +287,6 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               ],
             ),
             const SizedBox(height: AppSpacing.formField),
-            const FormFieldLabel('사진 (선택)'),
             PhotoAttachField(
               photoPath: _photoPath,
               onPick: _pickPhoto,

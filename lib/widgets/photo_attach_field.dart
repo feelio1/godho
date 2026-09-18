@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import 'form_field_label.dart';
+
 /// "사진 첨부" 입력 — 라벨/아이콘을 명확히 하고 선택한 사진을 바로
 /// 썸네일로 보여준다. 스프린트 8에서는 사진 버튼이 눈에 잘 안 띈다는
 /// 피드백이 있어(스프린트 9 지시서 2) 진료기록·예약 두 폼에서 함께 쓰는
-/// 공용 위젯으로 뺐다.
+/// 공용 위젯으로 뺐다. 라벨은 이 위젯이 직접 그린다 — 호출부가 또
+/// FormFieldLabel을 앞에 얹으면 라벨이 두 번 보인다.
 class PhotoAttachField extends StatelessWidget {
   final String? photoPath;
   final VoidCallback onPick;
@@ -25,8 +28,7 @@ class PhotoAttachField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        const SizedBox(height: 8),
+        FormFieldLabel(label),
         Row(
           children: [
             if (photoPath != null) ...[
