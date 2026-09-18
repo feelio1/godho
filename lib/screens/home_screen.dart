@@ -108,9 +108,7 @@ class _HomeBody extends ConsumerWidget {
   const _HomeBody();
 
   Future<void> _changeRegion(BuildContext context, WidgetRef ref) async {
-    final result = await Navigator.of(context).push<RegionFilter>(
-      MaterialPageRoute(builder: (_) => const RegionSelectScreen()),
-    );
+    final result = await showRegionPickerSheet(context);
     if (result != null) {
       await ref.read(regionProvider.notifier).selectRegion(result);
     }

@@ -52,9 +52,7 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
   }
 
   Future<void> _changeRegion() async {
-    final result = await Navigator.of(context).push<RegionFilter>(
-      MaterialPageRoute(builder: (_) => const RegionSelectScreen()),
-    );
+    final result = await showRegionPickerSheet(context);
     if (result != null) {
       await ref.read(regionProvider.notifier).selectRegion(result);
     }

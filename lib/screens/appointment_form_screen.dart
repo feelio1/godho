@@ -12,6 +12,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
+import '../widgets/picker_sheet_chrome.dart';
 
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
@@ -87,50 +88,70 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
     var daysBefore = 1;
     var time = const TimeOfDay(hour: 20, minute: 0);
 
-    final result = await showDialog<ReminderOffset>(
+    final result = await showModalBottomSheet<ReminderOffset>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: const Text('알림 추가'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('며칠 전에 알려드릴까요?'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: _reminderDayChoices
-                    .map((d) => ChoiceChip(
-                          label: Text(d == 0 ? '당일' : '$d일 전'),
-                          selected: daysBefore == d,
-                          onSelected: (_) => setDialogState(() => daysBefore = d),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('몇 시에 알려드릴까요?'),
-                subtitle: Text(time.format(dialogContext)),
-                trailing: const Icon(Icons.access_time_outlined),
-                onTap: () async {
-                  final pickedTime = await showTimePicker(context: dialogContext, initialTime: time);
-                  if (pickedTime != null) setDialogState(() => time = pickedTime);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('취소')),
-            FilledButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                ReminderOffset(daysBefore: daysBefore, hour: time.hour, minute: time.minute),
-              ),
-              child: const Text('추가'),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => PickerSheetChrome(
+          title: '알림 추가',
+          heightFactor: 0.45,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const FormFieldLabel('며칠 전에 알려드릴까요?'),
+                Wrap(
+                  spacing: 8,
+                  children: _reminderDayChoices
+                      .map((d) => ChoiceChip(
+                            label: Text(d == 0 ? '당일' : '$d일 전'),
+                            selected: daysBefore == d,
+                            onSelected: (_) => setSheetState(() => daysBefore = d),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: AppSpacing.formField),
+                const FormFieldLabel('몇 시에 알려드릴까요?'),
+                InkWell(
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                  onTap: () async {
+                    final pickedTime = await showTimePicker(context: sheetContext, initialTime: time);
+                    if (pickedTime != null) setSheetState(() => time = pickedTime);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputFill,
+                      borderRadius: BorderRadius.circular(AppRadius.field),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time_outlined, size: 18, color: AppColors.textPlaceholder),
+                        const SizedBox(width: 10),
+                        Text(
+                          time.format(sheetContext),
+                          style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(
+                      sheetContext,
+                      ReminderOffset(daysBefore: daysBefore, hour: time.hour, minute: time.minute),
+                    ),
+                    child: const Text('추가'),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

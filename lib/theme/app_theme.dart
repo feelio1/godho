@@ -195,6 +195,30 @@ class AppTheme {
       dividerTheme: const DividerThemeData(color: AppColors.borderMuted, space: 1),
       listTileTheme: const ListTileThemeData(iconColor: AppColors.textSecondary),
       iconTheme: const IconThemeData(color: AppColors.textLabel),
+      // 날짜/시간 피커(캘린더·시계)는 커스텀 바텀시트로 새로 만들지 않고,
+      // Flutter 기본 피커를 Petcli 톤으로 다시 입혔다 — 선택 로직은 각
+      // 화면의 showDatePicker/showTimePicker 그대로다.
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        headerBackgroundColor: AppColors.primary,
+        headerForegroundColor: Colors.white,
+        todayForegroundColor: WidgetStateProperty.all(AppColors.primary),
+        dayForegroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? Colors.white : AppColors.textPrimary,
+        ),
+        dayBackgroundColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? AppColors.primary : null,
+        ),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        dialBackgroundColor: AppColors.inputFill,
+        dialHandColor: AppColors.primary,
+        hourMinuteColor: AppColors.inputFill,
+        hourMinuteTextColor: AppColors.textPrimary,
+      ),
     );
   }
 }
