@@ -493,7 +493,12 @@ class _ExternalLinksSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            Text('외부 링크', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+            Text('외부 링크', style: textTheme.titleSmall),
+            const SizedBox(height: 2),
+            Text(
+              '네이버·카카오 리뷰로 바로 이동합니다. Petcli는 평가·별점을 자체적으로 제공하지 않습니다.',
+              style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
             const SizedBox(height: 4),
             _LinkTile(
               label: '네이버지도에서 리뷰 보기',

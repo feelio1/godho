@@ -99,7 +99,10 @@ class _SegmentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = AppColors.forStatus(segment.status);
+    // 노드 색은 영업 상태가 아니라 "가장 최근 기록인지"만 나타낸다(스프린트
+    // 14, Petcli 시안: "현재=파란 노드, 과거=회색 노드"). 폐업 여부는 옆의
+    // 상태 텍스트로만 표기해, 시간축 표시가 평가로 읽히지 않게 한다.
+    final color = isLast ? AppColors.primary : AppColors.closedDot;
     final textTheme = Theme.of(context).textTheme;
     final displayName =
         segment.names.isNotEmpty ? segment.names.first : '이름 확인 불가';
