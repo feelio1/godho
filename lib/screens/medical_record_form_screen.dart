@@ -6,12 +6,16 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../models/medical_record.dart';
+import '../models/pet.dart';
 import '../providers/medical_record_provider.dart';
+import '../providers/pet_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../widgets/date_picker_sheet.dart';
 import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
 import '../widgets/photo_attach_field.dart';
+import '../widgets/picker_sheet_chrome.dart';
 
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
@@ -32,6 +36,7 @@ class MedicalRecordFormScreen extends ConsumerStatefulWidget {
 
 class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScreen> {
   late DateTime _date;
+  late String _petId;
   late final TextEditingController _hospitalController;
   late final TextEditingController _memoController;
   late final TextEditingController _weightController;
@@ -45,6 +50,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     super.initState();
     final existing = widget.existing;
     _date = existing?.date ?? DateTime.now();
+    _petId = widget.petId;
     _hospitalController = TextEditingController(text: existing?.hospitalName ?? '');
     _memoController = TextEditingController(text: existing?.memo ?? '');
     _weightController = TextEditingController(text: existing?.weightKg?.toString() ?? '');
@@ -63,13 +69,38 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
+    final picked = await showAppDatePickerSheet(
+      context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  Future<void> _pickPet(List<Pet> pets) async {
+    if (pets.length < 2) return;
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PickerSheetChrome(
+        title: '반려동물 선택',
+        heightFactor: 0.4,
+        child: ListView(
+          children: [
+            for (final pet in pets)
+              ListTile(
+                leading: const Icon(Icons.pets, color: AppColors.primary),
+                title: Text(pet.name),
+                trailing: pet.id == _petId ? const Icon(Icons.check, color: AppColors.primary) : null,
+                onTap: () => Navigator.of(context).pop(pet.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) setState(() => _petId = picked);
   }
 
   Future<void> _pickPhoto() async {
@@ -104,7 +135,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
 
     final record = MedicalRecord(
       id: widget.existing?.id ?? _newLocalId(),
-      petId: widget.petId,
+      petId: _petId,
       date: _date,
       hospitalId: _selectedHospitalId,
       hospitalName: hospitalName,
@@ -126,9 +157,12 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
 
   @override
   Widget build(BuildContext context) {
+    final pets = ref.watch(petsProvider).value ?? const <Pet>[];
+    final currentPet = pets.where((p) => p.id == _petId).firstOrNull;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existing == null ? '진료 기록 추가' : '진료 기록 수정'),
+        title: Text(widget.existing == null ? '진료기록 추가' : '진료 기록 수정'),
         actions: [
           if (widget.existing != null)
             IconButton(icon: const Icon(Icons.delete_outline), onPressed: _delete),
@@ -138,9 +172,9 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.page),
           children: [
-            const FormFieldLabel('날짜'),
+            const FormFieldLabel('반려동물'),
             InkWell(
-              onTap: _pickDate,
+              onTap: () => _pickPet(pets),
               borderRadius: BorderRadius.circular(AppRadius.field),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -150,12 +184,16 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textPlaceholder),
+                    const Icon(Icons.pets, size: 18, color: AppColors.textPlaceholder),
                     const SizedBox(width: 10),
-                    Text(
-                      DateFormat('yyyy.MM.dd').format(_date),
-                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    Expanded(
+                      child: Text(
+                        currentPet?.name ?? '반려동물 없음',
+                        style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                      ),
                     ),
+                    if (pets.length > 1)
+                      const Icon(Icons.expand_more, size: 18, color: AppColors.textPlaceholder),
                   ],
                 ),
               ),
@@ -179,7 +217,30 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               onFieldTapped: () => setState(() => _showSuggestions = true),
             ),
             const SizedBox(height: AppSpacing.formField),
-            const FormFieldLabel('진료 내용 메모 (선택)'),
+            const FormFieldLabel('방문일'),
+            InkWell(
+              onTap: _pickDate,
+              borderRadius: BorderRadius.circular(AppRadius.field),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textPlaceholder),
+                    const SizedBox(width: 10),
+                    Text(
+                      DateFormat('yyyy.MM.dd').format(_date),
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('진료 내용'),
             TextField(
               controller: _memoController,
               maxLines: 4,
@@ -192,11 +253,11 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const FormFieldLabel('몸무게 (kg, 선택)'),
+                      const FormFieldLabel('몸무게'),
                       TextField(
                         controller: _weightController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(hintText: '0.0'),
+                        decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
                       ),
                     ],
                   ),
@@ -206,11 +267,11 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const FormFieldLabel('진료비 (원, 선택)'),
+                      const FormFieldLabel('진료비'),
                       TextField(
                         controller: _costController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(hintText: '0'),
+                        decoration: const InputDecoration(hintText: '0', suffixText: '원'),
                       ),
                     ],
                   ),
