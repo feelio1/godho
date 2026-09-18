@@ -29,7 +29,7 @@ class PetClinicCheckApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '펫병원체크',
+      title: 'Petcli',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

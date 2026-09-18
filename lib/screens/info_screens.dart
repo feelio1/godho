@@ -121,7 +121,7 @@ class GuideScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             const Text(
-              '펫병원체크는 동물병원을 평가하거나 순위를 매기지 않습니다. '
+              'Petcli는 동물병원을 평가하거나 순위를 매기지 않습니다. '
               '공개된 행정·인허가 정보를 있는 그대로 보여드려, 방문 전 보호자가 스스로 판단할 수 있도록 돕는 팩트체크 앱입니다.',
             ),
             const SizedBox(height: 16),

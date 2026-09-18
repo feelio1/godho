@@ -9,11 +9,12 @@ import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
+import '../theme/app_dimens.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
-import '../widgets/region_indicator.dart';
+import '../widgets/search_set_card.dart';
 import 'detail_screen.dart';
 import 'region_select_screen.dart';
 
@@ -69,22 +70,10 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
     final location = ref.watch(locationProvider).value;
     final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
     final compareIds = ref.watch(compareListProvider);
+    final repo = ref.watch(repositoryProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: TextField(
-          controller: _controller,
-          // 진입 시 지역 목록을 바로 보여주는 것이 우선이라(스프린트 4
-          // 지시서 1), 자동으로 키보드를 띄워 목록을 가리지 않는다.
-          autofocus: false,
-          textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-            hintText: '병원명 또는 주소로 검색',
-            border: InputBorder.none,
-          ),
-          onChanged: (value) => ref.read(searchQueryProvider.notifier).state = value,
-        ),
-      ),
+      appBar: AppBar(title: const Text('검색')),
       bottomNavigationBar: const Column(
         mainAxisSize: MainAxisSize.min,
         children: [CompareFloatingBar(), GlobalBannerAd()],
@@ -92,10 +81,24 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(AppSpacing.page, 4, AppSpacing.page, 0),
+            child: SearchSetCard(
+              hintText: '병원명 또는 주소로 검색',
+              controller: _controller,
+              // 진입 시 지역 목록을 바로 보여주는 것이 우선이라(스프린트 4
+              // 지시서 1), 자동으로 키보드를 띄워 목록을 가리지 않는다.
+              autofocus: false,
+              onChanged: (value) => ref.read(searchQueryProvider.notifier).state = value,
+              region: region,
+              sidoOptions: repo.sidoList,
+              onSelectRegion: (filter) => ref.read(regionProvider.notifier).selectRegion(filter),
+              onOpenRegionPicker: _changeRegion,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
             child: Row(
               children: [
-                RegionIndicator(region: region, onTap: _changeRegion),
                 const Spacer(),
                 FilterChip(
                   label: const Text('폐업 병원도 보기'),

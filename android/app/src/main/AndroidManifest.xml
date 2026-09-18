@@ -17,7 +17,7 @@
          근사 시각(inexact) 알림으로 자동 대체된다(스프린트 12 지시서 1). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <application
-        android:label="petcliniccheck"
+        android:label="Petcli"
         android:name=".MainApplication"
         android:icon="@mipmap/ic_launcher">
         <activity

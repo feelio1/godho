@@ -12,11 +12,13 @@ import '../providers/nav_provider.dart';
 import '../providers/recent_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/saved_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
+import '../widgets/brand_mark.dart';
 import '../widgets/designated_hospital_card.dart';
 import '../widgets/home_banner.dart';
 import '../widgets/hospital_card.dart';
-import '../widgets/mascot_image.dart';
-import '../widgets/region_indicator.dart';
+import '../widgets/search_set_card.dart';
 import 'detail_screen.dart';
 import 'info_screens.dart';
 import 'region_select_screen.dart';
@@ -39,14 +41,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            MascotImage(size: 28),
-            SizedBox(width: 8),
-            Text('펫병원체크'),
-          ],
-        ),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
@@ -103,11 +98,12 @@ class HomeScreen extends StatelessWidget {
 }
 
 /// 홈 화면 본문(스프린트 13 지시서 2 — 병원 리스트 섹션을 세로로 채워
-/// 스크롤감 있게 재구성). 검색창 → 배너 → 지정 병원 → 내 주변 가까운
-/// 병원 → 운영 20년 이상 병원 → 최근 개원한 병원 → 최근 확인한 병원 →
-/// 저장한 병원 순. 각 섹션은 데이터가 없으면 조용히 숨는다 — "추천/베스트"
-/// 같은 평가 표현 없이 정렬 기준(가까운 순/오래 운영된 순/최근 개원 순)만
-/// 사실로 표기한다.
+/// 스크롤감 있게 재구성, 스프린트 14 — Petcli 시안으로 브랜드 헤더·검색
+/// 세트 카드 도입). 브랜드 헤더 → 검색 세트 카드 → 배너 → 지정 병원 →
+/// 내 주변 가까운 병원 → 운영 20년 이상 병원 → 최근 개원한 병원 → 최근
+/// 확인한 병원 → 저장한 병원 순. 각 섹션은 데이터가 없으면 조용히 숨는다
+/// — "추천/베스트" 같은 평가 표현 없이 정렬 기준(가까운 순/오래 운영된
+/// 순/최근 개원 순)만 사실로 표기한다.
 class _HomeBody extends ConsumerWidget {
   const _HomeBody();
 
@@ -155,62 +151,46 @@ class _HomeBody extends ConsumerWidget {
     final recentlyOpenedHospitals = repo.sortHospitals(regionOpenHospitals, SortOption.recentOpen);
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 4, AppSpacing.page, 28),
       children: [
-        InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => Navigator.of(context).push(
+        const _BrandHeader(),
+        const SizedBox(height: AppSpacing.section),
+        SearchSetCard(
+          hintText: '병원명 또는 주소로 검색',
+          onFieldTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const SearchResultScreen()),
           ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.search, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Text(
-                  '병원명 또는 주소로 검색',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
+          region: region,
+          sidoOptions: repo.sidoList,
+          onSelectRegion: (filter) => ref.read(regionProvider.notifier).selectRegion(filter),
+          onOpenRegionPicker: () => _changeRegion(context, ref),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpacing.section),
         const HomeBanner(),
         if (designatedHospitals.isNotEmpty) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.section),
           _DesignatedHospitalsSection(hospitals: designatedHospitals),
         ],
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.tonalIcon(
-                onPressed: () {
-                  // "내 주변 병원" 최초 사용 시 위치 권한을 요청한다
-                  // (CLAUDE.md: 앱 시작 시 강제 요청 금지).
-                  ref.read(locationProvider.notifier).requestAndFetch();
-                  ref.read(selectedTabProvider.notifier).state = 1;
-                },
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('지도에서 보기'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
-          ],
+        const SizedBox(height: AppSpacing.section),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              // "내 주변 병원" 최초 사용 시 위치 권한을 요청한다
+              // (CLAUDE.md: 앱 시작 시 강제 요청 금지).
+              ref.read(locationProvider.notifier).requestAndFetch();
+              ref.read(selectedTabProvider.notifier).state = 1;
+            },
+            icon: const Icon(Icons.map_outlined),
+            label: const Text('지도에서 보기'),
+          ),
         ),
         if (nearbyHospitals.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.section),
           _NearbyHospitalsSection(hospitals: nearbyHospitals, location: location),
         ],
         if (longOperatingHospitals.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.section),
           _HospitalSection(
             title: '운영 $_longOperatingYearsThreshold년 이상 병원',
             hospitals: longOperatingHospitals.take(_horizontalSectionMaxItems).toList(),
@@ -218,7 +198,7 @@ class _HomeBody extends ConsumerWidget {
           ),
         ],
         if (recentlyOpenedHospitals.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.section),
           _HospitalSection(
             title: '최근 개원한 병원',
             hospitals: recentlyOpenedHospitals.take(_horizontalSectionMaxItems).toList(),
@@ -226,7 +206,7 @@ class _HomeBody extends ConsumerWidget {
           ),
         ],
         if (recentHospitals.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.section),
           _HospitalSection(
             title: '최근 확인한 병원',
             hospitals: recentHospitals,
@@ -234,13 +214,35 @@ class _HomeBody extends ConsumerWidget {
           ),
         ],
         if (savedHospitals.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpacing.section),
           _HospitalSection(
             title: '저장한 병원',
             hospitals: savedHospitals,
             location: location,
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// 브랜드 헤더 — "Petcli" 워드마크 + 한 줄 부제. 앱이 무엇인지(공개된
+/// 사실을 확인하는 팩트체크 앱)만 담백하게 설명하고, 어떤 평가·추천
+/// 표현도 쓰지 않는다(CLAUDE.md 원칙 1).
+class _BrandHeader extends StatelessWidget {
+  const _BrandHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        BrandMark(fontSize: 25),
+        SizedBox(height: 4),
+        Text(
+          '동물병원의 공개된 행정·가격 정보를 확인하세요',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+        ),
       ],
     );
   }
@@ -265,10 +267,7 @@ class _NearbyHospitalsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '내 주변 가까운 병원',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        Text('내 주변 가까운 병원', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         ...visible.map((hospital) {
           final distance = HospitalRepository.distanceKm(
@@ -317,10 +316,7 @@ class _DesignatedHospitalsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '지정 병원',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        Text('지정 병원', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         ...hospitals.map(
           (hospital) => Padding(
@@ -355,10 +351,7 @@ class _HospitalSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         SizedBox(
           height: 150,

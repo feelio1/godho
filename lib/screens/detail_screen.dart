@@ -343,7 +343,7 @@ class _ReservationButton extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. 펫병원체크는 특정 병원과 '
+                '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. Petcli는 특정 병원과 '
                 '제휴하거나 거래 관계를 맺지 않으며, 추후 전화·외부 예약 링크 연결 등의 기능을 '
                 '검토하고 있습니다.',
                 style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(height: 1.5),

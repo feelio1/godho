@@ -16,7 +16,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('펫병원체크'), findsOneWidget);
+    expect(find.text('Petcli'), findsOneWidget);
     expect(find.text('지도에서 보기'), findsOneWidget);
 
     // 스프린트 13 지시서 2 — 홈이 병원 리스트 섹션으로 세로로 채워지는지

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../config/admob_config.dart';
+import '../theme/app_colors.dart';
 
 /// Bottom-fixed banner ad, meant to sit in a `Scaffold.bottomNavigationBar`
 /// slot (alongside the bottom tab bar or a floating action bar) so it never
 /// overlaps scrollable content (스프린트 5 지시서 2). Renders nothing —
 /// zero height, no layout gap — until an ad has actually loaded, and again
 /// if loading fails, so a failure never leaves a broken-looking empty box.
+///
+/// 스프린트 14(Petcli 시안): 병원 카드와 확실히 구분되도록 작은 "광고"
+/// 라벨을 함께 보여준다 — 광고 로딩·표시 로직 자체는 그대로.
 class GlobalBannerAd extends StatefulWidget {
   const GlobalBannerAd({super.key});
 
@@ -57,11 +61,24 @@ class _GlobalBannerAdState extends State<GlobalBannerAd> {
     if (ad == null) return const SizedBox.shrink();
     return SafeArea(
       top: false,
-      child: Center(
-        child: SizedBox(
-          width: ad.size.width.toDouble(),
-          height: ad.size.height.toDouble(),
-          child: AdWidget(ad: ad),
+      child: Container(
+        width: double.infinity,
+        color: AppColors.adLabelBg,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '광고',
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.adLabelText),
+            ),
+            const SizedBox(height: 2),
+            SizedBox(
+              width: ad.size.width.toDouble(),
+              height: ad.size.height.toDouble(),
+              child: AdWidget(ad: ad),
+            ),
+          ],
         ),
       ),
     );
