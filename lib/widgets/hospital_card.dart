@@ -42,10 +42,25 @@ class HospitalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final isClosed = hospital.status == HospitalStatus.closed;
+    final years = hospital.operatingYears;
+
+    // 운영 기간은 뭉뚱그린 구간(운영 X년 이상)이 아니라 실제 시안처럼
+    // 정확한 "운영 N년차"(영업중)/"운영 N년"(폐업 — 개설~폐업 범위)으로
+    // 보여준다. 신규/정보 부족(continuousSince 없거나 1년 미만)은
+    // CLAUDE.md 원칙대로 "공개 데이터가 적어요"로 솔직히 표기한다
+    // (운영기간이 부족=나쁘다는 뜻이 아니다).
+    final String operatingLabel;
+    if (years == null || years == 0) {
+      operatingLabel = '공개 데이터가 적어요';
+    } else if (isClosed) {
+      operatingLabel = '운영 $years년';
+    } else {
+      operatingLabel = '운영 ${years + 1}년차';
+    }
 
     final metaParts = <String>[
       if (hospital.openDate != null) '${DateFormat('yyyy.MM').format(hospital.openDate!)} 개설',
-      hospital.operatingPeriodLabel,
+      operatingLabel,
       // 좌표가 없는 병원은 목록에서 빼지 않되, 거리 대신 "거리 정보 없음"으로
       // 표시한다 (스프린트 2 지시서 3).
       if (hasUserLocation)
@@ -103,6 +118,13 @@ class HospitalCard extends StatelessWidget {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (isClosed) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            '지금은 문을 닫았어요',
+                            style: textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
+                          ),
+                        ],
                       ],
                     ),
                   ),

@@ -56,7 +56,10 @@ class DesignatedHospitalCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      hospital.roadAddr,
+                      [
+                        hospital.roadAddr,
+                        if (hospital.operatingYears != null) '운영 ${hospital.operatingYears! + 1}년차',
+                      ].join(' · '),
                       style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -64,22 +67,11 @@ class DesignatedHospitalCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _CircleAction(
-                    icon: Icons.call,
-                    tooltip: '전화',
-                    filled: true,
-                    onTap: () => ExternalLinks.call(context, hospital.phone),
-                  ),
-                  const SizedBox(height: 6),
-                  _CircleAction(
-                    icon: Icons.directions_outlined,
-                    tooltip: '길찾기',
-                    onTap: () => ExternalLinks.openDirections(hospital),
-                  ),
-                ],
+              _CircleAction(
+                icon: Icons.call,
+                tooltip: '전화',
+                filled: true,
+                onTap: () => ExternalLinks.call(context, hospital.phone),
               ),
             ],
           ),

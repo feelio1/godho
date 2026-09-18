@@ -24,7 +24,7 @@ enum HospitalStatus {
       case HospitalStatus.closed:
         return '폐업';
       case HospitalStatus.unknown:
-        return '상태 확인 필요';
+        return '정보 부족';
     }
   }
 }
