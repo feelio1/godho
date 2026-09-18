@@ -122,11 +122,13 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
                               title: '이 지역에는 표시할 병원이 없습니다',
                               subtitle: '지역을 변경하거나 "폐업 병원도 보기"를 켜보세요',
                               assetPath: MascotImage.emptySearchAssetPath,
+                              overlayIcon: Icons.location_off_outlined,
                             )
                           : const MascotMessage(
                               title: '검색 결과가 없습니다',
                               subtitle: '다른 이름이나 주소로 다시 검색해보세요',
                               assetPath: MascotImage.emptySearchAssetPath,
+                              overlayIcon: Icons.search_off,
                             ),
                     ),
                   )

@@ -52,6 +52,7 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
                   title: '저장한 병원이 없습니다',
                   subtitle: '관심 있는 병원을 저장하면 여기서 바로 확인할 수 있어요',
                   assetPath: MascotImage.emptyRecordAssetPath,
+                  overlayIcon: Icons.bookmark_outline,
                 ),
               ),
             );

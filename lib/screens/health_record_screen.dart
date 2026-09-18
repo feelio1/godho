@@ -44,6 +44,7 @@ class HealthRecordScreen extends ConsumerWidget {
                   title: '아직 등록된 반려동물이 없어요',
                   subtitle: '프로필을 등록하면 진료 기록과 몸무게를 기기에 남길 수 있어요',
                   assetPath: MascotImage.emptyRecordAssetPath,
+                  overlayIcon: Icons.pets,
                   trailing: FilledButton.icon(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const PetProfileFormScreen()),
