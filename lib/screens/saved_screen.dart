@@ -13,6 +13,7 @@ import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import 'detail_screen.dart';
+import 'search_result_screen.dart';
 
 enum _SavedFilter { all, open, closed }
 
@@ -45,14 +46,21 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
         data: (savedIds) {
           final hospitals = savedIds.map(repo.byId).whereType<Hospital>().toList();
           if (hospitals.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: MascotMessage(
-                  title: '저장한 병원이 없습니다',
-                  subtitle: '관심 있는 병원을 저장하면 여기서 바로 확인할 수 있어요',
+                  title: '저장한 병원이 없어요',
+                  subtitle: '관심 있는 병원을 저장해두면 여기에 모아서 볼 수 있어요.',
                   assetPath: MascotImage.emptyRecordAssetPath,
                   overlayIcon: Icons.bookmark_outline,
+                  trailing: FilledButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SearchResultScreen()),
+                    ),
+                    icon: const Icon(Icons.search, size: 18),
+                    label: const Text('병원 찾아보기'),
+                  ),
                 ),
               ),
             );

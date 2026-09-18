@@ -137,6 +137,26 @@ class _RecordsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (records.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: MascotMessage(
+            title: '아직 진료기록이 없어요',
+            subtitle: '병원 방문·접종·몸무게를 기록해두면 여기에서 한눈에 볼 수 있어요.',
+            assetPath: MascotImage.emptyRecordAssetPath,
+            overlayIcon: Icons.description_outlined,
+            trailing: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => MedicalRecordFormScreen(petId: pet.id)),
+              ),
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('첫 기록 남기기'),
+            ),
+          ),
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
@@ -151,23 +171,12 @@ class _RecordsTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        if (records.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: Text(
-                '아직 등록된 진료 기록이 없습니다',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          )
-        else
-          ...records.map(
-            (r) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _RecordTile(record: r, pet: pet),
-            ),
+        ...records.map(
+          (r) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _RecordTile(record: r, pet: pet),
           ),
+        ),
       ],
     );
   }

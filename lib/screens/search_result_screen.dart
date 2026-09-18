@@ -7,13 +7,16 @@ import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
+import '../providers/nav_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
+import '../widgets/picker_sheet_chrome.dart';
 import '../widgets/search_set_card.dart';
 import 'detail_screen.dart';
 import 'region_select_screen.dart';
@@ -58,6 +61,50 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
     }
   }
 
+  Future<void> _changeSort(SortOption current) async {
+    final result = await showModalBottomSheet<SortOption>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => PickerSheetChrome(
+        title: '정렬',
+        heightFactor: 0.4,
+        child: ListView(
+          children: [
+            for (final option in SortOption.values)
+              ListTile(
+                title: Text(
+                  option.label,
+                  style: TextStyle(
+                    fontWeight: option == current ? FontWeight.w800 : FontWeight.w600,
+                    color: option == current ? AppColors.primaryTextTone : AppColors.textPrimary,
+                  ),
+                ),
+                trailing: option == current ? const Icon(Icons.check, color: AppColors.primary) : null,
+                onTap: () => Navigator.of(context).pop(option),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (result != null) {
+      ref.read(sortOptionProvider.notifier).state = result;
+      ref.read(sortManuallySetProvider.notifier).state = true;
+    }
+  }
+
+  /// 검색 결과가 없을 때 "OO 전체로 넓히기" — 시/군/구까지 좁혀져 있으면
+  /// 시/도 전체로, 시/도만 좁혀져 있으면 전국으로 한 단계 넓힌다.
+  Future<void> _widenRegion(RegionFilter region) async {
+    final wider = region.sigungu != null ? RegionFilter(sido: region.sido) : const RegionFilter.all();
+    await ref.read(regionProvider.notifier).selectRegion(wider);
+  }
+
+  void _goToMap() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    ref.read(selectedTabProvider.notifier).state = 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     final query = ref.watch(searchQueryProvider);
@@ -97,9 +144,32 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
             padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
             child: Row(
               children: [
+                InkWell(
+                  onTap: () => _changeSort(sort),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.inputFill,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.sort, size: 15, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          sort.label,
+                          style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                        ),
+                        const Icon(Icons.expand_more, size: 16, color: AppColors.textSecondary),
+                      ],
+                    ),
+                  ),
+                ),
                 const Spacer(),
                 FilterChip(
-                  label: const Text('폐업 병원도 보기'),
+                  label: const Text('폐업 포함'),
                   selected: includeClosed,
                   onSelected: (value) =>
                       ref.read(includeClosedProvider.notifier).state = value,
@@ -107,7 +177,7 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
               ],
             ),
           ),
-          _SortBar(sort: sort),
+          const SizedBox(height: 8),
           if (region.isNationwide && results.length > _regionHintThreshold)
             _NarrowRegionHint(onTap: _changeRegion, count: results.length),
           Expanded(
@@ -116,17 +186,39 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: query.trim().isEmpty
-                          ? const MascotMessage(
+                          ? MascotMessage(
                               title: '이 지역에는 표시할 병원이 없습니다',
-                              subtitle: '지역을 변경하거나 "폐업 병원도 보기"를 켜보세요',
+                              subtitle: '지역을 변경하거나 "폐업 포함"을 켜보세요',
                               assetPath: MascotImage.emptySearchAssetPath,
                               overlayIcon: Icons.location_off_outlined,
+                              trailing: OutlinedButton(
+                                onPressed: _changeRegion,
+                                child: const Text('지역 선택'),
+                              ),
                             )
-                          : const MascotMessage(
-                              title: '검색 결과가 없습니다',
-                              subtitle: '다른 이름이나 주소로 다시 검색해보세요',
+                          : MascotMessage(
+                              title: "'$query' 검색 결과가 없어요",
+                              subtitle: '철자를 확인하거나, 지역을 넓혀서 다시 찾아보세요.',
                               assetPath: MascotImage.emptySearchAssetPath,
                               overlayIcon: Icons.search_off,
+                              trailing: Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                alignment: WrapAlignment.center,
+                                children: [
+                                  if (!region.isNationwide)
+                                    OutlinedButton(
+                                      onPressed: () => _widenRegion(region),
+                                      child: Text(
+                                        region.sigungu != null ? '${region.sido} 전체로 넓히기' : '전국으로 넓히기',
+                                      ),
+                                    ),
+                                  OutlinedButton(
+                                    onPressed: _goToMap,
+                                    child: const Text('지도에서 보기'),
+                                  ),
+                                ],
+                              ),
                             ),
                     ),
                   )
@@ -217,36 +309,6 @@ class _NarrowRegionHint extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SortBar extends ConsumerWidget {
-  final SortOption sort;
-
-  const _SortBar({required this.sort});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SizedBox(
-      height: 44,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        children: SortOption.values
-            .map((option) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(option.label),
-                    selected: sort == option,
-                    onSelected: (_) {
-                      ref.read(sortOptionProvider.notifier).state = option;
-                      ref.read(sortManuallySetProvider.notifier).state = true;
-                    },
-                  ),
-                ))
-            .toList(),
       ),
     );
   }

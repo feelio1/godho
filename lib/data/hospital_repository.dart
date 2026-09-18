@@ -12,9 +12,9 @@ import '../models/region_filter.dart';
 /// (see CLAUDE.md 원칙 1).
 enum SortOption {
   distance('가까운 순'),
-  operatingLength('운영 긴 순'),
+  operatingLength('오래된 순'),
   recentOpen('최근 개원 순'),
-  name('이름 순');
+  name('이름순');
 
   final String label;
 
