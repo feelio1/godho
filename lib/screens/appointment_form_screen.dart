@@ -83,6 +83,11 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
   /// 목록), 기존에 여러 개 저장된 예약이 있다면 첫 번째만 반영한다.
   ReminderOffset? _reminder;
 
+  /// 방문 목적 칩 중 어떤 게 선택돼 있는지 — "기타"면 아래 직접 입력
+  /// 필드를 보여준다(스프린트 15 지시서 5). [Appointment.reason]은
+  /// 여전히 하나의 자유 입력 문자열이라 모델 변경은 없다.
+  String? _selectedPurposeChip;
+
   @override
   void initState() {
     super.initState();
@@ -95,6 +100,17 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
     _memoController = TextEditingController(text: existing?.memo ?? '');
     _selectedHospitalId = existing?.hospitalId;
     _reminder = existing != null && existing.reminders.isNotEmpty ? existing.reminders.first : null;
+
+    final initialReason = existing?.reason ?? '';
+    if (initialReason.isEmpty) {
+      _selectedPurposeChip = null;
+    } else if (_visitPurposeChoices.contains(initialReason) && initialReason != '기타') {
+      _selectedPurposeChip = initialReason;
+    } else {
+      // 프리셋에 없는 자유 입력 문구(또는 예전에 저장된 "기타" 그 자체) —
+      // "기타" 칩을 선택해 두고 직접 입력 필드에 원래 값을 그대로 보여준다.
+      _selectedPurposeChip = '기타';
+    }
   }
 
   @override
@@ -244,11 +260,32 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
               children: _visitPurposeChoices
                   .map((choice) => ChoiceChip(
                         label: Text(choice),
-                        selected: _reasonController.text == choice,
-                        onSelected: (_) => setState(() => _reasonController.text = choice),
+                        selected: _selectedPurposeChip == choice,
+                        onSelected: (_) => setState(() {
+                          _selectedPurposeChip = choice;
+                          if (choice == '기타') {
+                            // 다른 칩에서 넘어온 거라면 그 칩 문구가 남아있을
+                            // 테니 지워서 빈 입력으로 시작한다. 이미 자유
+                            // 입력 문구가 있었다면(기존 예약 수정) 그대로 둔다.
+                            if (_visitPurposeChoices.contains(_reasonController.text)) {
+                              _reasonController.clear();
+                            }
+                          } else {
+                            _reasonController.text = choice;
+                          }
+                        }),
                       ))
                   .toList(),
             ),
+            if (_selectedPurposeChip == '기타') ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _reasonController,
+                autofocus: true,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(hintText: '방문 목적을 입력해주세요'),
+              ),
+            ],
             const SizedBox(height: AppSpacing.formField),
             Row(
               children: [
