@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
@@ -5,14 +6,18 @@ import 'package:timezone/timezone.dart' as tz;
 import '../models/appointment.dart';
 
 /// 진료 예약 로컬 알림(스프린트 9 지시서 3, 스프린트 12에서 정확한 시각
-/// 알림으로 보강). 서버 없이 기기 안에서만 예약·발송되며, 사용자가
-/// 예약마다 "며칠 전 + 몇 시"를 직접 골라 여러 개 둘 수 있다.
+/// 알림으로 보강, 스프린트 15에서 실기기 미작동 원인 규명·수정). 서버
+/// 없이 기기 안에서만 예약·발송되며, 사용자가 예약마다 "며칠 전 + 몇 시"를
+/// 직접 골라 여러 개 둘 수 있다.
 ///
 /// 알림 안정성 원칙(지시서 "과거 크래시 교훈"): 초기화·권한 요청·예약 중
 /// 어떤 단계가 실패해도(권한 거부, 플랫폼 채널 없음 등) 예외를 앱 밖으로
-/// 던지지 않는다 — 전부 조용히 무시하고 앱은 정상 동작한다. 콜드 스타트
-/// 경로(`main.dart`)에서는 아예 초기화하지 않고, 예약을 실제로 저장하는
-/// 시점에만 지연 초기화한다.
+/// 던지지 않는다 — 전부 조용히 무시하고 앱은 정상 동작한다. 다만 "조용히"는
+/// 예외를 앱 밖으로 던지지 않는다는 뜻이지 원인을 아예 안 남긴다는 뜻은
+/// 아니다 — 각 단계 실패는 [debugPrint]로 남겨 실기기에서 `adb logcat`으로
+/// 원인을 추적할 수 있게 한다(스프린트 15 지시서 1: "실패를 조용히 삼키지
+/// 말고 원인을 로그로 남길 것"). 콜드 스타트 경로(`main.dart`)에서는 아예
+/// 초기화하지 않고, 예약을 실제로 저장하는 시점에만 지연 초기화한다.
 class NotificationService {
   NotificationService._();
 
@@ -28,6 +33,19 @@ class NotificationService {
   /// 테스트 알림 1건이 쓰는 별도 id — 실제 예약 알림 id 범위와 겹치지 않게
   /// 아주 큰 값을 고정으로 쓴다.
   static const _testNotificationId = 999999;
+  static const _immediateTestNotificationId = 999998;
+
+  static void _log(String message) {
+    debugPrint('[NotificationService] $message');
+  }
+
+  static const _reminderChannel = AndroidNotificationDetails(
+    'appointment_reminders',
+    '예약 알림',
+    channelDescription: '등록한 진료 예약을 지정한 시각에 알려드립니다.',
+    importance: Importance.high,
+    priority: Priority.high,
+  );
 
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
@@ -38,11 +56,13 @@ class NotificationService {
       tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const settings = InitializationSettings(android: androidSettings);
-      await _plugin.initialize(settings: settings);
+      final ok = await _plugin.initialize(settings: settings);
       _initialized = true;
-    } catch (_) {
+      _log('초기화 완료 (initialize() 반환값: $ok)');
+    } catch (e, st) {
       // 초기화 실패 — 알림 기능만 조용히 비활성화하고 앱은 계속 정상 동작한다.
       _initialized = false;
+      _log('초기화 실패: $e\n$st');
     }
   }
 
@@ -64,18 +84,23 @@ class NotificationService {
     var notificationsGranted = false;
     try {
       notificationsGranted = await _android?.requestNotificationsPermission() ?? false;
-    } catch (_) {
+      _log('알림 권한 요청 결과: $notificationsGranted');
+    } catch (e) {
       notificationsGranted = false;
+      _log('알림 권한 요청 실패: $e');
     }
     try {
       // 이미 허용돼 있으면 시스템 설정 화면을 다시 띄우지 않는다.
       final alreadyExact = await _android?.canScheduleExactNotifications() ?? false;
+      _log('정확한 시각 알람 권한 보유 여부: $alreadyExact');
       if (!alreadyExact) {
-        await _android?.requestExactAlarmsPermission();
+        final requested = await _android?.requestExactAlarmsPermission();
+        _log('정확한 시각 알람 권한 요청 결과: $requested');
       }
-    } catch (_) {
+    } catch (e) {
       // 이 기기/버전이 지원하지 않거나 거부됨 — 근사 시각 모드로 대체되므로
       // 무시하고 계속 진행한다.
+      _log('정확한 시각 알람 권한 요청 중 예외(무시하고 근사 시각으로 대체): $e');
     }
     return notificationsGranted;
   }
@@ -91,33 +116,34 @@ class NotificationService {
     if (appointment.reminders.isEmpty) return;
 
     await _ensureInitialized();
-    if (!_initialized) return;
+    if (!_initialized) {
+      _log('초기화가 안 돼 있어 예약(${appointment.id})을 스케줄하지 않음');
+      return;
+    }
 
     final scheduleMode = await _bestAvailableScheduleMode();
+    _log('예약(${appointment.id}) 알림 ${appointment.reminders.length}건 스케줄 시작 (모드: $scheduleMode)');
 
     for (var i = 0; i < appointment.reminders.length && i < _maxRemindersPerAppointment; i++) {
       final reminder = appointment.reminders[i];
       final fireAt = reminder.fireTimeFor(appointment.dateTime);
-      if (fireAt.isBefore(DateTime.now())) continue;
+      if (fireAt.isBefore(DateTime.now())) {
+        _log('알림 #$i 시각($fireAt)이 이미 지나 건너뜀');
+        continue;
+      }
       try {
         await _plugin.zonedSchedule(
           id: _notificationId(appointment.id, i),
           scheduledDate: tz.TZDateTime.from(fireAt, tz.local),
           title: '진료 예약 알림',
           body: _reminderBody(appointment),
-          notificationDetails: const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'appointment_reminders',
-              '예약 알림',
-              channelDescription: '등록한 진료 예약을 지정한 시각에 알려드립니다.',
-              importance: Importance.high,
-              priority: Priority.high,
-            ),
-          ),
+          notificationDetails: const NotificationDetails(android: _reminderChannel),
           androidScheduleMode: scheduleMode,
         );
-      } catch (_) {
+        _log('알림 #$i 스케줄 완료 — $fireAt');
+      } catch (e, st) {
         // 이 알림 하나만 건너뛰고 나머지는 계속 예약한다.
+        _log('알림 #$i 스케줄 실패: $e\n$st');
       }
     }
   }
@@ -130,8 +156,9 @@ class NotificationService {
     try {
       final canExact = await _android?.canScheduleExactNotifications() ?? false;
       if (canExact) return AndroidScheduleMode.exactAllowWhileIdle;
-    } catch (_) {
+    } catch (e) {
       // 확인 자체가 안 되는 기기/버전 — 근사 시각으로 안전하게 대체.
+      _log('정확한 시각 알람 가능 여부 확인 실패(근사 시각으로 대체): $e');
     }
     return AndroidScheduleMode.inexactAllowWhileIdle;
   }
@@ -142,8 +169,9 @@ class NotificationService {
     for (var i = 0; i < _maxRemindersPerAppointment; i++) {
       try {
         await _plugin.cancel(id: _notificationId(appointmentId, i));
-      } catch (_) {
+      } catch (e) {
         // 이미 없는 알림을 지우는 경우 등 — 무시하고 계속 진행.
+        _log('알림 취소 중 예외(무시): $e');
       }
     }
   }
@@ -152,6 +180,35 @@ class NotificationService {
     final reason = appointment.reason.trim();
     final suffix = reason.isEmpty ? '' : ' ($reason)';
     return '${appointment.hospitalName} 예약이 있어요$suffix';
+  }
+
+  /// 지금 바로 뜨는 즉시 알림 — Android의 AlarmManager/예약 브로드캐스트
+  /// 경로를 전혀 타지 않고 [FlutterLocalNotificationsPlugin.show]로 바로
+  /// 띄운다. [sendTestNotification](1분 뒤 예약형)이 안 울릴 때, 문제가
+  /// "초기화·채널·권한"에 있는지 "스케줄링(정확한 시각 알람·리시버)"에
+  /// 있는지 이분 탐색하기 위한 디버그 경로다(스프린트 15 지시서 1) — 이게
+  /// 뜨면 초기화·채널·권한은 정상이고, 그런데도 예약형이 안 울리면 스케줄
+  /// 쪽(타임존/정확한 시각 모드/매니페스트 리시버)을 봐야 한다.
+  Future<bool> showImmediateTestNotification() async {
+    await requestPermission();
+    await _ensureInitialized();
+    if (!_initialized) {
+      _log('즉시 테스트 알림: 초기화 실패로 표시 불가');
+      return false;
+    }
+    try {
+      await _plugin.show(
+        id: _immediateTestNotificationId,
+        title: '즉시 테스트 알림',
+        body: '이 알림이 보이면 초기화·채널·권한은 정상입니다.',
+        notificationDetails: const NotificationDetails(android: _reminderChannel),
+      );
+      _log('즉시 테스트 알림 표시 완료');
+      return true;
+    } catch (e, st) {
+      _log('즉시 테스트 알림 표시 실패: $e\n$st');
+      return false;
+    }
   }
 
   /// 실기기에서 알림 설정이 실제로 동작하는지 확인하기 위한 테스트 알림 —
@@ -163,7 +220,10 @@ class NotificationService {
   Future<bool> sendTestNotification() async {
     await requestPermission();
     await _ensureInitialized();
-    if (!_initialized) return false;
+    if (!_initialized) {
+      _log('1분 뒤 테스트 알림: 초기화 실패로 예약 불가');
+      return false;
+    }
     final scheduleMode = await _bestAvailableScheduleMode();
     final fireAt = DateTime.now().add(const Duration(minutes: 1));
     try {
@@ -173,19 +233,13 @@ class NotificationService {
         title: '테스트 알림',
         body: '이 알림이 보이면 예약 알림도 정상 동작합니다 '
             '(${scheduleMode == AndroidScheduleMode.exactAllowWhileIdle ? '정확한 시각' : '근사 시각'} 모드).',
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'appointment_reminders',
-            '예약 알림',
-            channelDescription: '등록한 진료 예약을 지정한 시각에 알려드립니다.',
-            importance: Importance.high,
-            priority: Priority.high,
-          ),
-        ),
+        notificationDetails: const NotificationDetails(android: _reminderChannel),
         androidScheduleMode: scheduleMode,
       );
+      _log('1분 뒤 테스트 알림 스케줄 완료 — $fireAt (모드: $scheduleMode)');
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      _log('1분 뒤 테스트 알림 스케줄 실패: $e\n$st');
       return false;
     }
   }

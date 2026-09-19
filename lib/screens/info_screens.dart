@@ -23,6 +23,23 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  /// "1분 뒤 테스트 알림"이 안 올 때, 문제가 초기화·채널·권한 쪽인지
+  /// 스케줄링(예약) 쪽인지 갈라보는 즉시 알림(스프린트 15 지시서 1).
+  Future<void> _sendImmediateTestNotification(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await NotificationService.instance.showImmediateTestNotification();
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? '즉시 알림을 보냈습니다. 지금 바로 안 보이면 이 기기에서 알림 권한이 꺼져 있는지 확인해주세요.'
+              : '즉시 알림을 보내지 못했습니다. 알림 권한을 확인해주세요.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,6 +72,22 @@ class SettingsScreen extends StatelessWidget {
                       icon: const Icon(Icons.notifications_active_outlined),
                       label: const Text('1분 뒤 테스트 알림 보내기'),
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _sendImmediateTestNotification(context),
+                      icon: const Icon(Icons.bolt_outlined),
+                      label: const Text('즉시 테스트 알림 보내기'),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '1분 뒤 알림이 안 오면 먼저 이 버튼으로 즉시 알림이 뜨는지 확인해보세요 — '
+                    '즉시 알림은 뜨는데 1분 뒤 알림만 안 온다면 예약(스케줄) 쪽 문제이고, '
+                    '즉시 알림도 안 뜨면 알림 권한 자체를 다시 확인해야 합니다.',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),

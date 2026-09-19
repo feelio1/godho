@@ -16,6 +16,10 @@
          알림을 처음 설정할 때 NotificationService가 안내·요청하고, 거부되면
          근사 시각(inexact) 알림으로 자동 대체된다(스프린트 12 지시서 1). -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- 기기 재부팅 후에도 예약 알림을 다시 스케줄하기 위해 필요(스프린트 15
+         지시서 2) — 아래 ScheduledNotificationBootReceiver가 이 브로드캐스트를
+         받아 flutter_local_notifications가 저장해 둔 예약을 다시 건다. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="Petcli"
         android:name=".MainApplication"
@@ -74,6 +78,27 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+        <!-- flutter_local_notifications 22.x부터는 이 리시버들을 플러그인
+             매니페스트가 자동으로 병합해주지 않고, 앱이 직접 선언해야 한다
+             (스프린트 15 지시서 1의 "예약 알림이 전혀 안 울림" 근본 원인 —
+             zonedSchedule로 건 알람이 울려도 받을 리시버가 없어 조용히
+             사라지고 있었다). -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
