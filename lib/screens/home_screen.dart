@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../ads/global_banner_ad.dart';
 import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../models/region_filter.dart';
@@ -165,6 +166,8 @@ class _HomeBody extends ConsumerWidget {
         ),
         const SizedBox(height: AppSpacing.section),
         const HomeBanner(),
+        const SizedBox(height: AppSpacing.section),
+        const GlobalBannerAd(inline: true),
         if (designatedHospitals.isNotEmpty) ...[
           const SizedBox(height: AppSpacing.section),
           _DesignatedHospitalsSection(hospitals: designatedHospitals),

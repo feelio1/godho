@@ -73,7 +73,12 @@ class AppOpenAdManager {
         loadAd();
       },
     );
-    await ad.show();
+    try {
+      await ad.show();
+    } catch (_) {
+      // 광고 SDK 쪽 예외로 화면을 막지 않는다 — 실패해도 앱은 정상 진입.
+      _isShowingAd = false;
+    }
   }
 
   Future<bool> _cooldownElapsed() async {
