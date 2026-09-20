@@ -375,12 +375,17 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                                 style: Theme.of(sheetContext).textTheme.titleSmall,
                               ),
                             ),
-                            StatusBadge(status: hospital.status),
+                            Flexible(child: HospitalStatusTag(hospital: hospital)),
                           ],
                         ),
                         const SizedBox(height: 5),
                         Text(
-                          hospital.roadAddr,
+                          // 영업중은 위 HospitalStatusTag가 운영 N년차를 이미
+                          // 보여주므로 중복 표기하지 않는다(스프린트 16) —
+                          // 폐업/정보부족은 주소 옆에 운영기간을 함께 보여준다.
+                          hospital.status == HospitalStatus.open
+                              ? hospital.roadAddr
+                              : [hospital.roadAddr, hospitalOperatingLabel(hospital)].join(' · '),
                           style: Theme.of(sheetContext)
                               .textTheme
                               .bodySmall

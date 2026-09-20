@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/hospital.dart';
+import '../models/hospital_status.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/external_links.dart';
 import 'hospital_avatar.dart';
-import 'hospital_card.dart';
 import 'status_badge.dart';
 
 /// 홈 상단 "지정 병원" 섹션의 카드. 목록에서 바로 전화·길찾기로 갈 수
@@ -52,14 +52,16 @@ class DesignatedHospitalCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        StatusBadge(status: hospital.status),
+                        Flexible(child: HospitalStatusTag(hospital: hospital)),
                       ],
                     ),
                     const SizedBox(height: 5),
                     Text(
                       [
                         hospital.roadAddr,
-                        hospitalOperatingLabel(hospital),
+                        // 영업중은 이름 옆 HospitalStatusTag가 운영 N년차를
+                        // 이미 보여주므로 중복 표기하지 않는다(스프린트 16).
+                        if (hospital.status != HospitalStatus.open) hospitalOperatingLabel(hospital),
                       ].join(' · '),
                       style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis,

@@ -14,7 +14,6 @@ import '../utils/external_links.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fact_card.dart';
 import '../widgets/fee_section.dart';
-import '../widgets/hospital_card.dart';
 import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
@@ -181,7 +180,7 @@ class _Header extends ConsumerWidget {
         const SizedBox(height: 8),
         Row(
           children: [
-            StatusBadge(status: hospital.status),
+            Flexible(child: HospitalStatusTag(hospital: hospital)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(hospital.roadAddr, style: textTheme.bodyMedium),

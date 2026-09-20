@@ -141,7 +141,7 @@ class _HeaderRow extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  StatusBadge(status: h.status),
+                  HospitalStatusTag(hospital: h),
                 ],
               ),
             ),
