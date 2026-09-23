@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../data/hospital_repository.dart';
+import '../models/pet.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/fee_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
+import '../providers/pet_provider.dart';
 import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
 import '../widgets/mascot_message.dart';
@@ -108,6 +111,17 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
       if (!ref.read(sortManuallySetProvider)) {
         ref.read(sortOptionProvider.notifier).state = SortOption.distance;
       }
+    });
+
+    // 반려동물이 등록되어 있고 체중이 입력돼 있으면, 진료비 시세 조회의
+    // 체중 기준 기본값을 그 값으로 맞춘다 — 사용자가 이미 직접 고른
+    // 체중 기준은 덮어쓰지 않는다(FeeWeightNotifier.applyPetWeightIfUnset).
+    ref.listen<AsyncValue<List<Pet>>>(petsProvider, (previous, next) {
+      final pets = next.value;
+      if (pets == null || pets.isEmpty) return;
+      final weightKg = pets.first.weightKg;
+      if (weightKg == null) return;
+      ref.read(feeWeightProvider.notifier).applyPetWeightIfUnset(weightKg);
     });
 
     return PopScope(

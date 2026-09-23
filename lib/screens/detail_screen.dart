@@ -13,7 +13,7 @@ import '../theme/app_colors.dart';
 import '../utils/external_links.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fact_card.dart';
-import '../widgets/fee_section.dart';
+import '../widgets/fee_hospital_section.dart';
 import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
@@ -96,7 +96,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
               TimelineView(timeline: timeline),
             ],
             const SizedBox(height: 24),
-            const FeeSection(),
+            FeeHospitalSection(hospital: hospital),
             const SizedBox(height: 24),
             _ExternalLinksSection(hospital: hospital),
             SourceFooter(
@@ -373,13 +373,10 @@ class _FactCardGrid extends StatelessWidget {
         value: hospitalOperatingLabel(hospital),
       ),
       FactCard(label: '영업상태', value: hospital.status.label),
-      // 상세 안내(지역 시세 준비 중 문구)는 하단 FeeSection 한 곳에서만
-      // 보여준다 — 여기서는 "준비 중" 한 줄 요약만(스프린트 11 지시서 1:
-      // 같은 "준비 중" 안내가 화면에 두 번 나오지 않게).
-      const FactCard(
-        label: '진료비 정보',
-        value: '준비 중',
-      ),
+      // 진료비 정보는 아래 FeeHospitalSection이 실제 시세로 보여주므로
+      // 여기서는 중복 카드를 두지 않는다(스프린트 11 지시서 1: 같은
+      // 안내가 화면에 두 번 나오지 않게 — 이제는 "준비 중"이 아니라
+      // 실제 값이라 더더욱 한 곳에서만 보여줘야 한다).
       FactCard(label: '동일 주소 기록', value: '$recordCount건'),
     ];
     return GridView.count(

@@ -5,14 +5,17 @@ import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import 'fee_context_chip.dart';
 import 'hospital_avatar.dart';
 import 'status_badge.dart';
 
 /// 병원 카드(스프린트 14, Petcli 시안): 아바타(건물 아이콘, 틴트 배경) +
-/// 병원명 + 상태 pill + 메타(개설·운영·거리) + "진료비 준비 중" 회색 칩 +
+/// 병원명 + 상태 pill + 메타(개설·운영·거리) + "이 지역 초진 시세" 회색
+/// 칩(진료비 지시서 — 병원 자체 가격이 아니라 소속 시/군/구 시세) +
 /// 우측 chevron(저장 화면 등에서는 채워진 북마크로 대체 가능). 폐업
-/// 병원은 카드 전체가 옅은 회색으로 가라앉는다 — 경고가 아니라 그저
-/// 인허가 기록상 사실이라는 뜻(CLAUDE.md 평가 금지 원칙).
+/// 병원은 카드 전체가 옅은 회색으로 가라앉고 시세 칩도 달지 않는다 —
+/// 경고가 아니라 그저 인허가 기록상 사실이라는 뜻(CLAUDE.md 평가 금지
+/// 원칙).
 class HospitalCard extends StatelessWidget {
   final Hospital hospital;
   final int sameAddressRecordCount;
@@ -125,14 +128,9 @@ class HospitalCard extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  Chip(
-                    label: Text('진료비 준비 중', style: const TextStyle(fontSize: 11)),
-                    backgroundColor: AppColors.inputFill,
-                    labelStyle: const TextStyle(color: AppColors.textSecondary),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    padding: EdgeInsets.zero,
-                  ),
+                  // 폐업 병원엔 시세 칩을 달지 않는다 — 회색 톤은 유지하되
+                  // 헛걸음 방지를 위한 정보(폐업 표시)에 집중한다.
+                  if (!isClosed) FeeContextChip(hospital: hospital),
                   if (onCompareToggle != null)
                     ActionChip(
                       onPressed: onCompareToggle,

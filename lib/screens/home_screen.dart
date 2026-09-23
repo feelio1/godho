@@ -17,6 +17,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/designated_hospital_card.dart';
+import '../widgets/fee_summary_card.dart';
 import '../widgets/home_banner.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/search_set_card.dart';
@@ -164,6 +165,8 @@ class _HomeBody extends ConsumerWidget {
           onSelectRegion: (filter) => ref.read(regionProvider.notifier).selectRegion(filter),
           onOpenRegionPicker: () => _changeRegion(context, ref),
         ),
+        const SizedBox(height: AppSpacing.section),
+        const FeeSummaryCard(),
         const SizedBox(height: AppSpacing.section),
         const HomeBanner(),
         const SizedBox(height: AppSpacing.section),

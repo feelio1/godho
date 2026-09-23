@@ -20,6 +20,7 @@ import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/map_clustering.dart';
+import '../widgets/fee_context_chip.dart';
 import '../widgets/hospital_avatar.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
@@ -396,6 +397,13 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                   ),
                 ],
               ),
+              if (hospital.status != HospitalStatus.closed) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FeeContextChip(hospital: hospital),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
