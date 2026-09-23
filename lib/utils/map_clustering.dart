@@ -64,6 +64,23 @@ double cellSizeForZoom(int zoomLevel, {int clusterDisabledZoom = 14}) {
 /// grid sized by [zoomLevel]. Every hospital appears in exactly one group,
 /// regardless of zoom — there is no zoom level at which a non-empty input
 /// produces an empty result.
+/// 지도 마커 후보를 고를 때 쓰는 "카메라 중심에서 몇 km 안을 보여줄지"
+/// 근사값 — 줌 레벨이 낮을수록(더 멀리 보일수록) 반경을 넓힌다. 카카오
+/// 지도 SDK가 실제 화면 경계(bounds)를 안정적으로 주지 않아, 위치 기반
+/// 지도 표시 지시서가 허용한 대안("지도 중심/사용자 위치 반경 R km")을
+/// 쓴다 — 목적은 정밀한 화면 경계가 아니라 "구 경계를 넘어 인접 병원도
+/// 거리순으로 보이게" 하는 것이라 대략적인 값으로 충분하다.
+double markerSearchRadiusKmForZoom(int zoomLevel) {
+  if (zoomLevel >= 17) return 1.5;
+  if (zoomLevel == 16) return 2.5;
+  if (zoomLevel == 15) return 4;
+  if (zoomLevel == 14) return 6;
+  if (zoomLevel == 13) return 10;
+  if (zoomLevel == 12) return 16;
+  if (zoomLevel == 11) return 25;
+  return 40;
+}
+
 List<MarkerGroup> clusterHospitals(
   List<Hospital> hospitals,
   int zoomLevel, {

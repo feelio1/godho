@@ -3,13 +3,15 @@ import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../data/hospital_repository.dart';
+import '../data/hospital_repository.dart' show SortOption;
 import '../models/pet.dart';
+import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/fee_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/pet_provider.dart';
+import '../providers/region_auto_detect.dart';
 import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
 import '../widgets/mascot_message.dart';
@@ -100,14 +102,16 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
     // location was already granted in an earlier session, this picks a
     // default region and sort — but never overrides an explicit user choice
     // (see RegionNotifier.applyGpsRegionIfUnset / sortManuallySetProvider).
+    //
+    // 지역 판정은 카카오 REST 역지오코딩(1순위) → hospitals.json 최단거리
+    // 병원(2순위) → normalizeRegion 검증까지 한 번에 거치는
+    // detectNormalizedRegion을 쓴다(위치 기반 지역 자동 감지 지시서) —
+    // ref.listen 콜백은 동기라 내부에서 별도 async 함수로 분리해 기다리지
+    // 않고 실행한다(완료되면 그때 상태를 반영).
     ref.listen<AsyncValue<Position?>>(locationProvider, (previous, next) {
       final position = next.value;
       if (position == null) return;
-      final repo = ref.read(repositoryProvider);
-      final nearest = repo.nearestRegion(position.latitude, position.longitude);
-      if (nearest != null) {
-        ref.read(regionProvider.notifier).applyGpsRegionIfUnset(nearest);
-      }
+      _applyAutoDetectedRegion(ref, position.latitude, position.longitude);
       if (!ref.read(sortManuallySetProvider)) {
         ref.read(sortOptionProvider.notifier).state = SortOption.distance;
       }
@@ -156,4 +160,17 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
       ),
     );
   }
+}
+
+/// [detectNormalizedRegion]으로 좌표를 지역으로 판정한 뒤, 사용자가 이미
+/// 직접 지역을 고르지 않은 경우에만 반영한다(RegionNotifier
+/// .applyGpsRegionIfUnset). 실패(REST 미설정·호출 실패·정규화 실패 모두)
+/// 하면 조용히 아무 것도 하지 않는다 — 화면 26이 "지역 선택하기"로
+/// 수동 선택을 계속 안내한다.
+Future<void> _applyAutoDetectedRegion(WidgetRef ref, double lat, double lng) async {
+  final normalized = await detectNormalizedRegion(ref, lat, lng);
+  if (normalized == null) return;
+  ref.read(regionProvider.notifier).applyGpsRegionIfUnset(
+        RegionFilter(sido: normalized.sido, sigungu: normalized.sigungu),
+      );
 }

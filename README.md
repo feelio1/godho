@@ -25,6 +25,20 @@ flutter run
 flutter run --dart-define=KAKAO_NATIVE_KEY=발급받은_네이티브_앱_키
 ```
 
+### 위치 기반 지역 자동 감지 (선택)
+
+위치 권한을 허용하면 GPS 좌표로 현재 시/도·구를 자동으로 판정해 지역을 설정합니다. 카카오
+개발자 사이트에서 발급받은 **REST API 키**가 있으면 좌표→행정구역 변환(coord2regioncode)에
+씁니다.
+
+```bash
+flutter run --dart-define=KAKAO_REST_KEY=발급받은_REST_API_키
+```
+
+REST 키가 없거나 호출이 실패해도 앱은 정상 동작합니다 — `hospitals.json`에서 가장 가까운
+병원의 지역을 대신 쓰는 오프라인 폴백으로 조용히 넘어갑니다(둘 다 실패하면 지역을 직접
+선택하는 화면으로 안내합니다). 지도 SDK 키(`KAKAO_NATIVE_KEY`)와는 별개의 키입니다.
+
 ### 애드몹 연동 (선택)
 
 배너·앱 오프닝 광고 단위 ID는 `--dart-define`으로 주입합니다. 지정하지 않으면 구글이 공식

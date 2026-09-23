@@ -82,7 +82,10 @@ class HospitalRepository {
   }
 
   /// Best-effort "current region" from a GPS fix: the region of the
-  /// nearest hospital with coordinates. Used only to pick a sensible
+  /// nearest hospital with coordinates AND a usable (시도, 시군구) — a
+  /// handful of records have coordinates but blank region fields, and
+  /// picking one of those as "nearest" would silently produce an empty
+  /// region instead of a real fallback. Used only to pick a sensible
   /// default region filter — never shown to the user as a fact about a
   /// specific hospital.
   RegionFilter? nearestRegion(double lat, double lng) {
@@ -90,6 +93,7 @@ class HospitalRepository {
     double? nearestDistance;
     for (final h in bundle.hospitals) {
       if (!h.hasCoordinates) continue;
+      if (h.sido.isEmpty || h.sigungu.isEmpty) continue;
       final d = distanceKm(lat, lng, h.lat, h.lng)!;
       if (nearestDistance == null || d < nearestDistance) {
         nearestDistance = d;

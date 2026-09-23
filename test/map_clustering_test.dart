@@ -104,4 +104,12 @@ void main() {
     expect(group.isCluster, isFalse);
     expect(group.position, (lat: 12.34, lng: 56.78));
   });
+
+  test('markerSearchRadiusKmForZoom grows as zoom decreases (더 멀리 볼수록 더 넓게 조회) and is always positive', () {
+    for (var zoom = 20; zoom > -5; zoom--) {
+      final radius = markerSearchRadiusKmForZoom(zoom);
+      expect(radius, greaterThan(0), reason: 'zoom=$zoom');
+      expect(radius, greaterThanOrEqualTo(markerSearchRadiusKmForZoom(zoom + 1)), reason: 'zoom=$zoom');
+    }
+  });
 }

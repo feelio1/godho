@@ -20,7 +20,15 @@ const representativeFeeItemId = 'consult_first';
 class FeeContextChip extends ConsumerWidget {
   final Hospital hospital;
 
-  const FeeContextChip({super.key, required this.hospital});
+  /// 지도처럼 서로 다른 구의 병원이 한 화면에 함께 보이는 곳에서는
+  /// "이 지역" 대신 실제 구 이름을 밝힌다 — 인접 구 병원이 나란히 뜨는
+  /// 지도에서 "이 지역"이라고만 하면 어느 구를 가리키는지 모호해
+  /// 병원별 가격으로 오해될 수 있다(위치 기반 지도 표시 지시서 2-2).
+  /// 검색결과·저장 목록처럼 한 지역으로만 좁혀진 화면은 기본값(false,
+  /// "이 지역")을 그대로 쓴다.
+  final bool showRegionLabel;
+
+  const FeeContextChip({super.key, required this.hospital, this.showRegionLabel = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,9 +43,11 @@ class FeeContextChip extends ConsumerWidget {
     );
     if (value == null) return const SizedBox.shrink();
 
+    final regionLabel = showRegionLabel ? '${hospital.sigungu} 시세' : '이 지역 초진 시세';
+
     return Chip(
       label: Text(
-        '이 지역 초진 시세 · 중간 ${feeWonLabel(value.mid)}',
+        '$regionLabel · 중간 ${feeWonLabel(value.mid)}',
         style: const TextStyle(fontSize: 11),
       ),
       backgroundColor: AppColors.inputFill,

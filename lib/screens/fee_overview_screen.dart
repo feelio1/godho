@@ -6,6 +6,7 @@ import '../models/fee.dart';
 import '../models/fee_bundle.dart';
 import '../models/region_filter.dart';
 import '../providers/fee_provider.dart';
+import '../providers/location_provider.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -34,6 +35,22 @@ class _FeeOverviewScreenState extends ConsumerState<FeeOverviewScreen> {
   String? _selectedCategory;
   String? _highlightedItemId;
   bool _initializedFromArg = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 진료비 시세는 "주변 병원" 탭과 마찬가지로 위치 정보가 있어야 바로
+    // 쓸모 있는 기능이라, 이 화면에 진입했는데 지역이 아직 없으면 그때
+    // 위치 권한을 요청한다(CLAUDE.md: 앱 시작 시 강제 요청 금지 — 여기는
+    // 명시적으로 이 화면에 들어온 시점이라 예외가 아니라 같은 패턴이다).
+    // 이미 지역이 있으면(수동 선택 포함) 아무 것도 하지 않는다.
+    final region = ref.read(regionProvider).value?.filter;
+    if (region == null || region.sigungu == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(locationProvider.notifier).requestAndFetch();
+      });
+    }
+  }
 
   Future<void> _changeRegion() async {
     final picked = await showRegionPickerSheet(context);
