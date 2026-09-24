@@ -11,6 +11,7 @@ import '../providers/region_detection_status.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/fee_no_data_message.dart';
 import '../widgets/fee_item_card.dart';
 import '../widgets/fee_item_picker_sheet.dart';
 import '../widgets/fee_weight_picker_sheet.dart';
@@ -111,6 +112,19 @@ class _FeeOverviewScreenState extends ConsumerState<FeeOverviewScreen> {
     }
     final sido = region.sido!;
     final sigungu = region.sigungu!;
+
+    // 화면 25(구 단위) — 지역은 정해졌지만 그 구가 fees 조사 범위 밖
+    // (신설 구 등)이면 26으로 되돌리지 않는다. 위치는 이미 잡혔으므로
+    // 병원 검색·지도 등 다른 기능은 이 지역으로 정상 동작해야 하고,
+    // 시세만 "아직 없음"으로 솔직히 보여준다(홈 자동 시세 표시 지시서
+    // 변경 2 — 다른 구 값으로 대체하지 않는다).
+    if (!bundle.hasAnyDataFor(sido, sigungu)) {
+      return _NoRegionFeeDataView(
+        regionLabel: region.label,
+        sigungu: sigungu,
+        onSelectRegion: _changeRegion,
+      );
+    }
 
     if (!_initializedFromArg) {
       _initializedFromArg = true;
@@ -324,7 +338,45 @@ class _LocationRequiredView extends StatelessWidget {
   }
 }
 
-/// 화면 25 — 선택한 지역·카테고리에 조사된 진료비 데이터가 하나도 없음.
+/// 화면 25(구 단위) — 지역은 정해졌지만 그 구 자체가 fees 조사 범위
+/// 밖(신설 구 등)이라 어떤 항목도 없음. 26(위치 미설정)과 다르다 —
+/// 위치는 이미 잡혀 있고, 시세만 아직 없을 뿐이다. 신설 구는 이유가
+/// 보이는 문구로 구분하고, 다른 구 값으로 대체하지 않는다(홈 자동 시세
+/// 표시 지시서 변경 2).
+class _NoRegionFeeDataView extends StatelessWidget {
+  final String regionLabel;
+  final String sigungu;
+  final VoidCallback onSelectRegion;
+
+  const _NoRegionFeeDataView({
+    required this.regionLabel,
+    required this.sigungu,
+    required this.onSelectRegion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: MascotMessage(
+          title: '아직 조사된 진료비 데이터가 없어요',
+          subtitle: feeNoRegionDataSubtitle(regionLabel, sigungu),
+          overlayIcon: Icons.info_outline,
+          trailing: OutlinedButton(
+            onPressed: onSelectRegion,
+            child: const Text('다른 지역 선택'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 화면 25(카테고리 단위) — 구 자체엔 다른 데이터가 있지만, 선택한
+/// 카테고리 안 항목들만 조사가 안 됨(예: MRI·CT는 표본이 훨씬 적어
+/// 일부 구엔 아예 없을 수 있다). 구 전체가 빠진 [_NoRegionFeeDataView]
+/// 와는 다른 경우라 신설 구 문구를 붙이지 않는다.
 class _NoFeeDataView extends StatelessWidget {
   final String regionLabel;
   final VoidCallback onSelectRegion;

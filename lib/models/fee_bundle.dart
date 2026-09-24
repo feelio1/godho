@@ -80,6 +80,18 @@ class FeeBundle {
     return _fees[sido]?[sigungu]?[itemId]?[weightKey];
   }
 
+  /// (시도, 시군구)에 조사된 항목이 하나라도 있는지 — 개별 항목의 표본
+  /// 유무(sampleLow)와는 다른, "이 구 자체가 fees 조사 범위에 있는지"를
+  /// 보는 지역 단위 판정이다. hospitals.json은 최신 행정구역(예: 신설된
+  /// 검단구)을 반영해도 fees.json 조사 시점이 그보다 이르면 그 구가
+  /// 통째로 빠져 있을 수 있다 — 이 경우 다른 구 값으로 대체하지 않고
+  /// "이 구는 아직 조사 자료가 없다"고 솔직히 구분하기 위한 메서드다
+  /// (CLAUDE.md 원칙 5, 홈 자동 시세 표시 지시서 변경 2).
+  bool hasAnyDataFor(String sido, String sigungu) {
+    final itemMap = _fees[sido]?[sigungu];
+    return itemMap != null && itemMap.isNotEmpty;
+  }
+
   /// [category] 안에서 (시도, 시군구, 체중구간) 기준 실제 데이터가 있는
   /// 항목만 골라준다 — 항목별로 조사 커버리지가 달라(예: MRI는 표본이
   /// 훨씬 적음) 카테고리 안에서도 일부만 존재할 수 있다.
