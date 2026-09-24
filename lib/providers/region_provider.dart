@@ -33,9 +33,17 @@ class RegionNotifier extends AsyncNotifier<RegionState> {
 
   /// Applies a GPS-derived region, but only while the user has not made an
   /// explicit choice yet — otherwise a no-op.
-  void applyGpsRegionIfUnset(RegionFilter gpsFilter) {
-    final current = state.value;
-    if (current == null || current.isUserSelected) return;
+  ///
+  /// 위치 자동감지 디버깅 지시서 E: 이전엔 `state.value`를 바로 읽어서,
+  /// [build]가 아직 끝나지 않았으면(SharedPreferences 읽는 중) `current`가
+  /// null이라 조용히 아무 것도 안 하고 끝났다 — 그리고 다시는 재시도되지
+  /// 않았다(이 메서드는 locationProvider가 바뀔 때만 호출되므로). 앱 시작
+  /// 직후 위치가 지역보다 먼저 도착하면 정확히 이 경쟁조건에 걸려 감지된
+  /// 지역이 버려졌다. `future`를 먼저 기다려 build가 끝난 뒤의 실제 상태를
+  /// 보고 판단한다.
+  Future<void> applyGpsRegionIfUnset(RegionFilter gpsFilter) async {
+    final current = await future;
+    if (current.isUserSelected) return;
     if (current.filter == gpsFilter) return;
     state = AsyncValue.data(RegionState(filter: gpsFilter, isUserSelected: false));
   }

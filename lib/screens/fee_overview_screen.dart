@@ -7,6 +7,7 @@ import '../models/fee_bundle.dart';
 import '../models/region_filter.dart';
 import '../providers/fee_provider.dart';
 import '../providers/location_provider.dart';
+import '../providers/region_detection_status.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -46,6 +47,7 @@ class _FeeOverviewScreenState extends ConsumerState<FeeOverviewScreen> {
     // 이미 지역이 있으면(수동 선택 포함) 아무 것도 하지 않는다.
     final region = ref.read(regionProvider).value?.filter;
     if (region == null || region.sigungu == null) {
+      ref.read(regionDetectionReasonProvider.notifier).state = RegionDetectionReason.detecting;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(locationProvider.notifier).requestAndFetch();
       });
@@ -104,7 +106,8 @@ class _FeeOverviewScreenState extends ConsumerState<FeeOverviewScreen> {
     // 없다(CLAUDE.md 진료비 원칙 2: 진료비는 지역 시세지 전국 평균이
     // 아니다). 시/도만 고른 "OO 전체" 상태도 같은 취급.
     if (region.sigungu == null) {
-      return _LocationRequiredView(onSelectRegion: _changeRegion);
+      final reason = ref.watch(regionDetectionReasonProvider);
+      return _LocationRequiredView(reason: reason, onSelectRegion: _changeRegion);
     }
     final sido = region.sido!;
     final sigungu = region.sigungu!;
@@ -260,26 +263,61 @@ class _FeeSearchField extends StatelessWidget {
   }
 }
 
-/// 화면 26 — 지역(시/군/구)이 정해지지 않은 상태.
+/// 화면 26 — 지역(시/군/구)이 정해지지 않은 상태. 위치 자동감지 디버깅
+/// 지시서 A: 왜 안 됐는지("조용한 실패" 금지)를 사유별로 다르게 보여
+/// 준다 — 어느 경우든 "지역 선택하기" 수동 경로는 항상 함께 둔다.
 class _LocationRequiredView extends StatelessWidget {
+  final RegionDetectionReason reason;
   final VoidCallback onSelectRegion;
 
-  const _LocationRequiredView({required this.onSelectRegion});
+  const _LocationRequiredView({required this.reason, required this.onSelectRegion});
 
   @override
   Widget build(BuildContext context) {
+    final (title, subtitle) = switch (reason) {
+      RegionDetectionReason.locationServiceDisabled => (
+          '위치 서비스가 꺼져 있어요',
+          '기기 설정에서 위치(GPS)를 켜거나, 지역을 직접 선택해주세요',
+        ),
+      RegionDetectionReason.permissionDenied => (
+          '위치 권한이 필요해요',
+          '위치 권한을 허용하면 우리 동네를 자동으로 찾아드려요. 지금은 지역을 직접 선택해주세요',
+        ),
+      RegionDetectionReason.positionUnavailable => (
+          '위치를 찾지 못했어요',
+          '잠시 후 다시 시도하거나, 지역을 직접 선택해주세요',
+        ),
+      RegionDetectionReason.regionNotFound => (
+          '이 위치의 지역 정보를 찾지 못했어요',
+          '공개된 데이터 범위 밖일 수 있어요. 지역을 직접 선택해주세요',
+        ),
+      RegionDetectionReason.idle ||
+      RegionDetectionReason.detecting ||
+      RegionDetectionReason.success =>
+        (
+          '우리 동네를 알려주세요',
+          '지역을 선택하면 우리 동네 진료비 시세와 병원을 볼 수 있어요',
+        ),
+    };
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: MascotMessage(
-          title: '우리 동네를 알려주세요',
-          subtitle: '지역을 선택하면 우리 동네 진료비 시세와 병원을 볼 수 있어요',
+          title: title,
+          subtitle: subtitle,
           overlayIcon: Icons.place_outlined,
-          trailing: FilledButton.icon(
-            onPressed: onSelectRegion,
-            icon: const Icon(Icons.place_outlined, size: 18),
-            label: const Text('지역 선택하기'),
-          ),
+          trailing: reason == RegionDetectionReason.detecting
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                )
+              : FilledButton.icon(
+                  onPressed: onSelectRegion,
+                  icon: const Icon(Icons.place_outlined, size: 18),
+                  label: const Text('지역 선택하기'),
+                ),
         ),
       ),
     );
