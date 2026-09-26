@@ -3,6 +3,10 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
+    // Firebase 연동 1단계 토대 — google-services.json 유무와 무관하게
+    // 항상 적용한다(파일이 없으면 이 플러그인 태스크에서만 빌드가 실패한다:
+    // android/app/google-services.json을 배치할 것).
+    id("com.google.gms.google-services")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }

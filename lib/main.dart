@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,17 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1단계 토대: 연결만 한다(로그인/게이팅/이벤트 로깅 없음 — 이후 단계).
+  // google-services.json이 없거나 초기화가 실패해도 게스트 기능(검색·
+  // 시세·지도·진료기록)은 그대로 떠야 하므로 실패를 앱 전체로 전파하지
+  // 않는다.
+  try {
+    await Firebase.initializeApp();
+    debugPrint('[Firebase] 초기화 성공');
+  } catch (e) {
+    debugPrint('[Firebase] 초기화 실패(게스트 기능은 정상 동작): $e');
+  }
 
   if (isKakaoMapConfigured) {
     await KakaoMapSdk.instance.initialize(kakaoNativeKey);
