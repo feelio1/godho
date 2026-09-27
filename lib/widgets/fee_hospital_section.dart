@@ -9,6 +9,7 @@ import '../providers/fee_provider.dart';
 import '../providers/region_provider.dart';
 import '../screens/fee_overview_screen.dart';
 import '../theme/app_colors.dart';
+import '../utils/fee_no_data_message.dart';
 import 'fee_context_chip.dart';
 import 'fee_format.dart';
 import 'fee_item_picker_sheet.dart';
@@ -27,7 +28,12 @@ class FeeHospitalSection extends ConsumerWidget {
     final bundle = ref.watch(feeBundleProvider).value;
     if (bundle == null) return const SizedBox.shrink();
     final weight = ref.watch(feeWeightProvider).bucket;
-    final representative = _representativeItems(bundle, weight);
+    // 이 구가 fees 조사 범위 밖(신설 구 등)인지부터 먼저 본다 — 개별
+    // 항목 표본 유무와는 다른 지역 단위 판정으로, 홈 카드·화면21과 같은
+    // 기준·문구를 쓴다(펫클 홈 자동 시세 표시 지시서와 동일한
+    // hasAnyDataFor/feeNoRegionDataSubtitle 재사용 — 3단계 지시서 3).
+    final hasRegionData = bundle.hasAnyDataFor(hospital.sido, hospital.sigungu);
+    final representative = hasRegionData ? _representativeItems(bundle, weight) : const [];
 
     return Card(
       child: Padding(
@@ -50,11 +56,19 @@ class FeeHospitalSection extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            if (representative.isEmpty)
+            if (!hasRegionData)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                  '이 지역은 아직 조사된 진료비 데이터가 없어요.',
+                  feeNoRegionDataSubtitle(hospital.sigungu, hospital.sigungu),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
+                ),
+              )
+            else if (representative.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '이 지역은 이 항목들의 조사 자료가 아직 없어요.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
                 ),
               )
@@ -111,6 +125,9 @@ class FeeHospitalSection extends ConsumerWidget {
   }
 }
 
+/// 대표값은 항상 중간값(median) — 평균 아님(CLAUDE.md 진료비 원칙).
+/// 범위(최저~최고)를 중간값 바로 옆에 함께 보여줘 "이 한 값이 절대적"
+/// 이라는 오해를 줄인다(펫클 3단계 지시서 3).
 class _FeeCompactRow extends StatelessWidget {
   final FeeItem item;
   final FeeValue value;
@@ -122,16 +139,30 @@ class _FeeCompactRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Text(item.name, style: Theme.of(context).textTheme.bodyMedium),
           ),
-          Text(
-            value.sampleLow ? '참고용' : '중간 ${feeWonLabel(value.mid)}',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: value.sampleLow ? AppColors.textPlaceholder : AppColors.primaryTextTone,
-            ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value.sampleLow ? '참고용' : '중간 ${feeWonLabel(value.mid)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: value.sampleLow ? AppColors.textPlaceholder : AppColors.primaryTextTone,
+                ),
+              ),
+              if (!value.sampleLow) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '범위 ${feeWonRangeLabel(value.min, value.max)}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ],
           ),
         ],
       ),

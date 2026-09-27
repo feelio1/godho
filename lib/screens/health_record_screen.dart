@@ -8,8 +8,9 @@ import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../providers/appointment_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/effective_pets_provider.dart';
 import '../providers/medical_record_provider.dart';
-import '../providers/pet_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
@@ -28,7 +29,12 @@ class HealthRecordScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final petsAsync = ref.watch(petsProvider);
+    // 로그인 상태면 계정(Firestore) 반려동물이, 게스트면 기존 로컬
+    // 반려동물이 뜬다 — effectivePetsProvider가 그 전환을 맡는다(펫클
+    // 3단계 지시서 2). 로컬 데이터 자체는 이 화면이 무엇을 보여주든 절대
+    // 건드리지 않는다.
+    final petsAsync = ref.watch(effectivePetsProvider);
+    final isLoggedIn = ref.watch(authStateProvider).value != null;
 
     return Scaffold(
       appBar: AppBar(title: const Text('진료기록')),
@@ -40,19 +46,30 @@ class HealthRecordScreen extends ConsumerWidget {
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: MascotMessage(
-                  title: '아직 등록된 반려동물이 없어요',
-                  subtitle: '프로필을 등록하면 진료 기록과 몸무게를 기기에 남길 수 있어요',
-                  assetPath: MascotImage.emptyRecordAssetPath,
-                  overlayIcon: Icons.pets,
-                  trailing: FilledButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const PetProfileFormScreen()),
-                    ),
-                    icon: const Icon(Icons.add),
-                    label: const Text('반려동물 등록하기'),
-                  ),
-                ),
+                child: isLoggedIn
+                    // 가입 때 반려동물 1마리 이상이 필수라 사실상 일어나지
+                    // 않지만, Firestore 조회가 비어 오는 드문 경우 로컬
+                    // 등록 화면으로 잘못 보내지 않는다(계정 반려동물 추가
+                    // 화면은 이번 범위 밖).
+                    ? const MascotMessage(
+                        title: '계정에 등록된 반려동물을 찾지 못했어요',
+                        subtitle: '가입 때 등록한 반려동물이 보이지 않으면 다시 로그인해보세요.',
+                        assetPath: MascotImage.emptyRecordAssetPath,
+                        overlayIcon: Icons.pets,
+                      )
+                    : MascotMessage(
+                        title: '아직 등록된 반려동물이 없어요',
+                        subtitle: '프로필을 등록하면 진료 기록과 몸무게를 기기에 남길 수 있어요',
+                        assetPath: MascotImage.emptyRecordAssetPath,
+                        overlayIcon: Icons.pets,
+                        trailing: FilledButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => const PetProfileFormScreen()),
+                          ),
+                          icon: const Icon(Icons.add),
+                          label: const Text('반려동물 등록하기'),
+                        ),
+                      ),
               ),
             );
           }
@@ -239,6 +256,11 @@ class _PetProfileCard extends StatelessWidget {
       if (pet.ageLabel != null) pet.ageLabel!,
       if (pet.weightKg != null) '${pet.weightKg}kg',
     ];
+    // 계정(Firestore) 반려동물은 로컬 등록 화면으로 수정할 수 없다 —
+    // 수정 버튼을 눌러도 로컬에 별개 사본이 생길 뿐 실제 계정 정보는
+    // 안 바뀌는 혼란을 막기 위해, 이번 범위(계정 반려동물 수정 화면
+    // 없음)에선 아예 숨긴다(펫클 3단계 지시서 2).
+    final isAccountPet = isAccountPetId(pet.id);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -263,12 +285,13 @@ class _PetProfileCard extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => PetProfileFormScreen(existing: pet)),
+            if (!isAccountPet)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => PetProfileFormScreen(existing: pet)),
+                ),
               ),
-            ),
           ],
         ),
       ),

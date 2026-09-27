@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -27,6 +28,18 @@ import 'info_screens.dart';
 import 'login_screen.dart';
 import 'region_select_screen.dart';
 import 'search_result_screen.dart';
+
+/// 로그인 사용자를 부르는 이름 — 닉네임(displayName)이 있으면 그걸,
+/// 없으면(예: 애플 로그인에서 이름 비공개) 이메일 앞부분을 쓴다. 홈
+/// 상단 배지와 메뉴 시트가 같은 이름을 보여주도록 한곳에 모아둔다(펫클
+/// 3단계 지시서 1).
+String _accountLabel(User user) {
+  final displayName = user.displayName?.trim();
+  if (displayName != null && displayName.isNotEmpty) return displayName;
+  final email = user.email;
+  if (email != null && email.isNotEmpty) return email.split('@').first;
+  return '회원';
+}
 
 /// 오래 운영된 병원 섹션에 들어가는 최소 운영 연수 기준. 사실 기준일 뿐
 /// "오래됨=좋음" 같은 서사를 담지 않는다(CLAUDE.md 원칙 2).
@@ -70,7 +83,7 @@ class HomeScreen extends ConsumerWidget {
             if (user != null) ...[
               ListTile(
                 leading: const Icon(Icons.person_outline),
-                title: Text('${user.displayName?.trim().isNotEmpty == true ? user.displayName : (user.email ?? '회원')}님'),
+                title: Text('${_accountLabel(user)}님'),
                 enabled: false,
               ),
               ListTile(
@@ -260,24 +273,80 @@ class _HomeBody extends ConsumerWidget {
   }
 }
 
-/// 브랜드 헤더 — "Petcli" 워드마크 + 한 줄 부제. 앱이 무엇인지(공개된
-/// 사실을 확인하는 팩트체크 앱)만 담백하게 설명하고, 어떤 평가·추천
-/// 표현도 쓰지 않는다(CLAUDE.md 원칙 1).
+/// 브랜드 헤더 — "Petcli" 워드마크 + 한 줄 부제 + 로그인 상태 배지(펫클
+/// 3단계 지시서 1: "홈에 로그인됐다는 표시가 없다" 문제 해결 — 메뉴를
+/// 열어야만 보이던 것과 달리 홈에 들어오는 즉시 보인다). 앱이 무엇인지
+/// (공개된 사실을 확인하는 팩트체크 앱)만 담백하게 설명하고, 어떤
+/// 평가·추천 표현도 쓰지 않는다(CLAUDE.md 원칙 1).
 class _BrandHeader extends StatelessWidget {
   const _BrandHeader();
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        BrandMark(fontSize: 25),
-        SizedBox(height: 4),
-        Text(
+        const Row(
+          children: [
+            Expanded(child: BrandMark(fontSize: 25)),
+            _AccountStatusChip(),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Text(
           '동물병원의 공개된 행정·가격 정보를 확인하세요',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
         ),
       ],
+    );
+  }
+}
+
+/// 로그인 상태면 "OO님"(탭하면 로그아웃), 게스트면 "로그인"(탭하면
+/// 로그인 화면) — [authStateProvider]를 watch해 로그인/로그아웃에 즉시
+/// 반응한다. 게스트도 앱은 그대로 쓸 수 있으므로 게이팅이 아니라 그저
+/// 상태 표시 + 진입점이다.
+class _AccountStatusChip extends ConsumerWidget {
+  const _AccountStatusChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authStateProvider).value;
+
+    if (user == null) {
+      return TextButton.icon(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        ),
+        icon: const Icon(Icons.login, size: 16),
+        label: const Text('로그인'),
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primaryTextTone,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: '계정',
+      onSelected: (value) {
+        if (value == 'logout') {
+          ref.read(authRepositoryProvider).signOut();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 'logout', child: Text('로그아웃')),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${_accountLabel(user)}님',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
+          ),
+          const Icon(Icons.expand_more, size: 16, color: AppColors.primaryTextTone),
+        ],
+      ),
     );
   }
 }

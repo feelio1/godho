@@ -7,8 +7,8 @@ import 'package:intl/intl.dart';
 
 import '../models/medical_record.dart';
 import '../models/pet.dart';
+import '../providers/effective_pets_provider.dart';
 import '../providers/medical_record_provider.dart';
-import '../providers/pet_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/date_picker_sheet.dart';
@@ -157,7 +157,10 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
 
   @override
   Widget build(BuildContext context) {
-    final pets = ref.watch(petsProvider).value ?? const <Pet>[];
+    // 로그인 상태면 계정(Firestore) 반려동물, 게스트면 로컬 반려동물 —
+    // 진료기록 화면과 같은 소스를 써서 선택되는 반려동물이 항상 일치한다
+    // (펫클 3단계 지시서 2).
+    final pets = ref.watch(effectivePetsProvider).value ?? const <Pet>[];
     final currentPet = pets.where((p) => p.id == _petId).firstOrNull;
 
     return Scaffold(

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../ads/global_banner_ad.dart';
 import '../models/hospital.dart';
+import '../models/hospital_status.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
 import '../providers/designated_provider.dart';
@@ -83,6 +84,14 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             ),
             const SizedBox(height: 10),
             const _ReservationButton(),
+            // 액션 버튼(전화/길찾기/공유/저장/예약) 바로 아래에 지역 시세를
+            // 둔다(펫클 3단계 지시서 3 — 예전엔 타임라인 아래, 화면 한참
+            // 밑에 있어 눈에 잘 안 띄었다). 폐업 병원은 시세 자체를 달지
+            // 않는다(기존 FeeContextChip과 같은 규칙).
+            if (hospital.status != HospitalStatus.closed) ...[
+              const SizedBox(height: 24),
+              FeeHospitalSection(hospital: hospital),
+            ],
             const SizedBox(height: 24),
             _FactCardGrid(hospital: hospital, recordCount: recordCount),
             const SizedBox(height: 24),
@@ -95,8 +104,6 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
               const SizedBox(height: 24),
               TimelineView(timeline: timeline),
             ],
-            const SizedBox(height: 24),
-            FeeHospitalSection(hospital: hospital),
             const SizedBox(height: 24),
             _ExternalLinksSection(hospital: hospital),
             SourceFooter(
@@ -373,10 +380,10 @@ class _FactCardGrid extends StatelessWidget {
         value: hospitalOperatingLabel(hospital),
       ),
       FactCard(label: '영업상태', value: hospital.status.label),
-      // 진료비 정보는 아래 FeeHospitalSection이 실제 시세로 보여주므로
-      // 여기서는 중복 카드를 두지 않는다(스프린트 11 지시서 1: 같은
-      // 안내가 화면에 두 번 나오지 않게 — 이제는 "준비 중"이 아니라
-      // 실제 값이라 더더욱 한 곳에서만 보여줘야 한다).
+      // 진료비 정보는 액션 버튼 바로 아래 FeeHospitalSection이 실제
+      // 시세로 보여주므로 여기서는 중복 카드를 두지 않는다(스프린트 11
+      // 지시서 1: 같은 안내가 화면에 두 번 나오지 않게 — 이제는 "준비
+      // 중"이 아니라 실제 값이라 더더욱 한 곳에서만 보여줘야 한다).
       FactCard(label: '동일 주소 기록', value: '$recordCount건'),
     ];
     return GridView.count(
