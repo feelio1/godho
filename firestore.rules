@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// 펫클 2단계(로그인·회원가입) 지시서 2 — users/{uid}는 본인(uid 일치)만
+// read/write. pets 서브컬렉션도 같은 문서 소유자만 접근한다. 다른
+// 컬렉션은 아직 없다(4단계에서 로컬 기록 이관 시 추가).
+//
+// 배포는 콘솔/CLI로 나중에 한다(이 커밋은 규칙 코드만 커밋 — 지금은
+// Firestore 테스트 모드라 이 파일과 무관하게 동작한다).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /pets/{petId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}

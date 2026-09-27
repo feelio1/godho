@@ -1,0 +1,20 @@
+{
+  "name": "petcli-functions",
+  "description": "펫클 Cloud Functions — 카카오 로그인 Firebase Custom Token 교환 (펫클 2단계 지시서 1). Blaze 요금제 미활성으로 아직 배포하지 않음.",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^5.1.1"
+  },
+  "devDependencies": {
+    "eslint": "^9.17.0"
+  }
+}

@@ -9,6 +9,7 @@ import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/designated_provider.dart';
 import '../providers/location_provider.dart';
+import '../providers/auth_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/recent_provider.dart';
 import '../providers/region_provider.dart';
@@ -23,6 +24,7 @@ import '../widgets/hospital_card.dart';
 import '../widgets/search_set_card.dart';
 import 'detail_screen.dart';
 import 'info_screens.dart';
+import 'login_screen.dart';
 import 'region_select_screen.dart';
 import 'search_result_screen.dart';
 
@@ -36,18 +38,18 @@ const int _nearbyMaxItems = 5;
 const int _horizontalSectionMaxItems = 10;
 
 /// Only ever mounted once [MainShell] has confirmed the bundle is loaded.
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.menu),
-            onPressed: () => _showMenu(context),
+            onPressed: () => _showMenu(context, ref),
           ),
         ],
       ),
@@ -55,13 +57,41 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _showMenu(BuildContext context) {
+  /// 펫클 2단계 지시서 4 — 게이팅 없이 "테스트 가능한 진입점"만 추가한다.
+  /// 로그인 상태는 [authStateProvider]를 통해 앱 전역과 동일한 값을 본다.
+  void _showMenu(BuildContext context, WidgetRef ref) {
+    final user = ref.read(authStateProvider).value;
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (user != null) ...[
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text('${user.displayName?.trim().isNotEmpty == true ? user.displayName : (user.email ?? '회원')}님'),
+                enabled: false,
+              ),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('로그아웃'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await ref.read(authRepositoryProvider).signOut();
+                },
+              ),
+            ] else
+              ListTile(
+                leading: const Icon(Icons.login),
+                title: const Text('로그인 / 회원가입'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  );
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.settings_outlined),
               title: const Text('설정'),

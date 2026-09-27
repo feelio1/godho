@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 import 'ads/app_open_ad_gate.dart';
@@ -26,6 +27,16 @@ Future<void> main() async {
 
   if (isKakaoMapConfigured) {
     await KakaoMapSdk.instance.initialize(kakaoNativeKey);
+    // 2단계(로그인) 지시서 1: 로그인용 카카오 SDK(kakao_flutter_sdk_user)는
+    // 지도 SDK와 별개 모듈이라 따로 초기화해야 한다 — 같은 네이티브 키를
+    // 재사용한다. 카카오 로그인 버튼은 항상 "준비 중" 안내로 안전하게
+    // 끝나므로(Cloud Function 미배포), 초기화 실패도 앱 전체를 막지 않게
+    // 방어한다.
+    try {
+      await KakaoSdk.init(nativeAppKey: kakaoNativeKey);
+    } catch (e) {
+      debugPrint('[KakaoSdk] 로그인용 초기화 실패(카카오 로그인 버튼만 영향): $e');
+    }
   }
 
   // 항상 초기화한다 — 설정된 광고 단위 ID가 없으면 구글의 공개 테스트 ID로
