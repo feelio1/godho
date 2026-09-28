@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -23,45 +22,13 @@ import '../widgets/fee_summary_card.dart';
 import '../widgets/home_banner.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/search_set_card.dart';
+import 'account_menu_sheet.dart';
+import 'account_ui.dart';
 import 'detail_screen.dart';
 import 'info_screens.dart';
 import 'login_screen.dart';
 import 'region_select_screen.dart';
 import 'search_result_screen.dart';
-
-/// 로그인 사용자를 부르는 이름 — 닉네임(displayName)이 있으면 그걸,
-/// 없으면(예: 애플 로그인에서 이름 비공개) 이메일 앞부분을 쓴다. 홈
-/// 상단 배지와 메뉴 시트가 같은 이름을 보여주도록 한곳에 모아둔다(펫클
-/// 3단계 지시서 1).
-String _accountLabel(User user) {
-  final displayName = user.displayName?.trim();
-  if (displayName != null && displayName.isNotEmpty) return displayName;
-  final email = user.email;
-  if (email != null && email.isNotEmpty) return email.split('@').first;
-  return '회원';
-}
-
-/// 로그아웃 확인 다이얼로그 — 탭 한 번으로 바로 로그아웃되지 않도록
-/// 확인을 한 번 거친다(펫클 "계정 반려동물 추가/수정" 지시서 3 "명확하게").
-/// 로컬(게스트) 반려동물·진료기록은 로그인 여부와 무관하게 기기에 그대로
-/// 남는다는 점을 안내해 혼선을 막는다(CLAUDE.md 원칙과 같은 맥락: 데이터가
-/// 사라진다는 오해를 만들지 않는다).
-Future<void> _confirmAndSignOut(BuildContext context, WidgetRef ref) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('로그아웃'),
-      content: const Text('로그아웃하시겠어요?\n이 기기에 남아 있는 반려동물·진료기록은 지워지지 않습니다.'),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
-        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('로그아웃')),
-      ],
-    ),
-  );
-  if (confirmed == true) {
-    await ref.read(authRepositoryProvider).signOut();
-  }
-}
 
 /// 오래 운영된 병원 섹션에 들어가는 최소 운영 연수 기준. 사실 기준일 뿐
 /// "오래됨=좋음" 같은 서사를 담지 않는다(CLAUDE.md 원칙 2).
@@ -105,7 +72,7 @@ class HomeScreen extends ConsumerWidget {
             if (user != null) ...[
               ListTile(
                 leading: const Icon(Icons.person_outline),
-                title: Text('${_accountLabel(user)}님'),
+                title: Text('${accountLabel(user)}님'),
                 enabled: false,
               ),
               ListTile(
@@ -113,7 +80,7 @@ class HomeScreen extends ConsumerWidget {
                 title: const Text('로그아웃'),
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _confirmAndSignOut(context, ref);
+                  confirmAndSignOut(context, ref);
                 },
               ),
             ] else
@@ -324,10 +291,11 @@ class _BrandHeader extends StatelessWidget {
   }
 }
 
-/// 로그인 상태면 "OO님"(탭하면 로그아웃), 게스트면 "로그인"(탭하면
-/// 로그인 화면) — [authStateProvider]를 watch해 로그인/로그아웃에 즉시
-/// 반응한다. 게스트도 앱은 그대로 쓸 수 있으므로 게이팅이 아니라 그저
-/// 상태 표시 + 진입점이다.
+/// 로그인 상태면 "OO님"(탭하면 계정 메뉴 — 반려동물 관리+로그아웃),
+/// 게스트면 "로그인"(탭하면 로그인 화면) — [authStateProvider]를 watch해
+/// 로그인/로그아웃에 즉시 반응한다. 게스트도 앱은 그대로 쓸 수 있으므로
+/// 게이팅이 아니라 그저 상태 표시 + 진입점이다("계정 메뉴에 반려동물 관리
+/// 통합" 지시서 1 — 예전엔 로그아웃 한 줄뿐인 작은 팝업이었다).
 class _AccountStatusChip extends ConsumerWidget {
   const _AccountStatusChip();
 
@@ -349,21 +317,17 @@ class _AccountStatusChip extends ConsumerWidget {
       );
     }
 
-    return PopupMenuButton<String>(
-      tooltip: '계정',
-      onSelected: (value) {
-        if (value == 'logout') {
-          _confirmAndSignOut(context, ref);
-        }
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(value: 'logout', child: Text('로그아웃')),
-      ],
+    return TextButton(
+      onPressed: () => showAccountMenuSheet(context, ref, user),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.primaryTextTone,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '${_accountLabel(user)}님',
+            '${accountLabel(user)}님',
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
           ),
           const Icon(Icons.expand_more, size: 16, color: AppColors.primaryTextTone),

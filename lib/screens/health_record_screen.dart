@@ -15,7 +15,7 @@ import '../providers/medical_record_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
-import 'account_pet_form_screen.dart';
+import 'account_pet_actions.dart';
 import 'appointment_form_screen.dart';
 import 'medical_record_form_screen.dart';
 import 'pet_profile_form_screen.dart';
@@ -38,29 +38,9 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
   String? _selectedPetId;
 
   Future<void> _addAccountPet(String uid) async {
-    final result = await Navigator.of(context).push<AccountPetFormResult>(
-      MaterialPageRoute(builder: (_) => const AccountPetFormScreen()),
-    );
-    if (result == null || result.isDelete || result.pet == null) return;
-
-    final userRepo = ref.read(userRepositoryProvider);
-    try {
-      final petId = await userRepo.addPet(uid, result.pet!);
-      if (result.newPhotoFile != null) {
-        final url = await userRepo.uploadPetPhoto(uid, petId, result.newPhotoFile!);
-        if (url != null) {
-          await userRepo.updatePet(uid, petId, result.pet!.copyWith(photoUrl: url));
-        }
-      }
-      ref.invalidate(accountSignupPetsProvider);
-      if (!mounted) return;
-      setState(() => _selectedPetId = 'account:$petId');
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('반려동물 추가에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
-      );
-    }
+    final petId = await AccountPetActions.add(context, ref, uid);
+    if (petId == null || !mounted) return;
+    setState(() => _selectedPetId = 'account:$petId');
   }
 
   @override
@@ -351,7 +331,9 @@ class _PetProfileCard extends ConsumerWidget {
   /// 계정 반려동물 수정 — 사진 미리보기까지 온전한 원본([SignupPet])을
   /// [accountSignupPetsProvider]에서 다시 찾아 폼에 넘긴다([Pet]으로
   /// 변환하는 과정에서 photoUrl이 손실되기 때문이다, 펫클 "계정 반려동물
-  /// 추가/수정" 지시서 2).
+  /// 추가/수정" 지시서 2). 실제 추가/수정/삭제 로직은 [AccountPetActions]
+  /// 공용 헬퍼가 맡는다(홈의 계정 메뉴와 동일한 코드 경로, "계정 메뉴에
+  /// 반려동물 관리 통합" 지시서).
   Future<void> _editAccountPet(BuildContext context, WidgetRef ref, String uid) async {
     final docId = accountDocIdFromPetId(pet.id);
     final accountPets = await ref.read(accountSignupPetsProvider.future);
@@ -365,36 +347,8 @@ class _PetProfileCard extends ConsumerWidget {
     }
     if (!context.mounted) return;
 
-    final result = await Navigator.of(context).push<AccountPetFormResult>(
-      MaterialPageRoute(builder: (_) => AccountPetFormScreen(existing: existing)),
-    );
-    if (result == null) return;
-
-    final userRepo = ref.read(userRepositoryProvider);
-    try {
-      if (result.isDelete) {
-        await userRepo.deletePet(uid, docId);
-        ref.invalidate(accountSignupPetsProvider);
-        onDeleted();
-        return;
-      }
-      if (result.pet == null) return;
-      var updated = result.pet!;
-      if (result.newPhotoFile != null) {
-        final url = await userRepo.uploadPetPhoto(uid, docId, result.newPhotoFile!);
-        if (url != null) updated = updated.copyWith(photoUrl: url);
-      } else if (result.removePhoto) {
-        await userRepo.deletePetPhoto(uid, docId);
-        updated = updated.copyWith(clearPhotoUrl: true);
-      }
-      await userRepo.updatePet(uid, docId, updated);
-      ref.invalidate(accountSignupPetsProvider);
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
-      );
-    }
+    final deleted = await AccountPetActions.editOrDelete(context, ref, uid, existing);
+    if (deleted) onDeleted();
   }
 
   @override
