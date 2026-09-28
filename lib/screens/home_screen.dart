@@ -41,6 +41,28 @@ String _accountLabel(User user) {
   return '회원';
 }
 
+/// 로그아웃 확인 다이얼로그 — 탭 한 번으로 바로 로그아웃되지 않도록
+/// 확인을 한 번 거친다(펫클 "계정 반려동물 추가/수정" 지시서 3 "명확하게").
+/// 로컬(게스트) 반려동물·진료기록은 로그인 여부와 무관하게 기기에 그대로
+/// 남는다는 점을 안내해 혼선을 막는다(CLAUDE.md 원칙과 같은 맥락: 데이터가
+/// 사라진다는 오해를 만들지 않는다).
+Future<void> _confirmAndSignOut(BuildContext context, WidgetRef ref) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('로그아웃'),
+      content: const Text('로그아웃하시겠어요?\n이 기기에 남아 있는 반려동물·진료기록은 지워지지 않습니다.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('취소')),
+        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('로그아웃')),
+      ],
+    ),
+  );
+  if (confirmed == true) {
+    await ref.read(authRepositoryProvider).signOut();
+  }
+}
+
 /// 오래 운영된 병원 섹션에 들어가는 최소 운영 연수 기준. 사실 기준일 뿐
 /// "오래됨=좋음" 같은 서사를 담지 않는다(CLAUDE.md 원칙 2).
 const int _longOperatingYearsThreshold = 20;
@@ -76,7 +98,7 @@ class HomeScreen extends ConsumerWidget {
     final user = ref.read(authStateProvider).value;
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -89,9 +111,9 @@ class HomeScreen extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('로그아웃'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await ref.read(authRepositoryProvider).signOut();
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _confirmAndSignOut(context, ref);
                 },
               ),
             ] else
@@ -99,7 +121,7 @@ class HomeScreen extends ConsumerWidget {
                 leading: const Icon(Icons.login),
                 title: const Text('로그인 / 회원가입'),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                   );
@@ -109,7 +131,7 @@ class HomeScreen extends ConsumerWidget {
               leading: const Icon(Icons.settings_outlined),
               title: const Text('설정'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
@@ -119,7 +141,7 @@ class HomeScreen extends ConsumerWidget {
               leading: const Icon(Icons.source_outlined),
               title: const Text('출처'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const SourcesScreen()),
                 );
@@ -129,7 +151,7 @@ class HomeScreen extends ConsumerWidget {
               leading: const Icon(Icons.help_outline),
               title: const Text('이용안내'),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const GuideScreen()),
                 );
@@ -331,7 +353,7 @@ class _AccountStatusChip extends ConsumerWidget {
       tooltip: '계정',
       onSelected: (value) {
         if (value == 'logout') {
-          ref.read(authRepositoryProvider).signOut();
+          _confirmAndSignOut(context, ref);
         }
       },
       itemBuilder: (context) => const [

@@ -61,6 +61,19 @@ void main() {
     });
   });
 
+  group('accountDocIdFromPetId — 계정 반려동물 id ↔ Firestore 문서 id 왕복', () {
+    test('accountPetToLocalPet이 붙인 접두사를 그대로 벗기면 원래 문서 id가 나온다(왕복)', () {
+      const signupPet = SignupPet(id: 'doc-42', species: PetSpecies.dog, breed: '푸들', weightKg: 2.0, birth: '2020-01');
+      final pet = accountPetToLocalPet(signupPet);
+
+      expect(accountDocIdFromPetId(pet.id), 'doc-42');
+    });
+
+    test('로컬 반려동물 id에 쓰면 assert로 막는다(수정·삭제 호출부가 잘못된 id를 넘기지 못하게)', () {
+      expect(() => accountDocIdFromPetId('1706000000000000_12345'), throwsA(isA<AssertionError>()));
+    });
+  });
+
   group('effectivePetsProvider — 로그인 여부에 따라 소스가 바뀐다(펫클 3단계 지시서 2)', () {
     test('게스트(로그아웃) 상태면 기존 로컬 petsProvider를 그대로 돌려준다', () async {
       SharedPreferences.setMockInitialValues({});

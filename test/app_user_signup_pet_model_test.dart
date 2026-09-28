@@ -111,4 +111,49 @@ void main() {
       expect(restored.sex, isNull);
     });
   });
+
+  group('SignupPet.copyWith / toFirestoreUpdate — 계정 반려동물 수정', () {
+    const base = SignupPet(
+      id: 'pet-9',
+      species: PetSpecies.dog,
+      breed: '말티즈',
+      weightKg: 3.2,
+      birth: '2023-05',
+      name: '뭉치',
+      photoUrl: 'https://example.com/old.jpg',
+    );
+
+    test('아무 값도 안 주면 원본과 완전히 같다(그 외 필드는 전부 유지)', () {
+      final copy = base.copyWith();
+      expect(copy.id, base.id);
+      expect(copy.breed, base.breed);
+      expect(copy.photoUrl, base.photoUrl);
+    });
+
+    test('photoUrl만 새로 얹으면(사진 업로드 완료) 그 값만 바뀐다', () {
+      final copy = base.copyWith(photoUrl: 'https://example.com/new.jpg');
+      expect(copy.photoUrl, 'https://example.com/new.jpg');
+      expect(copy.breed, base.breed);
+      expect(copy.id, base.id);
+    });
+
+    test('clearPhotoUrl이면 photoUrl을 새로 줘도 무시하고 null로 지운다(사진 삭제)', () {
+      final copy = base.copyWith(photoUrl: 'https://example.com/ignored.jpg', clearPhotoUrl: true);
+      expect(copy.photoUrl, isNull);
+    });
+
+    test('id만 새로 얹으면(문서 생성 직후 id 확정) 나머지는 그대로다', () {
+      const noId = SignupPet(species: PetSpecies.cat, breed: '코숏', weightKg: 4.0, birth: '2022-11');
+      final withId = noId.copyWith(id: 'generated-id');
+      expect(withId.id, 'generated-id');
+      expect(withId.breed, '코숏');
+    });
+
+    test('toFirestoreUpdate는 createdAt을 빼고 나머지는 toFirestore와 같다(수정 시 생성일 보존)', () {
+      final update = base.toFirestoreUpdate();
+      expect(update.containsKey('createdAt'), isFalse);
+      expect(update['breed'], '말티즈');
+      expect(update['photoUrl'], 'https://example.com/old.jpg');
+    });
+  });
 }

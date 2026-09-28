@@ -60,4 +60,25 @@ class SignupPet {
         'photoUrl': photoUrl,
         'createdAt': Timestamp.now(),
       };
+
+  /// 수정 시 `createdAt`을 덮어쓰지 않도록 [toFirestore]에서 그 키만
+  /// 뺀 맵 — [UserRepository.updatePet]이 쓴다.
+  Map<String, dynamic> toFirestoreUpdate() => toFirestore()..remove('createdAt');
+
+  /// 사진 업로드는 문서 생성 이후(petId를 알아야) 이뤄지므로, 폼이 돌려준
+  /// 값에 업로드 결과 URL만 나중에 얹을 때 쓴다(펫클 "계정 반려동물
+  /// 추가/수정" 지시서).
+  SignupPet copyWith({String? id, String? photoUrl, bool clearPhotoUrl = false}) {
+    return SignupPet(
+      id: id ?? this.id,
+      species: species,
+      breed: breed,
+      weightKg: weightKg,
+      birth: birth,
+      name: name,
+      sex: sex,
+      neutered: neutered,
+      photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
+    );
+  }
 }

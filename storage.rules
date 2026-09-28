@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// 계정 반려동물 사진 저장소 — 펫클 "계정 반려동물 추가/수정" 지시서.
+// pet_photos/{uid}/{petId}.jpg는 본인(uid 일치)만 read/write.
+// firestore.rules와 같은 원칙(본인 데이터만 접근)이고, 배포는 나중에
+// 콘솔/CLI로 한다(이 커밋은 규칙 코드만 커밋).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /pet_photos/{uid}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

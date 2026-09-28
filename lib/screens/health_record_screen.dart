@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
+import '../models/signup_pet.dart';
 import '../providers/appointment_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
@@ -14,6 +15,7 @@ import '../providers/medical_record_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
+import 'account_pet_form_screen.dart';
 import 'appointment_form_screen.dart';
 import 'medical_record_form_screen.dart';
 import 'pet_profile_form_screen.dart';
@@ -22,22 +24,67 @@ import 'pet_profile_form_screen.dart';
 /// 예약(스프린트 9), 목업에 맞춘 "진료 기록/예약 알림" 탭 레이아웃(스프린트
 /// 10). 스프린트 8에서는 홈의 진입 카드로만 들어올 수 있어 찾기 어렵다는
 /// 문제가 있었고, 스프린트 9에서 하단 탭으로 승격했다(하단 탭 4개:
-/// 홈/주변 병원/진료기록/저장). 지금은 반려동물 1마리만 다루지만, 데이터
-/// 구조는 여러 마리를 담을 수 있다.
-class HealthRecordScreen extends ConsumerWidget {
+/// 홈/주변 병원/진료기록/저장). 로그인 상태에선 계정(Firestore) 반려동물을
+/// 여러 마리 추가·전환할 수 있다(펫클 "계정 반려동물 추가/수정" 지시서 1) —
+/// 게스트(로컬)는 여전히 1마리만 다루는 기존 흐름 그대로다.
+class HealthRecordScreen extends ConsumerStatefulWidget {
   const HealthRecordScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HealthRecordScreen> createState() => _HealthRecordScreenState();
+}
+
+class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
+  String? _selectedPetId;
+
+  Future<void> _addAccountPet(String uid) async {
+    final result = await Navigator.of(context).push<AccountPetFormResult>(
+      MaterialPageRoute(builder: (_) => const AccountPetFormScreen()),
+    );
+    if (result == null || result.isDelete || result.pet == null) return;
+
+    final userRepo = ref.read(userRepositoryProvider);
+    try {
+      final petId = await userRepo.addPet(uid, result.pet!);
+      if (result.newPhotoFile != null) {
+        final url = await userRepo.uploadPetPhoto(uid, petId, result.newPhotoFile!);
+        if (url != null) {
+          await userRepo.updatePet(uid, petId, result.pet!.copyWith(photoUrl: url));
+        }
+      }
+      ref.invalidate(accountSignupPetsProvider);
+      if (!mounted) return;
+      setState(() => _selectedPetId = 'account:$petId');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('반려동물 추가에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     // 로그인 상태면 계정(Firestore) 반려동물이, 게스트면 기존 로컬
     // 반려동물이 뜬다 — effectivePetsProvider가 그 전환을 맡는다(펫클
     // 3단계 지시서 2). 로컬 데이터 자체는 이 화면이 무엇을 보여주든 절대
     // 건드리지 않는다.
     final petsAsync = ref.watch(effectivePetsProvider);
-    final isLoggedIn = ref.watch(authStateProvider).value != null;
+    final uid = ref.watch(authStateProvider).value?.uid;
+    final isLoggedIn = uid != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('진료기록')),
+      appBar: AppBar(
+        title: const Text('진료기록'),
+        actions: [
+          if (isLoggedIn)
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: '반려동물 추가',
+              onPressed: () => _addAccountPet(uid),
+            ),
+        ],
+      ),
       body: petsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),
@@ -47,15 +94,16 @@ class HealthRecordScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: isLoggedIn
-                    // 가입 때 반려동물 1마리 이상이 필수라 사실상 일어나지
-                    // 않지만, Firestore 조회가 비어 오는 드문 경우 로컬
-                    // 등록 화면으로 잘못 보내지 않는다(계정 반려동물 추가
-                    // 화면은 이번 범위 밖).
-                    ? const MascotMessage(
-                        title: '계정에 등록된 반려동물을 찾지 못했어요',
-                        subtitle: '가입 때 등록한 반려동물이 보이지 않으면 다시 로그인해보세요.',
+                    ? MascotMessage(
+                        title: '아직 등록된 반려동물이 없어요',
+                        subtitle: '반려동물을 추가하면 진료 기록과 몸무게를 남길 수 있어요',
                         assetPath: MascotImage.emptyRecordAssetPath,
                         overlayIcon: Icons.pets,
+                        trailing: FilledButton.icon(
+                          onPressed: () => _addAccountPet(uid),
+                          icon: const Icon(Icons.add),
+                          label: const Text('반려동물 추가'),
+                        ),
                       )
                     : MascotMessage(
                         title: '아직 등록된 반려동물이 없어요',
@@ -73,8 +121,58 @@ class HealthRecordScreen extends ConsumerWidget {
               ),
             );
           }
-          final pet = pets.first;
-          return _PetHealthBody(pet: pet);
+          final selected = pets.firstWhere(
+            (p) => p.id == _selectedPetId,
+            orElse: () => pets.first,
+          );
+          return Column(
+            children: [
+              if (pets.length > 1)
+                _PetSwitcher(
+                  pets: pets,
+                  selectedId: selected.id,
+                  onSelect: (id) => setState(() => _selectedPetId = id),
+                ),
+              Expanded(
+                child: _PetHealthBody(
+                  pet: selected,
+                  onPetDeleted: () => setState(() => _selectedPetId = null),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// 계정 반려동물이 2마리 이상일 때만 뜨는 전환 칩(펫클 "계정 반려동물
+/// 추가/수정" 지시서 1 "여러 마리 등록·전환 가능"). 게스트는 항상 1마리라
+/// 이 위젯 자체가 그려지지 않는다.
+class _PetSwitcher extends StatelessWidget {
+  final List<Pet> pets;
+  final String selectedId;
+  final ValueChanged<String> onSelect;
+
+  const _PetSwitcher({required this.pets, required this.selectedId, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        itemCount: pets.length,
+        separatorBuilder: (context, i) => const SizedBox(width: 8),
+        itemBuilder: (context, i) {
+          final pet = pets[i];
+          return ChoiceChip(
+            label: Text(pet.name),
+            selected: pet.id == selectedId,
+            onSelected: (_) => onSelect(pet.id),
+          );
         },
       ),
     );
@@ -83,8 +181,9 @@ class HealthRecordScreen extends ConsumerWidget {
 
 class _PetHealthBody extends ConsumerWidget {
   final Pet pet;
+  final VoidCallback onPetDeleted;
 
-  const _PetHealthBody({required this.pet});
+  const _PetHealthBody({required this.pet, required this.onPetDeleted});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -99,7 +198,7 @@ class _PetHealthBody extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Column(
               children: [
-                _PetProfileCard(pet: pet),
+                _PetProfileCard(pet: pet, onDeleted: onPetDeleted),
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -243,23 +342,69 @@ class _AppointmentsTab extends StatelessWidget {
   }
 }
 
-class _PetProfileCard extends StatelessWidget {
+class _PetProfileCard extends ConsumerWidget {
   final Pet pet;
+  final VoidCallback onDeleted;
 
-  const _PetProfileCard({required this.pet});
+  const _PetProfileCard({required this.pet, required this.onDeleted});
+
+  /// 계정 반려동물 수정 — 사진 미리보기까지 온전한 원본([SignupPet])을
+  /// [accountSignupPetsProvider]에서 다시 찾아 폼에 넘긴다([Pet]으로
+  /// 변환하는 과정에서 photoUrl이 손실되기 때문이다, 펫클 "계정 반려동물
+  /// 추가/수정" 지시서 2).
+  Future<void> _editAccountPet(BuildContext context, WidgetRef ref, String uid) async {
+    final docId = accountDocIdFromPetId(pet.id);
+    final accountPets = await ref.read(accountSignupPetsProvider.future);
+    SignupPet existing;
+    try {
+      existing = accountPets.firstWhere((p) => p.id == docId);
+    } catch (_) {
+      // 목록에서 이미 사라진 반려동물(다른 화면/기기에서 먼저 삭제됨 등) —
+      // 수정할 대상이 없으니 조용히 무시한다.
+      return;
+    }
+    if (!context.mounted) return;
+
+    final result = await Navigator.of(context).push<AccountPetFormResult>(
+      MaterialPageRoute(builder: (_) => AccountPetFormScreen(existing: existing)),
+    );
+    if (result == null) return;
+
+    final userRepo = ref.read(userRepositoryProvider);
+    try {
+      if (result.isDelete) {
+        await userRepo.deletePet(uid, docId);
+        ref.invalidate(accountSignupPetsProvider);
+        onDeleted();
+        return;
+      }
+      if (result.pet == null) return;
+      var updated = result.pet!;
+      if (result.newPhotoFile != null) {
+        final url = await userRepo.uploadPetPhoto(uid, docId, result.newPhotoFile!);
+        if (url != null) updated = updated.copyWith(photoUrl: url);
+      } else if (result.removePhoto) {
+        await userRepo.deletePetPhoto(uid, docId);
+        updated = updated.copyWith(clearPhotoUrl: true);
+      }
+      await userRepo.updatePet(uid, docId, updated);
+      ref.invalidate(accountSignupPetsProvider);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+      );
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final textTheme = Theme.of(context).textTheme;
     final subtitleParts = <String>[
       if (pet.breed != null && pet.breed!.isNotEmpty) pet.breed! else pet.species.label,
       if (pet.ageLabel != null) pet.ageLabel!,
       if (pet.weightKg != null) '${pet.weightKg}kg',
     ];
-    // 계정(Firestore) 반려동물은 로컬 등록 화면으로 수정할 수 없다 —
-    // 수정 버튼을 눌러도 로컬에 별개 사본이 생길 뿐 실제 계정 정보는
-    // 안 바뀌는 혼란을 막기 위해, 이번 범위(계정 반려동물 수정 화면
-    // 없음)에선 아예 숨긴다(펫클 3단계 지시서 2).
     final isAccountPet = isAccountPetId(pet.id);
     return Card(
       child: Padding(
@@ -285,13 +430,19 @@ class _PetProfileCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (!isAccountPet)
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => PetProfileFormScreen(existing: pet)),
-                ),
-              ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () {
+                if (isAccountPet) {
+                  final uid = ref.read(authStateProvider).value?.uid;
+                  if (uid != null) _editAccountPet(context, ref, uid);
+                } else {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => PetProfileFormScreen(existing: pet)),
+                  );
+                }
+              },
+            ),
           ],
         ),
       ),

@@ -56,7 +56,7 @@ void main() {
     notifier.removePetAt(0);
     final remaining = container.read(signupFlowProvider).pets;
     expect(remaining, hasLength(1));
-    expect(remaining.single.breed, '코리안숏헤어');
+    expect(remaining.single.pet.breed, '코리안숏헤어');
   });
 
   test('reset은 나이·성별·반려동물을 전부 비운다(가입 완료 후 다음 로그인 대비)', () {
