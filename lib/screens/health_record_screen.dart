@@ -16,6 +16,7 @@ import '../theme/app_colors.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import 'account_pet_actions.dart';
+import 'appointment_calendar_screen.dart';
 import 'appointment_form_screen.dart';
 import 'medical_record_form_screen.dart';
 import 'pet_profile_form_screen.dart';
@@ -289,15 +290,26 @@ class _AppointmentsTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => AppointmentFormScreen(petId: pet.id)),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => AppointmentFormScreen(petId: pet.id)),
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('예약 추가'),
+              ),
             ),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('예약 추가'),
-          ),
+            const SizedBox(width: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => AppointmentCalendarScreen(petId: pet.id)),
+              ),
+              icon: const Icon(Icons.calendar_month_outlined, size: 18),
+              label: const Text('캘린더'),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
         if (upcoming.isEmpty)

@@ -58,6 +58,7 @@ dependencies:
   sign_in_with_apple: ^8.2.0
   crypto: ^3.0.7
   firebase_storage: ^13.6.0
+  table_calendar: ^3.2.1
 
 dev_dependencies:
   flutter_test:

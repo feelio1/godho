@@ -51,3 +51,15 @@ final upcomingAppointmentsForPetProvider = Provider.family<List<Appointment>, St
     ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
   return filtered;
 });
+
+/// [petId]의 모든 예약(지난 것 포함)을 이른 순으로 정렬해 반환한다 — 예약
+/// 캘린더(월 뷰)는 지난 날짜에도 마커를 보여줘야 해서
+/// [upcomingAppointmentsForPetProvider](다가오는 것만)와 별도로 둔다
+/// ("예약 진료 캘린더" 지시서 2 — 알림 로직·저장 방식은 그대로, "보기"만
+/// 추가).
+final appointmentsForPetProvider = Provider.family<List<Appointment>, String>((ref, petId) {
+  final all = ref.watch(appointmentsProvider).value ?? const [];
+  final filtered = all.where((a) => a.petId == petId).toList()
+    ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+  return filtered;
+});

@@ -186,5 +186,39 @@ void main() {
       final upcoming = container.read(upcomingAppointmentsForPetProvider('p1'));
       expect(upcoming.map((a) => a.id).toList(), ['future-near', 'future-far']);
     });
+
+    test(
+      'appointmentsForPetProvider는 지난 예약도 포함해 이른 순으로 반환한다(캘린더 월 뷰가 지난 날짜도 마커로 보여줘야 함)',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+
+        await container.read(appointmentsProvider.future);
+        final notifier = container.read(appointmentsProvider.notifier);
+
+        await notifier.upsert(Appointment(
+          id: 'future',
+          petId: 'p1',
+          dateTime: DateTime.now().add(const Duration(days: 10)),
+          hospitalName: '병원A',
+        ));
+        await notifier.upsert(Appointment(
+          id: 'past',
+          petId: 'p1',
+          dateTime: DateTime.now().subtract(const Duration(days: 1)),
+          hospitalName: '병원B',
+        ));
+        await notifier.upsert(Appointment(
+          id: 'other-pet',
+          petId: 'p2',
+          dateTime: DateTime.now(),
+          hospitalName: '병원C',
+        ));
+
+        final all = container.read(appointmentsForPetProvider('p1'));
+        expect(all.map((a) => a.id).toList(), ['past', 'future']);
+      },
+    );
   });
 }

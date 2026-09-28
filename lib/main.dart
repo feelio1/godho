@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:kakao_flutter_sdk_common/kakao_flutter_sdk_common.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
@@ -13,6 +14,11 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 예약 캘린더(table_calendar)가 'ko_KR' 로케일로 월/요일 이름을 그려야
+  // 해서 명시적으로 초기화해둔다 — 안 하면 실기기에서 로케일 데이터 미초기화
+  // 예외로 캘린더가 뜨자마자 죽을 수 있다("예약 진료 캘린더" 지시서 4).
+  await initializeDateFormatting('ko_KR', null);
 
   // 1단계 토대: 연결만 한다(로그인/게이팅/이벤트 로깅 없음 — 이후 단계).
   // google-services.json이 없거나 초기화가 실패해도 게스트 기능(검색·
