@@ -79,8 +79,12 @@ class HomeScreen extends ConsumerWidget {
                 leading: const Icon(Icons.logout),
                 title: const Text('로그아웃'),
                 onTap: () {
+                  // sheetContext를 pop하기 전, 시트와 무관하게 계속 살아있을
+                  // AuthRepository 인스턴스를 먼저 꺼내둔다("로그아웃 버그
+                  // 수정" 지시서 A — 폐기된 ref로 signOut을 부르지 않게).
+                  final authRepo = ref.read(authRepositoryProvider);
                   Navigator.pop(sheetContext);
-                  confirmAndSignOut(context, ref);
+                  confirmAndSignOut(context, authRepo);
                 },
               ),
             ] else

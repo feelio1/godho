@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/signup_pet.dart';
+import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -116,8 +117,14 @@ class _AccountMenuSheet extends ConsumerWidget {
                 leading: const Icon(Icons.logout),
                 title: const Text('로그아웃'),
                 onTap: () {
+                  // 이 시트(_AccountMenuSheet)는 ConsumerWidget이라 pop되는
+                  // 순간 ref가 폐기된다 — pop 전에 AuthRepository 인스턴스를
+                  // 먼저 꺼내둬야 그 뒤 signOut()이 실제로 실행된다("로그아웃
+                  // 버그 수정" 지시서 A. 이전엔 pop 후 이 시트의 폐기된 ref로
+                  // signOut을 불러 조용히 실패했다).
+                  final authRepo = ref.read(authRepositoryProvider);
                   Navigator.pop(context);
-                  confirmAndSignOut(homeContext, ref);
+                  confirmAndSignOut(homeContext, authRepo);
                 },
               ),
             ],
