@@ -13,13 +13,16 @@ import '../providers/pet_provider.dart';
 import '../providers/region_auto_detect.dart';
 import '../providers/search_provider.dart';
 import '../widgets/mascot_message.dart';
+import 'calendar_screen.dart';
 import 'health_record_screen.dart';
 import 'home_screen.dart';
 import 'nearby_map_screen.dart';
 import 'saved_screen.dart';
 
-/// Root shell holding the 4 bottom tabs: 홈 / 주변 병원 / 진료기록 / 저장
-/// (스프린트 9 지시서 1 — 건강기록을 홈 진입 카드에서 탭으로 승격).
+/// Root shell holding the 5 bottom tabs: 홈 / 주변 병원 / 캘린더 / 진료기록 /
+/// 저장(스프린트 9 지시서 1 — 건강기록을 홈 진입 카드에서 탭으로 승격,
+/// "캘린더 하단탭화 + 진료 연대기" 지시서 A1 — 진료기록 화면 안에 있던
+/// 예약 캘린더를 독립 탭으로 승격).
 ///
 /// Every tab reads from [repositoryProvider], which requires the bundle to
 /// already be loaded — so the whole shell waits for it here rather than
@@ -137,19 +140,21 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
           children: const [
             HomeScreen(),
             NearbyMapScreen(),
+            CalendarScreen(),
             HealthRecordScreen(),
             SavedScreen(),
           ],
         ),
         // 스프린트 15 지시서 6: 전역 배너를 걷어내고 홈 화면 안(검색 세트
-        // 카드 아래)에서만 보여준다 — 네 탭 전체에 항상 떠 있지 않게.
+        // 카드 아래)에서만 보여준다 — 다섯 탭 전체에 항상 떠 있지 않게.
         bottomNavigationBar: NavigationBar(
           selectedIndex: selectedIndex,
           onDestinationSelected: (index) =>
               ref.read(selectedTabProvider.notifier).state = index,
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-            NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변 병원'),
+            NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변'),
+            NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: '캘린더'),
             NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
             NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
           ],

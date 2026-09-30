@@ -28,7 +28,12 @@ class MedicalRecordFormScreen extends ConsumerStatefulWidget {
   final String petId;
   final MedicalRecord? existing;
 
-  const MedicalRecordFormScreen({super.key, required this.petId, this.existing});
+  /// 새 기록의 방문일 초기값(수정 시엔 무시) — 캘린더에서 과거 날짜를
+  /// 골라 "그 날짜로 진료기록 추가"할 때 쓴다("캘린더 하단탭화 + 진료
+  /// 연대기" 지시서 3). 생략하면 기존과 같이 오늘 날짜로 시작한다.
+  final DateTime? initialDate;
+
+  const MedicalRecordFormScreen({super.key, required this.petId, this.existing, this.initialDate});
 
   @override
   ConsumerState<MedicalRecordFormScreen> createState() => _MedicalRecordFormScreenState();
@@ -49,7 +54,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
   void initState() {
     super.initState();
     final existing = widget.existing;
-    _date = existing?.date ?? DateTime.now();
+    _date = existing?.date ?? widget.initialDate ?? DateTime.now();
     _petId = widget.petId;
     _hospitalController = TextEditingController(text: existing?.hospitalName ?? '');
     _memoController = TextEditingController(text: existing?.memo ?? '');

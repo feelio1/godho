@@ -64,7 +64,12 @@ class AppointmentFormScreen extends ConsumerStatefulWidget {
   final String petId;
   final Appointment? existing;
 
-  const AppointmentFormScreen({super.key, required this.petId, this.existing});
+  /// 새 예약의 날짜 초기값(수정 시엔 무시) — 캘린더에서 날짜를 골라 "그
+  /// 날짜로 예약 추가"할 때 쓴다("캘린더 하단탭화 + 진료 연대기" 지시서
+  /// 3). 생략하면 기존과 같이 내일 날짜로 시작한다.
+  final DateTime? initialDate;
+
+  const AppointmentFormScreen({super.key, required this.petId, this.existing, this.initialDate});
 
   @override
   ConsumerState<AppointmentFormScreen> createState() => _AppointmentFormScreenState();
@@ -92,7 +97,8 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
   void initState() {
     super.initState();
     final existing = widget.existing;
-    final initialDateTime = existing?.dateTime ?? DateTime.now().add(const Duration(days: 1));
+    final initialDateTime =
+        existing?.dateTime ?? widget.initialDate ?? DateTime.now().add(const Duration(days: 1));
     _date = DateTime(initialDateTime.year, initialDateTime.month, initialDateTime.day);
     _time = TimeOfDay(hour: initialDateTime.hour, minute: initialDateTime.minute);
     _hospitalController = TextEditingController(text: existing?.hospitalName ?? '');

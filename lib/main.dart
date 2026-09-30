@@ -10,6 +10,7 @@ import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 import 'ads/app_open_ad_gate.dart';
 import 'config/kakao_map_config.dart';
 import 'screens/main_shell.dart';
+import 'screens/onboarding_gate.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -69,7 +70,10 @@ class PetClinicCheckApp extends StatelessWidget {
       locale: const Locale('ko'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('ko')],
-      home: const AppOpenAdGate(child: MainShell()),
+      // 온보딩(최초 1회, 로그인 불필요)이 앱 본편보다 먼저 뜬다 — 게이트
+      // 자체는 상태(계정 반려동물, 지역 선택 등)를 전혀 건드리지 않고 그냥
+      // "이번이 처음이냐"만 본다("캘린더 하단탭화 + 진료 연대기" 지시서 B).
+      home: const OnboardingGate(child: AppOpenAdGate(child: MainShell())),
     );
   }
 }

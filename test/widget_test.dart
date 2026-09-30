@@ -1,14 +1,22 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:petcliniccheck/main.dart';
 
 void main() {
   testWidgets('App boots and shows the home tab', (WidgetTester tester) async {
+    // 이미 온보딩을 본 기존 사용자 시나리오 — 앱을 열면 바로 홈이 뜬다
+    // (온보딩 자체의 최초 1회 동작은 onboarding_gate_test.dart가 따로 본다).
+    SharedPreferences.setMockInitialValues({'onboarding_seen_v1': true});
     await tester.pumpWidget(
       const ProviderScope(child: PetClinicCheckApp()),
     );
+    // OnboardingGate가 SharedPreferences를 비동기로 읽고 나서야 그 아래
+    // 본편(AppOpenAdGate→MainShell)을 마운트한다 — 그 한 프레임을 먼저
+    // 흘려보내야 아래 bundle 로딩이 실제로 시작된다.
+    await tester.pump();
 
     // The bundle load is real asset I/O, which FakeAsync's pump() doesn't
     // drive — hop out to the real zone so it can actually complete.

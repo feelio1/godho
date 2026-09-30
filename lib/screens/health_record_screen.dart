@@ -4,29 +4,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../models/signup_pet.dart';
-import '../providers/appointment_provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../providers/medical_record_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
+import '../widgets/no_pets_message.dart';
+import '../widgets/pet_switcher.dart';
 import 'account_pet_actions.dart';
-import 'appointment_calendar_screen.dart';
-import 'appointment_form_screen.dart';
 import 'medical_record_form_screen.dart';
 import 'pet_profile_form_screen.dart';
 
-/// "진료기록" 탭의 메인 화면 — 반려동물 건강기록(스프린트 8) + 다가오는
-/// 예약(스프린트 9), 목업에 맞춘 "진료 기록/예약 알림" 탭 레이아웃(스프린트
-/// 10). 스프린트 8에서는 홈의 진입 카드로만 들어올 수 있어 찾기 어렵다는
-/// 문제가 있었고, 스프린트 9에서 하단 탭으로 승격했다(하단 탭 4개:
-/// 홈/주변 병원/진료기록/저장). 로그인 상태에선 계정(Firestore) 반려동물을
-/// 여러 마리 추가·전환할 수 있다(펫클 "계정 반려동물 추가/수정" 지시서 1) —
+/// "진료기록" 탭의 메인 화면 — 반려동물 건강기록 리스트(스프린트 8). 예약은
+/// 더 이상 여기 탭으로 두지 않는다 — "캘린더" 탭으로 독립해서(하단 탭 5개:
+/// 홈/주변 병원/캘린더/진료기록/저장) 과거 진료기록과 함께 보여주므로,
+/// 여기서 또 보여주면 같은 정보가 두 곳에 중복된다("캘린더 하단탭화 + 진료
+/// 연대기" 지시서 A5). 로그인 상태에선 계정(Firestore) 반려동물을 여러
+/// 마리 추가·전환할 수 있다(펫클 "계정 반려동물 추가/수정" 지시서 1) —
 /// 게스트(로컬)는 여전히 1마리만 다루는 기존 흐름 그대로다.
 class HealthRecordScreen extends ConsumerStatefulWidget {
   const HealthRecordScreen({super.key});
@@ -71,35 +69,9 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
         error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),
         data: (pets) {
           if (pets.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: isLoggedIn
-                    ? MascotMessage(
-                        title: '아직 등록된 반려동물이 없어요',
-                        subtitle: '반려동물을 추가하면 진료 기록과 몸무게를 남길 수 있어요',
-                        assetPath: MascotImage.emptyRecordAssetPath,
-                        overlayIcon: Icons.pets,
-                        trailing: FilledButton.icon(
-                          onPressed: () => _addAccountPet(uid),
-                          icon: const Icon(Icons.add),
-                          label: const Text('반려동물 추가'),
-                        ),
-                      )
-                    : MascotMessage(
-                        title: '아직 등록된 반려동물이 없어요',
-                        subtitle: '프로필을 등록하면 진료 기록과 몸무게를 기기에 남길 수 있어요',
-                        assetPath: MascotImage.emptyRecordAssetPath,
-                        overlayIcon: Icons.pets,
-                        trailing: FilledButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const PetProfileFormScreen()),
-                          ),
-                          icon: const Icon(Icons.add),
-                          label: const Text('반려동물 등록하기'),
-                        ),
-                      ),
-              ),
+            return NoPetsMessage(
+              isLoggedIn: isLoggedIn,
+              onAddAccountPet: () => _addAccountPet(uid!),
             );
           }
           final selected = pets.firstWhere(
@@ -109,7 +81,7 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
           return Column(
             children: [
               if (pets.length > 1)
-                _PetSwitcher(
+                PetSwitcher(
                   pets: pets,
                   selectedId: selected.id,
                   onSelect: (id) => setState(() => _selectedPetId = id),
@@ -128,38 +100,6 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
   }
 }
 
-/// 계정 반려동물이 2마리 이상일 때만 뜨는 전환 칩(펫클 "계정 반려동물
-/// 추가/수정" 지시서 1 "여러 마리 등록·전환 가능"). 게스트는 항상 1마리라
-/// 이 위젯 자체가 그려지지 않는다.
-class _PetSwitcher extends StatelessWidget {
-  final List<Pet> pets;
-  final String selectedId;
-  final ValueChanged<String> onSelect;
-
-  const _PetSwitcher({required this.pets, required this.selectedId, required this.onSelect});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        itemCount: pets.length,
-        separatorBuilder: (context, i) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final pet = pets[i];
-          return ChoiceChip(
-            label: Text(pet.name),
-            selected: pet.id == selectedId,
-            onSelected: (_) => onSelect(pet.id),
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _PetHealthBody extends ConsumerWidget {
   final Pet pet;
   final VoidCallback onPetDeleted;
@@ -169,59 +109,42 @@ class _PetHealthBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final records = ref.watch(recordsForPetProvider(pet.id));
-    final upcoming = ref.watch(upcomingAppointmentsForPetProvider(pet.id));
 
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: Column(
-              children: [
-                _PetProfileCard(pet: pet, onDeleted: onPetDeleted),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.neutralBg,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.smartphone_outlined, size: 18, color: AppColors.neutral),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '이 기록은 현재 기기에만 저장됩니다. 앱 삭제/기기 변경 시 사라질 수 있습니다.',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.neutral),
-                        ),
-                      ),
-                    ],
-                  ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: Column(
+            children: [
+              _PetProfileCard(pet: pet, onDeleted: onPetDeleted),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.neutralBg,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 16),
-                _SummaryRow(records: records),
-              ],
-            ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.smartphone_outlined, size: 18, color: AppColors.neutral),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '이 기록은 현재 기기에만 저장됩니다. 앱 삭제/기기 변경 시 사라질 수 있습니다.',
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.neutral),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SummaryRow(records: records),
+            ],
           ),
-          const SizedBox(height: 8),
-          TabBar(
-            labelColor: Theme.of(context).colorScheme.primary,
-            unselectedLabelColor: AppColors.textSecondary,
-            tabs: const [Tab(text: '진료 기록'), Tab(text: '예약 알림')],
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _RecordsTab(pet: pet, records: records),
-                _AppointmentsTab(pet: pet, upcoming: upcoming),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+        Expanded(child: _RecordsTab(pet: pet, records: records)),
+      ],
     );
   }
 }
@@ -274,61 +197,6 @@ class _RecordsTab extends StatelessWidget {
             child: _RecordTile(record: r, pet: pet),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _AppointmentsTab extends StatelessWidget {
-  final Pet pet;
-  final List<Appointment> upcoming;
-
-  const _AppointmentsTab({required this.pet, required this.upcoming});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => AppointmentFormScreen(petId: pet.id)),
-                ),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('예약 추가'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AppointmentCalendarScreen(petId: pet.id)),
-              ),
-              icon: const Icon(Icons.calendar_month_outlined, size: 18),
-              label: const Text('캘린더'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        if (upcoming.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: Text(
-                '다가오는 예약이 없습니다',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          )
-        else
-          ...upcoming.map(
-            (a) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _AppointmentTile(appointment: a, petId: pet.id),
-            ),
-          ),
       ],
     );
   }
@@ -476,74 +344,6 @@ class _SummaryItem extends StatelessWidget {
   }
 }
 
-/// "다가오는 예약" 한 건 — 병원·날짜시간·진료 내용과, 설정해 둔 알림
-/// 시각들을 칩으로 보여준다. 판정 문구는 없다(건강·안전 원칙).
-class _AppointmentTile extends StatelessWidget {
-  final Appointment appointment;
-  final String petId;
-
-  const _AppointmentTile({required this.appointment, required this.petId});
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      margin: EdgeInsets.zero,
-      color: AppColors.primarySoft,
-      elevation: 0,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AppointmentFormScreen(petId: petId, existing: appointment),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    DateFormat('yyyy.MM.dd HH:mm').format(appointment.dateTime),
-                    style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                appointment.hospitalName,
-                style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (appointment.reason.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(appointment.reason, style: textTheme.bodyMedium),
-              ],
-              if (appointment.reminders.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: appointment.reminders
-                      .map((r) => Chip(
-                            avatar: const Icon(Icons.notifications_outlined, size: 14),
-                            label: Text(r.label, style: const TextStyle(fontSize: 11)),
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            padding: EdgeInsets.zero,
-                          ))
-                      .toList(),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _RecordTile extends StatelessWidget {
   final MedicalRecord record;

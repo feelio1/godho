@@ -52,4 +52,26 @@ void main() {
       expect(grouped[DateTime(2026, 9, 29)], isNull);
     });
   });
+
+  group('isPastDay — 캘린더에서 과거 날짜(진료기록 추가) vs 오늘·미래(예약 추가) 판단', () {
+    test('어제는 과거다', () {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      expect(isPastDay(yesterday), isTrue);
+    });
+
+    test('오늘은 과거로 치지 않는다', () {
+      expect(isPastDay(DateTime.now()), isFalse);
+    });
+
+    test('내일은 과거가 아니다', () {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      expect(isPastDay(tomorrow), isFalse);
+    });
+
+    test('시각과 무관하게 날짜만 본다(오늘 자정 직전이어도 과거가 아님)', () {
+      final now = DateTime.now();
+      final lateToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      expect(isPastDay(lateToday), isFalse);
+    });
+  });
 }
