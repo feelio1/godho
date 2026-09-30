@@ -5,10 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../data/effective_record_actions.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../providers/effective_pets_provider.dart';
-import '../providers/medical_record_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/date_picker_sheet.dart';
@@ -127,7 +127,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
     final hospitalName = _hospitalController.text.trim();
     if (hospitalName.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -149,15 +149,34 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
       costWon: cost,
       photoPath: _photoPath,
     );
-    ref.read(medicalRecordsProvider.notifier).upsert(record);
-    Navigator.of(context).pop();
+    try {
+      // 반려동물이 계정(로그인) 것이면 Firestore, 게스트/로컬이면 기존
+      // 로컬 저장소로 — 어느 쪽이든 이 한 줄로 갈린다("진료기록·예약
+      // Firestore 저장" 지시서 B-2).
+      await EffectiveRecordActions.upsert(ref, record, isNew: widget.existing == null);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+        );
+      }
+    }
   }
 
-  void _delete() {
+  Future<void> _delete() async {
     final existing = widget.existing;
     if (existing == null) return;
-    ref.read(medicalRecordsProvider.notifier).remove(existing.id);
-    Navigator.of(context).pop();
+    try {
+      await EffectiveRecordActions.delete(ref, _petId, existing.id);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('삭제에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+        );
+      }
+    }
   }
 
   @override

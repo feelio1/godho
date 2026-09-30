@@ -5,6 +5,8 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/app_user.dart';
+import '../models/appointment.dart';
+import '../models/medical_record.dart';
 import '../models/signup_pet.dart';
 
 void _log(String message) => debugPrint('[UserRepository] $message');
@@ -107,5 +109,68 @@ class UserRepository {
     } catch (e) {
       _log('사진 삭제 실패(무시 — 애초에 없었을 수 있음): $e');
     }
+  }
+
+  // --- 진료기록/예약 ("진료기록·예약 Firestore 저장" 지시서 B-1) ---
+  // pets/{petId} 아래 records/appointments 서브컬렉션. 문서 id는 로컬에서
+  // 이미 쓰던 id(SignupPet과 달리 Firestore가 새로 만들어주지 않아도 됨 —
+  // 로컬 [MedicalRecord]/[Appointment]가 저장 시점에 이미 고유 id를 들고
+  // 있으므로 그 id를 그대로 Firestore 문서 id로 쓴다)를 그대로 쓴다 —
+  // add(수정 전 비파괴 이관 포함)는 항상 `.doc(id).set(...)`이라 같은
+  // id로 두 번 호출해도 안전(idempotent)하다.
+
+  CollectionReference<Map<String, dynamic>> _records(String uid, String petId) =>
+      _pets(uid).doc(petId).collection('records');
+
+  CollectionReference<Map<String, dynamic>> _appointments(String uid, String petId) =>
+      _pets(uid).doc(petId).collection('appointments');
+
+  Future<void> addRecord(String uid, String petId, MedicalRecord record) async {
+    await _records(uid, petId).doc(record.id).set(record.toFirestore());
+  }
+
+  Future<void> updateRecord(String uid, String petId, MedicalRecord record) async {
+    await _records(uid, petId).doc(record.id).update(record.toFirestoreUpdate());
+  }
+
+  Future<void> deleteRecord(String uid, String petId, String recordId) async {
+    await _records(uid, petId).doc(recordId).delete();
+  }
+
+  Future<List<MedicalRecord>> fetchRecords(String uid, String petId) async {
+    final snapshot = await _records(uid, petId).get();
+    return snapshot.docs.map((doc) => MedicalRecord.fromFirestore(petId, doc.id, doc.data())).toList();
+  }
+
+  /// 실시간 구독 — 이 스트림을 보는 모든 화면(진료기록 리스트·캘린더 등)이
+  /// 한 군데의 쓰기만으로 자동 반영된다(지시서 B-2 "하나의 데이터, 여러
+  /// 뷰", 별도 invalidate 불필요).
+  Stream<List<MedicalRecord>> streamRecords(String uid, String petId) {
+    return _records(uid, petId)
+        .snapshots()
+        .map((snap) => snap.docs.map((doc) => MedicalRecord.fromFirestore(petId, doc.id, doc.data())).toList());
+  }
+
+  Future<void> addAppointment(String uid, String petId, Appointment appointment) async {
+    await _appointments(uid, petId).doc(appointment.id).set(appointment.toFirestore());
+  }
+
+  Future<void> updateAppointment(String uid, String petId, Appointment appointment) async {
+    await _appointments(uid, petId).doc(appointment.id).update(appointment.toFirestoreUpdate());
+  }
+
+  Future<void> deleteAppointment(String uid, String petId, String appointmentId) async {
+    await _appointments(uid, petId).doc(appointmentId).delete();
+  }
+
+  Future<List<Appointment>> fetchAppointments(String uid, String petId) async {
+    final snapshot = await _appointments(uid, petId).get();
+    return snapshot.docs.map((doc) => Appointment.fromFirestore(petId, doc.id, doc.data())).toList();
+  }
+
+  Stream<List<Appointment>> streamAppointments(String uid, String petId) {
+    return _appointments(uid, petId)
+        .snapshots()
+        .map((snap) => snap.docs.map((doc) => Appointment.fromFirestore(petId, doc.id, doc.data())).toList());
   }
 }

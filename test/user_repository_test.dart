@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:petcliniccheck/data/user_repository.dart';
 import 'package:petcliniccheck/models/app_user.dart';
+import 'package:petcliniccheck/models/appointment.dart';
+import 'package:petcliniccheck/models/medical_record.dart';
 import 'package:petcliniccheck/models/pet.dart';
 import 'package:petcliniccheck/models/signup_pet.dart';
 
@@ -217,5 +219,114 @@ void main() {
     expect(raw.exists, isTrue);
     expect(raw.data()!['loginType'], 'kakao');
     expect(raw.data()!['createdAt'], isA<Timestamp>());
+  });
+
+  group('records/appointments 서브컬렉션("진료기록·예약 Firestore 저장" 지시서 B-1)', () {
+    test('addRecord/fetchRecords 왕복 — 다른 반려동물의 기록과 섞이지 않는다', () async {
+      await repository.addRecord(
+        'uid-6',
+        'pet-a',
+        MedicalRecord(id: 'r1', petId: 'pet-a', date: DateTime(2024, 1, 1), hospitalName: '병원A'),
+      );
+      await repository.addRecord(
+        'uid-6',
+        'pet-b',
+        MedicalRecord(id: 'r2', petId: 'pet-b', date: DateTime(2024, 1, 1), hospitalName: '병원B'),
+      );
+
+      final petARecords = await repository.fetchRecords('uid-6', 'pet-a');
+      expect(petARecords, hasLength(1));
+      expect(petARecords.single.hospitalName, '병원A');
+      expect(petARecords.single.id, 'r1');
+    });
+
+    test('updateRecord는 필드를 갱신하되 createdAt은 그대로 둔다', () async {
+      await repository.addRecord(
+        'uid-7',
+        'pet-a',
+        MedicalRecord(id: 'r1', petId: 'pet-a', date: DateTime(2024, 1, 1), hospitalName: '초진'),
+      );
+      final beforeRaw =
+          await firestore.collection('users').doc('uid-7').collection('pets').doc('pet-a').collection('records').doc('r1').get();
+      final createdAtBefore = beforeRaw.data()!['createdAt'];
+
+      await repository.updateRecord(
+        'uid-7',
+        'pet-a',
+        MedicalRecord(id: 'r1', petId: 'pet-a', date: DateTime(2024, 1, 1), hospitalName: '재진'),
+      );
+
+      final records = await repository.fetchRecords('uid-7', 'pet-a');
+      expect(records.single.hospitalName, '재진');
+      final afterRaw =
+          await firestore.collection('users').doc('uid-7').collection('pets').doc('pet-a').collection('records').doc('r1').get();
+      expect(afterRaw.data()!['createdAt'], createdAtBefore);
+    });
+
+    test('deleteRecord는 그 기록만 지우고 다른 기록은 남는다', () async {
+      await repository.addRecord(
+        'uid-8',
+        'pet-a',
+        MedicalRecord(id: 'r1', petId: 'pet-a', date: DateTime(2024, 1, 1), hospitalName: '남는 기록'),
+      );
+      await repository.addRecord(
+        'uid-8',
+        'pet-a',
+        MedicalRecord(id: 'r2', petId: 'pet-a', date: DateTime(2024, 1, 2), hospitalName: '지워질 기록'),
+      );
+
+      await repository.deleteRecord('uid-8', 'pet-a', 'r2');
+
+      final records = await repository.fetchRecords('uid-8', 'pet-a');
+      expect(records, hasLength(1));
+      expect(records.single.id, 'r1');
+    });
+
+    test('streamRecords는 addRecord 직후 새 기록을 실시간으로 내보낸다', () async {
+      // 구독 시점에 빈 스냅샷이 먼저 한 번 나올 수 있어(fake_cloud_firestore),
+      // 실제로 기록이 담긴 첫 방출을 기다린다 — 그게 "실시간 반영"의 핵심이다.
+      final recordsAppeared = repository.streamRecords('uid-9', 'pet-a').firstWhere((r) => r.isNotEmpty);
+
+      await repository.addRecord(
+        'uid-9',
+        'pet-a',
+        MedicalRecord(id: 'r1', petId: 'pet-a', date: DateTime(2024, 1, 1), hospitalName: '실시간 반영'),
+      );
+
+      final records = await recordsAppeared;
+      expect(records, hasLength(1));
+      expect(records.single.hospitalName, '실시간 반영');
+    });
+
+    test('addAppointment/fetchAppointments 왕복', () async {
+      await repository.addAppointment(
+        'uid-10',
+        'pet-a',
+        Appointment(id: 'a1', petId: 'pet-a', dateTime: DateTime(2026, 1, 1), hospitalName: '예약병원'),
+      );
+
+      final appointments = await repository.fetchAppointments('uid-10', 'pet-a');
+      expect(appointments, hasLength(1));
+      expect(appointments.single.hospitalName, '예약병원');
+    });
+
+    test('deleteAppointment는 그 예약만 지운다', () async {
+      await repository.addAppointment(
+        'uid-11',
+        'pet-a',
+        Appointment(id: 'a1', petId: 'pet-a', dateTime: DateTime(2026, 1, 1), hospitalName: '남는 예약'),
+      );
+      await repository.addAppointment(
+        'uid-11',
+        'pet-a',
+        Appointment(id: 'a2', petId: 'pet-a', dateTime: DateTime(2026, 1, 2), hospitalName: '지워질 예약'),
+      );
+
+      await repository.deleteAppointment('uid-11', 'pet-a', 'a2');
+
+      final appointments = await repository.fetchAppointments('uid-11', 'pet-a');
+      expect(appointments, hasLength(1));
+      expect(appointments.single.id, 'a1');
+    });
   });
 }

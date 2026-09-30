@@ -6,10 +6,10 @@ import 'package:table_calendar/table_calendar.dart';
 import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
-import '../providers/appointment_provider.dart';
 import '../providers/auth_provider.dart';
+import '../providers/effective_appointments_provider.dart';
+import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
-import '../providers/medical_record_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/appointment_calendar.dart';
@@ -136,8 +136,11 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
 
   @override
   Widget build(BuildContext context) {
-    final records = ref.watch(recordsForPetProvider(widget.pet.id));
-    final appointments = ref.watch(appointmentsForPetProvider(widget.pet.id));
+    // 계정(로그인) 반려동물이면 Firestore, 게스트/로컬이면 기존 로컬
+    // 저장소 — 진료기록 화면과 같은 provider라 어느 쪽에서 기록해도 서로
+    // 자동 반영된다("진료기록·예약 Firestore 저장" 지시서 B-2).
+    final records = ref.watch(effectiveRecordsForPetProvider(widget.pet.id)).value ?? const [];
+    final appointments = ref.watch(effectiveAppointmentsForPetProvider(widget.pet.id)).value ?? const [];
     final recordsByDate = groupRecordsByDate(records);
     final appointmentsByDate = groupAppointmentsByDate(appointments);
 

@@ -1,8 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'reminder_offset.dart';
 
 /// 진료 예약 한 건(스프린트 9 지시서 3). `MedicalRecord`와 마찬가지로 병원은
 /// 우리 DB에서 고른 병원(`hospitalId`)일 수도, 직접 입력한 이름일 수도
 /// 있다. 순수 데이터 + JSON 직렬화만 갖고 저장 방식에는 관여하지 않는다.
+/// [toFirestore]/[fromFirestore]는 "진료기록·예약 Firestore 저장" 지시서
+/// B-1이 쓰는 쌍 — `reminders`(미리 알림 설정값)까지 그대로 저장해 다른
+/// 기기에서 로그인해도 같은 알림 설정이 보이지만, 실제 알림 스케줄링
+/// (로컬 notification)은 항상 지금 보고 있는 기기에서 별도로 한다(서버
+/// 푸시 아님 — 지시서 B-2).
 class Appointment {
   final String id;
   final String petId;
@@ -72,4 +79,31 @@ class Appointment {
         'memo': memo,
         'reminders': reminders.map((r) => r.toJson()).toList(),
       };
+
+  factory Appointment.fromFirestore(String petId, String id, Map<String, dynamic> json) => Appointment(
+        id: id,
+        petId: petId,
+        dateTime: (json['dateTime'] as Timestamp).toDate(),
+        hospitalId: json['hospitalId'] as String?,
+        hospitalName: json['hospitalName'] as String? ?? '',
+        reason: json['reason'] as String? ?? '',
+        memo: json['memo'] as String? ?? '',
+        reminders: (json['reminders'] as List<dynamic>? ?? const [])
+            .map((e) => ReminderOffset.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  Map<String, dynamic> toFirestore() => {
+        'dateTime': Timestamp.fromDate(dateTime),
+        'hospitalId': hospitalId,
+        'hospitalName': hospitalName,
+        'reason': reason,
+        'memo': memo,
+        'reminders': reminders.map((r) => r.toJson()).toList(),
+        'createdAt': Timestamp.now(),
+      };
+
+  /// 수정 시 `createdAt`을 덮어쓰지 않도록 [toFirestore]에서 그 키만 뺀
+  /// 맵 — [UserRepository.updateAppointment]가 쓴다.
+  Map<String, dynamic> toFirestoreUpdate() => toFirestore()..remove('createdAt');
 }

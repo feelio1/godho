@@ -8,8 +8,8 @@ import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../models/signup_pet.dart';
 import '../providers/auth_provider.dart';
+import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
-import '../providers/medical_record_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
@@ -108,7 +108,12 @@ class _PetHealthBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final records = ref.watch(recordsForPetProvider(pet.id));
+    // 계정(로그인) 반려동물이면 Firestore를, 게스트/로컬이면 기존 로컬
+    // 저장소를 실시간으로 본다 — 진료기록 화면에서 기록하든 캘린더에서
+    // 기록하든 같은 provider라 자동으로 반영된다("진료기록·예약 Firestore
+    // 저장" 지시서 B-2).
+    final records = ref.watch(effectiveRecordsForPetProvider(pet.id)).value ?? const [];
+    final isAccountPet = isAccountPetId(pet.id);
 
     return Column(
       children: [
@@ -126,11 +131,17 @@ class _PetHealthBody extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.smartphone_outlined, size: 18, color: AppColors.neutral),
+                    Icon(
+                      isAccountPet ? Icons.cloud_outlined : Icons.smartphone_outlined,
+                      size: 18,
+                      color: AppColors.neutral,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '이 기록은 현재 기기에만 저장됩니다. 앱 삭제/기기 변경 시 사라질 수 있습니다.',
+                        isAccountPet
+                            ? '이 기록은 계정에 저장됩니다. 다른 기기에서도 로그인하면 볼 수 있어요.'
+                            : '이 기록은 현재 기기에만 저장됩니다. 앱 삭제/기기 변경 시 사라질 수 있습니다.',
                         style:
                             Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.neutral),
                       ),

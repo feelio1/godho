@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../data/effective_appointment_actions.dart';
 import '../models/appointment.dart';
 import '../models/reminder_offset.dart';
 import '../notifications/notification_service.dart';
-import '../providers/appointment_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/date_picker_sheet.dart';
@@ -216,15 +216,35 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
       memo: _memoController.text.trim(),
       reminders: reminder != null ? [reminder] : const [],
     );
-    await ref.read(appointmentsProvider.notifier).upsert(appointment);
-    if (mounted) Navigator.of(context).pop();
+    try {
+      // 반려동물이 계정(로그인) 것이면 Firestore, 게스트/로컬이면 기존
+      // 로컬 저장소로 — 어느 쪽이든 미리 알림은 항상 이 기기의 로컬
+      // notification으로 스케줄된다("진료기록·예약 Firestore 저장"
+      // 지시서 B-2).
+      await EffectiveAppointmentActions.upsert(ref, appointment, isNew: widget.existing == null);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+        );
+      }
+    }
   }
 
   Future<void> _delete() async {
     final existing = widget.existing;
     if (existing == null) return;
-    await ref.read(appointmentsProvider.notifier).remove(existing.id);
-    if (mounted) Navigator.of(context).pop();
+    try {
+      await EffectiveAppointmentActions.delete(ref, widget.petId, existing.id);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('삭제에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+        );
+      }
+    }
   }
 
   @override

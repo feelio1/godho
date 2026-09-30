@@ -1,11 +1,17 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../data/cloud_migration_service.dart';
 import '../data/hospital_repository.dart' show SortOption;
 import '../models/pet.dart';
+import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/cloud_migration_provider.dart';
 import '../providers/fee_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
@@ -94,9 +100,50 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
     );
   }
 
+  /// 로그인 사용자의 기기 로컬 진료기록·예약을 계정(Firestore)으로 1회
+  /// 옮긴다("진료기록·예약 Firestore 저장" 지시서 B-3) — 계정당 1회만
+  /// 시도하도록 서비스 내부에서 플래그로 막아두므로 이 함수 자체는 로그인
+  /// 때마다(재실행 포함) 불러도 안전하다. 원본 로컬 데이터는 건드리지
+  /// 않고, 무엇을 옮겼는지/옮기지 못했는지만 짧게 알려준다.
+  Future<void> _runCloudMigration(String uid) async {
+    final service = ref.read(cloudMigrationServiceProvider);
+    CloudMigrationResult? result;
+    try {
+      result = await service.migrateIfNeeded(uid);
+    } catch (_) {
+      // 이관은 어디까지나 편의 기능 — 실패해도 앱 정상 동작에는 영향 없다.
+      return;
+    }
+    if (result == null || !mounted) return;
+
+    final parts = <String>[];
+    if (result.didMigrateAnything) {
+      parts.add('${result.migratedPetNames.join(', ')}의 기기 기록을 계정으로 옮겨뒀어요.');
+    }
+    if (result.hasSkipped) {
+      parts.add('${result.skippedPetNames.join(', ')}는 이름이 일치하는 계정 반려동물을 찾지 못해 '
+          '옮기지 못했어요. 진료기록 화면에서 새로 추가해주세요.');
+    }
+    if (parts.isEmpty) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(parts.join(' ')), duration: const Duration(seconds: 5)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedTabProvider);
+
+    // 로그인(또는 이미 로그인된 채 앱을 다시 시작)할 때마다 이 uid로
+    // 이관을 시도한다 — 실제로 옮길 게 있는지, 이미 한 번 시도했는지는
+    // 서비스 내부 플래그가 가른다.
+    ref.listen<AsyncValue<User?>>(authStateProvider, (previous, next) {
+      final user = next.value;
+      if (user == null) return;
+      if (previous?.value?.uid == user.uid) return;
+      unawaited(_runCloudMigration(user.uid));
+    });
 
     // Watching locationProvider here (via listen) starts its silent,
     // non-prompting permission check as soon as the shell loads. If
