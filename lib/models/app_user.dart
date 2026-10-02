@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// 소셜 로그인에 실제로 쓰인 제공자 — 어떤 값으로 로그인했는지는 계정
-/// 복구·문의 대응에 필요해 저장해 둔다.
+/// 실제로 쓰인 로그인 수단(소셜 3종 + 자체 이메일/비밀번호) — 어떤
+/// 값으로 로그인했는지는 계정 복구·문의 대응에 필요해 저장해 둔다.
 enum LoginType {
   google,
   kakao,
-  apple;
+  apple,
+  email;
 
   static LoginType fromFirestore(String? value) => LoginType.values.firstWhere(
         (e) => e.name == value,
@@ -13,8 +14,10 @@ enum LoginType {
       );
 }
 
-/// 가입 플로우에서 선택 입력하는 나이대. 과장·유도 없이 "또래 반려인
+/// 가입 플로우(신규 가입 전부 필수 — "자체 회원가입·로그인·비밀번호
+/// 재설정" 지시서 3)에서 입력받는 나이대. 과장·유도 없이 "또래 반려인
 /// 기준" 문구에만 쓰이는 순수 통계용 구간이다(펫클 2단계 지시서 3-1).
+/// 이미 가입된 기존 사용자는 이 값이 비어 있을 수 있다(소급 강제 안 함).
 enum AgeGroup {
   teens('10대'),
   twenties('20대'),
@@ -35,8 +38,10 @@ enum AgeGroup {
   }
 }
 
-/// 가입 플로우에서 선택 입력하는 성별 — "선택 안 함"을 동등한 선택지로
-/// 둔다(입력 강요 금지).
+/// 가입 플로우에서 입력받는 성별. 신규 가입 화면([SignupAgeGenderScreen])
+/// 은 남/여 중 하나를 필수로 고르게 하지만("자체 회원가입·로그인·
+/// 비밀번호 재설정" 지시서 3), 모델 자체는 과거 데이터와의 호환을 위해
+/// `unspecified`도 유효한 값으로 남겨 둔다.
 enum Gender {
   male('남'),
   female('여'),

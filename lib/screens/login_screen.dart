@@ -8,7 +8,10 @@ import '../data/auth_repository.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/auth_error_message.dart';
+import 'password_reset_screen.dart';
 import 'signup_age_gender_screen.dart';
+import 'signup_email_screen.dart';
 
 /// 로그인/회원가입 진입 화면(펫클 2단계 지시서 1, 4) — 홈 메뉴에서 진입.
 /// 게이팅이 아니라 "테스트 가능한 진입점"이라, 로그인하지 않고 뒤로
@@ -26,10 +29,52 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-enum _Provider { google, kakao, apple }
+enum _Provider { google, kakao, apple, email }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   _Provider? _loading;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleEmailLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      _showError('이메일과 비밀번호를 입력해주세요');
+      return;
+    }
+    setState(() => _loading = _Provider.email);
+    try {
+      final repo = ref.read(authRepositoryProvider);
+      final credential = await repo.signInWithEmail(email, password);
+      await _afterSignedIn(credential.user);
+    } on FirebaseAuthException catch (e) {
+      _showError(authErrorMessage(e));
+    } catch (e) {
+      _showError('잠시 후 다시 시도해주세요');
+    } finally {
+      if (mounted) setState(() => _loading = null);
+    }
+  }
+
+  void _openSignupEmail() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SignupEmailScreen()),
+    );
+  }
+
+  void _openPasswordReset() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PasswordResetScreen()),
+    );
+  }
 
   Future<void> _handleGoogle() async {
     setState(() => _loading = _Provider.google);
@@ -115,7 +160,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('로그인 / 회원가입')),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.page),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -135,6 +180,67 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               const SizedBox(height: AppSpacing.section * 2),
+              const Text('이메일', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                enabled: _loading == null,
+                decoration: const InputDecoration(hintText: 'example@email.com'),
+              ),
+              const SizedBox(height: AppSpacing.formField),
+              const Text('비밀번호', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                textInputAction: TextInputAction.done,
+                enabled: _loading == null,
+                onSubmitted: (_) => _handleEmailLogin(),
+                decoration: const InputDecoration(hintText: '비밀번호'),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 52,
+                child: FilledButton(
+                  onPressed: _loading == null ? _handleEmailLogin : null,
+                  child: _loading == _Provider.email
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('로그인'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: _loading == null ? _openSignupEmail : null,
+                    child: const Text('회원가입'),
+                  ),
+                  const Text('·', style: TextStyle(color: AppColors.textPlaceholder)),
+                  TextButton(
+                    onPressed: _loading == null ? _openPasswordReset : null,
+                    child: const Text('비밀번호 찾기'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.section),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text('또는', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.section),
               _ProviderButton(
                 label: 'Google로 계속하기',
                 icon: Icons.g_mobiledata,

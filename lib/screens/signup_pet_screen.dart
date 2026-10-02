@@ -44,6 +44,8 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
     switch (providerId) {
       case 'apple.com':
         return LoginType.apple;
+      case 'password':
+        return LoginType.email;
       case 'google.com':
       default:
         return LoginType.google;

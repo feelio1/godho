@@ -113,6 +113,31 @@ class AuthRepository {
 
   bool get isAppleSignInSupported => Platform.isIOS;
 
+  /// 자체(이메일/비밀번호) 회원가입 — 이메일 인증 없이 가입 즉시 로그인
+  /// 상태가 된다("자체 회원가입·로그인·비밀번호 재설정" 지시서 1-1).
+  /// 에러(이미 가입된 이메일, 약한 비밀번호 등)는 [FirebaseAuthException]
+  /// 그대로 던져 호출부가 한국어 메시지로 바꿔 보여준다.
+  Future<UserCredential> signUpWithEmail(String email, String password) async {
+    return _auth.createUserWithEmailAndPassword(email: email, password: password);
+  }
+
+  /// 자체(이메일/비밀번호) 로그인.
+  Future<UserCredential> signInWithEmail(String email, String password) async {
+    return _auth.signInWithEmailAndPassword(email: email, password: password);
+  }
+
+  /// 가입 직후 입력한 이름(닉네임)을 `displayName`으로 설정한다 — 홈의
+  /// "○○님" 표시에 그대로 쓰인다(지시서 1-1).
+  Future<void> updateDisplayName(String name) async {
+    await _auth.currentUser?.updateDisplayName(name);
+  }
+
+  /// 비밀번호 재설정 메일 발송 — 메일 템플릿은 Firebase 콘솔 기본값을
+  /// 그대로 쓴다(지시서 2).
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
   Future<void> signOut() async {
     await _auth.signOut();
     try {

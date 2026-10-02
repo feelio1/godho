@@ -65,6 +65,29 @@ void main() {
       });
       expect(restored.loginType, LoginType.google);
     });
+
+    test('자체(이메일) 가입 사용자는 loginType "email"로 저장·복원된다'
+        '("자체 회원가입·로그인·비밀번호 재설정" 지시서 1-4)', () {
+      final now = DateTime(2026, 4, 1);
+      final user = AppUser(
+        uid: 'uid-4',
+        loginType: LoginType.email,
+        email: 'local@example.com',
+        displayName: '테스터',
+        ageGroup: AgeGroup.twenties,
+        gender: Gender.female,
+        createdAt: now,
+        updatedAt: now,
+      );
+
+      final data = user.toFirestore();
+      expect(data['loginType'], 'email');
+
+      final restored = AppUser.fromFirestore('uid-4', data);
+      expect(restored.loginType, LoginType.email);
+      expect(restored.email, 'local@example.com');
+      expect(restored.displayName, '테스터');
+    });
   });
 
   group('SignupPet Firestore 직렬화', () {
