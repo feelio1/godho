@@ -6,6 +6,7 @@ import '../providers/bundle_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/region_auto_detect.dart';
 import '../theme/app_colors.dart';
+import '../utils/region_display.dart';
 import '../widgets/picker_sheet_chrome.dart';
 
 /// 지역 선택 바텀시트 — 좌(시도)/우(시군구) 투페인(스프린트 14, Petcli
@@ -98,7 +99,7 @@ class _RegionPickerSheetState extends ConsumerState<_RegionPickerSheet> {
                       const Divider(height: 1),
                       for (final sido in sidoList)
                         _PickerRow(
-                          label: sido,
+                          label: sidoDisplayLabel(sido),
                           selected: sido == selectedSido,
                           trailing: const Icon(Icons.chevron_right, size: 18, color: AppColors.textPlaceholder),
                           onTap: () => setState(() => _selectedSido = sido),
@@ -122,7 +123,7 @@ class _RegionPickerSheetState extends ConsumerState<_RegionPickerSheet> {
                       : ListView(
                           children: [
                             _PickerRow(
-                              label: '$selectedSido 전체',
+                              label: '${sidoDisplayLabel(selectedSido)} 전체',
                               selected: false,
                               onTap: () => Navigator.of(context).pop(RegionFilter(sido: selectedSido)),
                             ),

@@ -12,6 +12,7 @@ import '../providers/region_provider.dart';
 import '../providers/search_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/region_display.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
@@ -210,7 +211,9 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
                                     OutlinedButton(
                                       onPressed: () => _widenRegion(region),
                                       child: Text(
-                                        region.sigungu != null ? '${region.sido} 전체로 넓히기' : '전국으로 넓히기',
+                                        region.sigungu != null
+                                            ? '${sidoDisplayLabel(region.sido!)} 전체로 넓히기'
+                                            : '전국으로 넓히기',
                                       ),
                                     ),
                                   OutlinedButton(

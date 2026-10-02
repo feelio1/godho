@@ -1,3 +1,5 @@
+import '../utils/region_display.dart';
+
 /// A region scope for filtering search/nearby results.
 ///
 /// `sido == null` means nationwide ("전체"). `sido` set with
@@ -13,16 +15,19 @@ class RegionFilter {
 
   bool get isNationwide => sido == null;
 
+  /// 화면에 보여줄 문자열 — [sido]는 표시 직전에만 [sidoDisplayLabel]로
+  /// 축약한다. 조인·필터 등 내부 로직에 쓰이는 [sido] 값 자체는 그대로다.
   String get label {
     if (sido == null) return '전체';
-    if (sigungu == null) return '$sido 전체';
-    return '$sido $sigungu';
+    final sidoLabel = sidoDisplayLabel(sido!);
+    if (sigungu == null) return '$sidoLabel 전체';
+    return '$sidoLabel $sigungu';
   }
 
   /// Short label for compact UI (e.g. app bar region chip).
   String get shortLabel {
     if (sido == null) return '전체';
-    if (sigungu == null) return sido!;
+    if (sigungu == null) return sidoDisplayLabel(sido!);
     return sigungu!;
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/region_filter.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/region_display.dart';
 
 /// 검색 세트 카드(스프린트 14, Petcli 시안 공용 컴포넌트): 흰 카드 위에
 /// (위) 회색 인셋 검색 필드 + (아래) 가로 스크롤 지역 칩. 홈/검색결과/
@@ -82,7 +83,7 @@ class SearchSetCard extends StatelessWidget {
                 final sido = sidoOptions[index - 1];
                 final active = region.sido == sido;
                 return _RegionChip(
-                  label: sido,
+                  label: sidoDisplayLabel(sido),
                   active: active,
                   showCaret: active,
                   onTap: active ? onOpenRegionPicker : () => onSelectRegion(RegionFilter(sido: sido)),

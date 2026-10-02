@@ -65,8 +65,14 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   bool _mapFailed = false;
   KakaoMapController? _controller;
   PoiStyle? _hospitalStyle;
-  PoiStyle? _clusterStyle;
   PoiStyle? _myLocationStyle;
+
+  /// 클러스터 아이콘은 개수마다 원 안에 그려 넣는 숫자가 달라 공유 단일
+  /// style을 쓸 수 없다. 같은 개수가 자주 반복되므로(예: 줌을 조금씩
+  /// 움직여도 그룹 크기는 자주 같다) 개수별로 한 번만 만들어 캐시해
+  /// 매 렌더마다 bitmap을 다시 그리지 않는다("지도 클러스터 숫자
+  /// 가독성" 지시서).
+  final Map<int, PoiStyle> _clusterStyleCache = {};
   List<Hospital> _markerCandidates = const [];
   List<Poi> _renderedPois = const [];
   Poi? _myLocationPoi;
@@ -178,13 +184,83 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     return style;
   }
 
-  Future<PoiStyle> _buildClusterStyle() async {
-    const size = 48.0;
-    final bytes = await _circleBytes(size, AppColors.primary);
-    return PoiStyle(
-      icon: KImage.fromData(bytes, size.toInt(), size.toInt()),
-      textStyle: const [PoiTextStyle(size: 26, color: Colors.white)],
+  /// 클러스터 아이콘의 지름 — 3자리 개수도 안 깨지도록 기존(48)보다
+  /// 살짝 키웠다.
+  static const double _clusterDiameter = 52.0;
+
+  /// [count]에 대한 클러스터 style을 캐시에서 찾거나 새로 만든다. POI
+  /// 텍스트 라벨(`textStyle`)은 쓰지 않는다 — 기본 gravity상 아이콘
+  /// 밖/아래에 찍혀 위치가 어긋나고 흰 글자가 지도 배경 위에서 잘 안
+  /// 보이던 문제가 있었다("지도 클러스터 숫자 가독성" 지시서). 대신
+  /// 숫자를 원 bitmap 안에 직접 그려 항상 좌표 중앙에 오게 한다.
+  Future<PoiStyle> _clusterStyleForCount(int count) async {
+    final cached = _clusterStyleCache[count];
+    if (cached != null) return cached;
+    final bytes = await _clusterBytes(_clusterDiameter, count);
+    final style = PoiStyle(
+      icon: KImage.fromData(bytes, _clusterDiameter.toInt(), _clusterDiameter.toInt()),
+      textStyle: const [],
     );
+    _clusterStyleCache[count] = style;
+    return style;
+  }
+
+  /// 채운 원(`AppColors.primary` — 클러스터는 개수 표시일 뿐 색으로
+  /// 상태/평가를 나타내지 않는다, CLAUDE.md 평가 금지 원칙) 안에 개수
+  /// 숫자를 중앙 정렬로 그린다. 자릿수가 많아질수록 글자 크기를 줄여
+  /// 원을 넘지 않게 하고, 흰 볼드 글자 아래 짙은 초록(`primaryDark`)
+  /// 외곽선을 한 겹 깔아 대비를 더한다.
+  static Future<Uint8List> _clusterBytes(double diameter, int count) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final radius = diameter / 2;
+    final center = Offset(radius, radius);
+    canvas.drawCircle(center, radius - 1.5, Paint()..color = AppColors.primary);
+    canvas.drawCircle(
+      center,
+      radius - 1.5,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3,
+    );
+
+    final text = count > 999 ? '999+' : '$count';
+    final fontSize = switch (text.length) {
+      1 || 2 => diameter * 0.42,
+      3 => diameter * 0.34,
+      _ => diameter * 0.26,
+    };
+
+    final strokePainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          foreground: Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = diameter * 0.05
+            ..color = AppColors.primaryDark,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final fillPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w800, color: Colors.white),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final textOffset = Offset(radius - fillPainter.width / 2, radius - fillPainter.height / 2);
+    strokePainter.paint(canvas, textOffset);
+    fillPainter.paint(canvas, textOffset);
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(diameter.toInt(), diameter.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   /// '내 위치' 마커 스타일 — 파란 점(스프린트 14, Petcli 시안: "내 위치(파란
@@ -243,8 +319,7 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     try {
       final controller = _controller;
       final hospitalStyle = _hospitalStyle;
-      final clusterStyle = _clusterStyle;
-      if (controller == null || hospitalStyle == null || clusterStyle == null) return;
+      if (controller == null || hospitalStyle == null) return;
 
       // 겹치는 id로 인한 등록 실패를 피하기 위해 기존 마커를 먼저 지운 뒤 다시
       // 그린다. 개별 제거 실패는 무시하고 계속 진행한다(하나 때문에 전체
@@ -278,10 +353,10 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
           } else {
             final center = group.position;
             final centroid = LatLng(center.lat, center.lng);
+            final clusterStyle = await _clusterStyleForCount(group.hospitals.length);
             newPois.add(await controller.labelLayer.addPoi(
               centroid,
               style: clusterStyle,
-              text: '${group.hospitals.length}',
               onClick: () => _onClusterTap(centroid),
             ));
           }
@@ -548,7 +623,6 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
               _controller = controller;
               _currentZoom = initialZoom;
               _hospitalStyle = await _buildHospitalStyle();
-              _clusterStyle = await _buildClusterStyle();
               _recomputeCandidates(initialTarget);
               if (location != null) {
                 await _updateMyLocationMarker(LatLng(location.latitude, location.longitude));
