@@ -9,9 +9,10 @@ import 'signup_pet_screen.dart';
 
 /// 가입 플로우 1단계 — 나이대·성별은 모든 신규 가입(소셜 포함)에서
 /// 필수 입력이고 "건너뛰기"가 없다("자체 회원가입·로그인·비밀번호
-/// 재설정" 지시서 3). 통계 활용 동의만 선택으로 남는다. 이미 가입된
-/// 기존 사용자에게 소급 재입력을 강제하는 것은 이 화면의 책임이
-/// 아니다 — 로그인(기존 사용자) 경로는 이 화면을 거치지 않는다.
+/// 재설정" 지시서 3). 만 14세 이상 확인도 모든 신규 가입에 공통으로
+/// 필수다("v1 출시 준비" 지시서 2). 통계 활용 동의만 선택으로 남는다.
+/// 이미 가입된 기존 사용자에게 소급 재입력을 강제하는 것은 이 화면의
+/// 책임이 아니다 — 로그인(기존 사용자) 경로는 이 화면을 거치지 않는다.
 /// 과장·혜택 미끼 문구 금지(CLAUDE.md 제품 헌법) — "또래 반려인 기준"
 /// 문구만 쓰고 할인 등은 절대 언급하지 않는다.
 class SignupAgeGenderScreen extends ConsumerStatefulWidget {
@@ -24,6 +25,7 @@ class SignupAgeGenderScreen extends ConsumerStatefulWidget {
 class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
   AgeGroup? _ageGroup;
   Gender? _gender;
+  bool _agreedAge14 = false;
   bool _agreedStats = false;
 
   /// 남/여만 필수 선택지로 둔다 — 이 화면은 이제 건너뛸 수 없으므로
@@ -31,7 +33,7 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
   /// 회원가입·로그인·비밀번호 재설정" 지시서 1-2/3).
   static const List<Gender> _requiredGenderOptions = [Gender.male, Gender.female];
 
-  bool get _canProceed => _ageGroup != null && _gender != null;
+  bool get _canProceed => _ageGroup != null && _gender != null && _agreedAge14;
 
   void _next() {
     if (!_canProceed) return;
@@ -88,6 +90,16 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
               }).toList(),
             ),
             const SizedBox(height: AppSpacing.section),
+            CheckboxListTile(
+              value: _agreedAge14,
+              onChanged: (v) => setState(() => _agreedAge14 = v ?? false),
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text(
+                '만 14세 이상입니다. (만 14세 미만은 가입할 수 없어요)',
+                style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
+              ),
+            ),
             CheckboxListTile(
               value: _agreedStats,
               onChanged: (v) => setState(() => _agreedStats = v ?? false),

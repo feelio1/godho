@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/feature_flags.dart';
 import '../data/auth_repository.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
@@ -17,11 +18,11 @@ import 'signup_email_screen.dart';
 /// 게이팅이 아니라 "테스트 가능한 진입점"이라, 로그인하지 않고 뒤로
 /// 가도 게스트 기능은 그대로다.
 ///
-/// 안드로이드: 구글+카카오, iOS: 구글+카카오+애플. 구글만 이번 단계에서
-/// 실제로 끝까지 동작한다 — 카카오는 Firebase Custom Token 교환 Cloud
-/// Function이 아직 배포되지 않아(Blaze 비활성) 항상 안내로 끝나고,
-/// 애플은 개발자 승인 전이라 iOS에서만 노출될 뿐 실기기 검증 대상이
-/// 아니다.
+/// v1 출시 범위는 구글 + 이메일 + 게스트다("v1 출시 준비" 지시서 1) —
+/// 카카오·애플 버튼은 [kEnableKakaoLogin]/[kEnableAppleLogin] 플래그로
+/// 숨겨져 있을 뿐, `signInWithKakao`/`signInWithApple`과 그 호출
+/// 코드는 그대로 남아 있어 플래그만 true로 바꾸면 다시 노출된다(마켓
+/// URL 확보 후 적용할 카카오 실연결은 별도 지시서).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -248,15 +249,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 enabled: _loading == null,
                 onPressed: _handleGoogle,
               ),
-              const SizedBox(height: 12),
-              _ProviderButton(
-                label: '카카오로 계속하기',
-                icon: Icons.chat_bubble,
-                loading: _loading == _Provider.kakao,
-                enabled: _loading == null,
-                onPressed: _handleKakao,
-              ),
-              if (isIOS) ...[
+              if (kEnableKakaoLogin) ...[
+                const SizedBox(height: 12),
+                _ProviderButton(
+                  label: '카카오로 계속하기',
+                  icon: Icons.chat_bubble,
+                  loading: _loading == _Provider.kakao,
+                  enabled: _loading == null,
+                  onPressed: _handleKakao,
+                ),
+              ],
+              if (isIOS && kEnableAppleLogin) ...[
                 const SizedBox(height: 12),
                 _ProviderButton(
                   label: 'Apple로 계속하기',
