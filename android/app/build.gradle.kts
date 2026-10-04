@@ -23,6 +23,16 @@ if (secretsPropertiesFile.exists()) {
 val admobAppId: String =
     secretsProperties.getProperty("ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713")
 
+// Local-only release signing credentials (gitignored). See android/.gitignore
+// — this file only reads the keystore path/alias/passwords, never commits
+// them. If it's missing (CC sandbox, a fresh checkout), release falls back
+// to the debug signing config further below so the build still succeeds.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+}
+
 android {
     namespace = "com.petcheck.petcliniccheck"
     compileSdk = flutter.compileSdkVersion
@@ -49,11 +59,25 @@ android {
         manifestPlaceholders["admobAppId"] = admobAppId
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // key.properties가 있으면(로컬 업로드 키) 그 키로, 없으면(CC
+            // 샌드박스 등) 디버그 키로 서명해 빌드는 항상 성공한다.
+            signingConfig = if (keystorePropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
         }
     }
 }
