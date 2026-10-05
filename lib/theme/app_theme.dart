@@ -8,7 +8,8 @@ import 'app_dimens.dart';
 /// than hardcoding values, so the whole app stays visually consistent
 /// from one place.
 ///
-/// 스프린트 14: "Petcli" 디자인 시안 — Gothic A1 폰트, 딥블루 액센트,
+/// "펫클 앱 디자인" 캔버스 시안(2026.10) — IBM Plex Sans KR 폰트(숫자·
+/// 날짜는 IBM Plex Mono, [AppTextStyles.mono] 참고), 네이비 블루 액센트,
 /// 흰 카드 + 옅은 회색 페이지 배경.
 class AppTheme {
   const AppTheme._();
@@ -55,7 +56,7 @@ class AppTheme {
       double? height,
     }) =>
         TextStyle(
-          fontFamily: 'Gothic A1',
+          fontFamily: 'IBM Plex Sans KR',
           fontSize: size,
           fontWeight: weight,
           letterSpacing: letterSpacing,
@@ -63,21 +64,24 @@ class AppTheme {
           height: height,
         );
 
+    // IBM Plex Sans KR은 400/500/600/700 네 굵기만 번들링돼 있다(시안
+    // CSS도 그 넷만 불러온다) — 이전 Gothic A1의 800/900(w900 포함)은
+    // 더 못 쓴다. 가장 굵은 Bold(700)로 눌러 쓴다.
     return TextTheme(
-      // 화면/브랜드 제목: 22–27 / w900, 자간 타이트.
-      headlineSmall: f(size: 26, weight: FontWeight.w900, letterSpacing: -0.7, color: titleColor),
-      titleLarge: f(size: 22, weight: FontWeight.w900, letterSpacing: -0.5, color: titleColor),
-      // 카드·섹션 제목: 15–17 / w800.
-      titleMedium: f(size: 16, weight: FontWeight.w800, letterSpacing: -0.3, color: titleColor),
-      titleSmall: f(size: 15, weight: FontWeight.w800, letterSpacing: -0.2, color: titleColor),
-      // 본문: 13–15 / w600–700.
-      bodyLarge: f(size: 15, weight: FontWeight.w600, color: bodyColor, height: 1.4),
-      bodyMedium: f(size: 14, weight: FontWeight.w600, color: bodyColor, height: 1.4),
-      bodySmall: f(size: 12.5, weight: FontWeight.w500, color: mutedColor, height: 1.4),
+      // 화면/브랜드 제목: 22–25 / w700, 자간 -0.03em.
+      headlineSmall: f(size: 25, weight: FontWeight.w700, letterSpacing: -0.75, color: titleColor),
+      titleLarge: f(size: 22, weight: FontWeight.w700, letterSpacing: -0.66, color: titleColor),
+      // 카드·섹션 제목: 15–16 / w600.
+      titleMedium: f(size: 16, weight: FontWeight.w600, color: titleColor),
+      titleSmall: f(size: 15, weight: FontWeight.w600, color: titleColor),
+      // 본문.
+      bodyLarge: f(size: 15, weight: FontWeight.w500, color: bodyColor, height: 1.4),
+      bodyMedium: f(size: 14, weight: FontWeight.w400, color: bodyColor, height: 1.4),
+      bodySmall: f(size: 12.5, weight: FontWeight.w400, color: mutedColor, height: 1.45),
       // 버튼/라벨.
-      labelLarge: f(size: 15, weight: FontWeight.w700, color: titleColor),
-      labelMedium: f(size: 13, weight: FontWeight.w700, color: bodyColor),
-      labelSmall: f(size: 11, weight: FontWeight.w600, color: mutedColor),
+      labelLarge: f(size: 15, weight: FontWeight.w600, color: titleColor),
+      labelMedium: f(size: 13, weight: FontWeight.w600, color: bodyColor),
+      labelSmall: f(size: 11, weight: FontWeight.w500, color: mutedColor),
     );
   }
 
@@ -182,7 +186,7 @@ class AppTheme {
         height: 74,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w800 : FontWeight.w600,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w400,
             color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textPlaceholder,
           ),
         ),

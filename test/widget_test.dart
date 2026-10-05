@@ -24,33 +24,17 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Petcli'), findsOneWidget);
-    expect(find.text('지도에서 보기'), findsOneWidget);
+    // "펫클 앱 디자인" 캔버스 시안(Main.dc.html) — 브랜드 마크 + 검색
+    // 진입 + 3개 바로가기만 있고, 예전의 세로 리스트 섹션들은 없다
+    // ("디자인 2단계" 지시서, 사용자 확인하에 제거).
+    expect(find.text('펫클'), findsOneWidget);
+    expect(find.text('병원 이름 또는 지역 검색'), findsOneWidget);
+    expect(find.text('주변 병원'), findsOneWidget);
+    expect(find.text('진료비 시세'), findsOneWidget);
+    expect(find.text('저장한 병원'), findsOneWidget);
 
-    // 스프린트 13 지시서 2 — 홈이 병원 리스트 섹션으로 세로로 채워지는지
-    // (전국 데이터 기준으로는 항상 데이터가 있어야 하는 섹션들만 확인).
-    // 아래쪽 섹션은 초기 뷰포트 밖이라 스크롤해서 실제로 빌드되게 한다.
-    // (진료비 시세 카드가 위에 추가되며 이 섹션도 뷰포트 밖으로 밀려났다.)
-    await tester.scrollUntilVisible(
-      find.text('내 주변 가까운 병원'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('내 주변 가까운 병원'), findsOneWidget);
-    expect(find.text('전체 병원 보기'), findsOneWidget);
-
-    await tester.scrollUntilVisible(
-      find.text('운영 20년 이상 병원'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('운영 20년 이상 병원'), findsOneWidget);
-
-    await tester.scrollUntilVisible(
-      find.text('최근 개원한 병원'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.text('최근 개원한 병원'), findsOneWidget);
+    expect(find.text('내 주변 가까운 병원'), findsNothing);
+    expect(find.text('운영 20년 이상 병원'), findsNothing);
+    expect(find.text('최근 개원한 병원'), findsNothing);
   });
 }
