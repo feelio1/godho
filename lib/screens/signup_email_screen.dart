@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/auth_error_message.dart';
+import '../widgets/signup_steps.dart';
 import 'signup_age_gender_screen.dart';
 
 final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
@@ -39,7 +40,9 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _submit() async {
@@ -86,18 +89,53 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('회원가입')),
+      appBar: AppBar(),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(AppSpacing.page),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            0,
+            AppSpacing.page,
+            24,
+          ),
           children: [
+            const SignupSteps(step: 1, label: '계정 정보'),
+            const SizedBox(height: 4),
             const Text(
-              '이메일과 비밀번호로 가입할 수 있어요',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              '이메일로 가입할게요',
+              style: TextStyle(
+                fontSize: 23,
+                height: 1.4,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.5,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: AppSpacing.section),
-            const Text('이메일', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
-            const SizedBox(height: 8),
+            const Text(
+              '이름',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textLabel,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _nameController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(hintText: '닉네임으로 써도 괜찮아요'),
+            ),
+            const SizedBox(height: AppSpacing.formField),
+            const Text(
+              '이메일',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textLabel,
+              ),
+            ),
+            const SizedBox(height: 6),
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
@@ -105,44 +143,94 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
               decoration: const InputDecoration(hintText: 'example@email.com'),
             ),
             const SizedBox(height: AppSpacing.formField),
-            const Text('비밀번호', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
-            const SizedBox(height: 8),
+            const Text(
+              '비밀번호',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textLabel,
+              ),
+            ),
+            const SizedBox(height: 6),
             TextField(
               controller: _passwordController,
               obscureText: true,
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(hintText: '6자 이상'),
             ),
+            const SizedBox(height: 4),
+            const Text(
+              '6자 이상',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
             const SizedBox(height: AppSpacing.formField),
-            const Text('비밀번호 확인', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
-            const SizedBox(height: 8),
+            const Text(
+              '비밀번호 확인',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textLabel,
+              ),
+            ),
+            const SizedBox(height: 6),
             TextField(
               controller: _confirmController,
               obscureText: true,
-              textInputAction: TextInputAction.next,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
               decoration: const InputDecoration(hintText: '비밀번호를 한 번 더 입력해주세요'),
             ),
-            const SizedBox(height: AppSpacing.formField),
-            const Text('이름', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nameController,
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(hintText: '닉네임으로 써도 괜찮아요'),
+            const SizedBox(height: 4),
+            AnimatedBuilder(
+              animation: Listenable.merge([
+                _passwordController,
+                _confirmController,
+              ]),
+              builder: (context, _) {
+                final match =
+                    _confirmController.text.isNotEmpty &&
+                    _confirmController.text == _passwordController.text;
+                if (!match) return const SizedBox.shrink();
+                return const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check, size: 14, color: AppColors.primary),
+                    SizedBox(width: 4),
+                    Text(
+                      '비밀번호가 일치해요',
+                      style: TextStyle(fontSize: 12, color: AppColors.primary),
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: AppSpacing.section),
             SizedBox(
               width: double.infinity,
-              height: 52,
+              height: 54,
               child: FilledButton(
                 onPressed: _loading ? null : _submit,
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.field),
+                  ),
+                ),
                 child: _loading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
-                    : const Text('가입하기'),
+                    : const Text(
+                        '다음',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ],

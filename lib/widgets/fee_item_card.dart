@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/fee.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../theme/app_text_styles.dart';
 import 'fee_format.dart';
 import 'fee_range_bar.dart';
 
@@ -32,23 +33,13 @@ class FeeItemCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                ),
-                child: const Text(
-                  '중간값',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
-                ),
-              ),
+              const Chip(label: Text('중간값')),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             feeWonLabel(value.mid),
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+            style: AppTextStyles.mono(size: 24, weight: FontWeight.w600, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 12),
           if (value.sampleLow)

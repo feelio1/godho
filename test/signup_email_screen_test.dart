@@ -28,7 +28,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '비밀번호를 한 번 더 입력해주세요'), '123456');
     await tester.enterText(find.widgetWithText(TextField, '닉네임으로 써도 괜찮아요'), '테스터');
 
-    await tester.tap(find.widgetWithText(FilledButton, '가입하기'));
+    await tester.tap(find.widgetWithText(FilledButton, '다음'));
     await tester.pump();
 
     expect(find.text('이메일 형식을 확인해주세요'), findsOneWidget);
@@ -42,7 +42,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '비밀번호를 한 번 더 입력해주세요'), '123');
     await tester.enterText(find.widgetWithText(TextField, '닉네임으로 써도 괜찮아요'), '테스터');
 
-    await tester.tap(find.widgetWithText(FilledButton, '가입하기'));
+    await tester.tap(find.widgetWithText(FilledButton, '다음'));
     await tester.pump();
 
     expect(find.text('비밀번호는 6자 이상이어야 해요'), findsOneWidget);
@@ -56,7 +56,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '비밀번호를 한 번 더 입력해주세요'), '654321');
     await tester.enterText(find.widgetWithText(TextField, '닉네임으로 써도 괜찮아요'), '테스터');
 
-    await tester.tap(find.widgetWithText(FilledButton, '가입하기'));
+    await tester.tap(find.widgetWithText(FilledButton, '다음'));
     await tester.pump();
 
     expect(find.text('비밀번호가 일치하지 않아요'), findsOneWidget);
@@ -69,7 +69,7 @@ void main() {
     await tester.enterText(find.widgetWithText(TextField, '6자 이상'), '123456');
     await tester.enterText(find.widgetWithText(TextField, '비밀번호를 한 번 더 입력해주세요'), '123456');
 
-    await tester.tap(find.widgetWithText(FilledButton, '가입하기'));
+    await tester.tap(find.widgetWithText(FilledButton, '다음'));
     await tester.pump();
 
     expect(find.text('이름을 입력해주세요'), findsOneWidget);

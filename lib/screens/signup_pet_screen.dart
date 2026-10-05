@@ -7,6 +7,7 @@ import '../providers/signup_flow_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import 'account_pet_form_screen.dart';
+import 'signup_done_screen.dart';
 
 /// 가입 플로우 2단계(필수, 펫클 2단계 지시서 3-2) — 기존 반려동물 등록
 /// 화면(05)의 항목을 재사용하되, 여기서는 종류/품종/체중/생년월이
@@ -102,9 +103,12 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
       }
       ref.read(signupFlowProvider.notifier).reset();
       if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('가입이 완료됐어요.')),
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SignupDoneScreen(
+            onDone: () => Navigator.of(context).popUntil((route) => route.isFirst),
+          ),
+        ),
       );
     } catch (e) {
       if (mounted) {

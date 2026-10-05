@@ -27,6 +27,10 @@ class AppColors {
   /// 액센트 틴트 — 아이콘·배지 배경 등 아주 옅은 강조 영역.
   static const primarySoft = Color(0xFFE7EEF8);
 
+  /// 진료비 최소–최대 범위 막대 틴트("펫클 앱 디자인" 캔버스 시안의
+  /// `.rng`) — [primarySoft]보다 살짝 짙어 회색 트랙 위에서 구분된다.
+  static const feeRangeFill = Color(0xFFC9D7EA);
+
   /// `ColorScheme.secondary`용 — 단일 네이비 브랜드 톤이라 별도 강조색을
   /// 쓰지 않는다. [primary]/[primaryDark]와 같은 값을 써 항상 네이비로
   /// 보이게 한다.

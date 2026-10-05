@@ -66,15 +66,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _openSignupEmail() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SignupEmailScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const SignupEmailScreen()));
   }
 
   void _openPasswordReset() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const PasswordResetScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const PasswordResetScreen()));
   }
 
   Future<void> _handleGoogle() async {
@@ -126,9 +126,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     if (exists) {
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인됐어요.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인됐어요.')));
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const SignupAgeGenderScreen()),
@@ -138,7 +138,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showPreparing(String message) {
@@ -149,7 +151,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         title: const Text('준비 중'),
         content: Text(message),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('확인')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('확인'),
+          ),
         ],
       ),
     );
@@ -159,39 +164,149 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final isIOS = Platform.isIOS;
     return Scaffold(
-      appBar: AppBar(title: const Text('로그인 / 회원가입')),
+      appBar: AppBar(),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.page),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            0,
+            AppSpacing.page,
+            24,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // "펫클 앱 디자인" 캔버스 시안(Login.dc.html) — 아이콘+헤드라인,
+              // 로그인 시 할 수 있는 일 3가지를 체크리스트로.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.add, size: 26, color: Colors.white),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Text(
+                      '우리 아이 기록은\n로그인 후 저장돼요',
+                      style: TextStyle(
+                        fontSize: 23,
+                        height: 1.4,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundLight,
+                  borderRadius: BorderRadius.circular(AppRadius.card),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    _LoginBenefit('진료기록 작성과 보관'),
+                    SizedBox(height: 12),
+                    _LoginBenefit('다니는 병원 저장 · 비교'),
+                    SizedBox(height: 12),
+                    _LoginBenefit('예약 알림과 캘린더'),
+                  ],
+                ),
+              ),
               const SizedBox(height: AppSpacing.section),
-              const Icon(Icons.pets, size: 56, color: AppColors.primary),
-              const SizedBox(height: 16),
-              const Text(
-                '로그인하면 반려동물 정보를 계정에 담아둘 수 있어요',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              if (isIOS && kEnableAppleLogin)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ProviderButton(
+                    label: 'Apple로 계속하기',
+                    icon: Icons.apple,
+                    background: Colors.black,
+                    foreground: Colors.white,
+                    loading: _loading == _Provider.apple,
+                    enabled: _loading == null,
+                    onPressed: _handleApple,
+                  ),
+                ),
+              if (kEnableKakaoLogin)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ProviderButton(
+                    label: '카카오로 계속하기',
+                    icon: Icons.chat_bubble,
+                    background: const Color(0xFFFEE500),
+                    foreground: const Color(0xD9000000),
+                    loading: _loading == _Provider.kakao,
+                    enabled: _loading == null,
+                    onPressed: _handleKakao,
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _ProviderButton(
+                  label: 'Google로 계속하기',
+                  icon: Icons.g_mobiledata,
+                  background: AppColors.surfaceLight,
+                  foreground: AppColors.textPrimary,
+                  border: AppColors.borderInput,
+                  loading: _loading == _Provider.google,
+                  enabled: _loading == null,
+                  onPressed: _handleGoogle,
+                ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                '로그인하지 않아도 검색·시세·지도·진료기록은 지금처럼 그대로 쓸 수 있어요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Expanded(child: Divider()),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      '또는',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const Expanded(child: Divider()),
+                ],
               ),
-              const SizedBox(height: AppSpacing.section * 2),
-              const Text('이메일', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
+              const SizedBox(height: AppSpacing.section),
+              const Text(
+                '이메일',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textLabel,
+                ),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 enabled: _loading == null,
-                decoration: const InputDecoration(hintText: 'example@email.com'),
+                decoration: const InputDecoration(
+                  hintText: 'example@email.com',
+                ),
               ),
               const SizedBox(height: AppSpacing.formField),
-              const Text('비밀번호', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: AppColors.textLabel)),
+              const Text(
+                '비밀번호',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textLabel,
+                ),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _passwordController,
@@ -203,16 +318,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 52,
+                height: 54,
                 child: FilledButton(
                   onPressed: _loading == null ? _handleEmailLogin : null,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.field),
+                    ),
+                  ),
                   child: _loading == _Provider.email
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
-                      : const Text('로그인'),
+                      : const Text(
+                          '로그인',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -223,52 +352,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onPressed: _loading == null ? _openSignupEmail : null,
                     child: const Text('회원가입'),
                   ),
-                  const Text('·', style: TextStyle(color: AppColors.textPlaceholder)),
+                  const Text(
+                    '·',
+                    style: TextStyle(color: AppColors.textPlaceholder),
+                  ),
                   TextButton(
                     onPressed: _loading == null ? _openPasswordReset : null,
                     child: const Text('비밀번호 찾기'),
                   ),
                 ],
               ),
-              const SizedBox(height: AppSpacing.section),
-              Row(
-                children: [
-                  const Expanded(child: Divider()),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('또는', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: 4),
+              Center(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    '로그인 없이 둘러보기',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textLabel,
+                    ),
                   ),
-                  const Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.section),
-              _ProviderButton(
-                label: 'Google로 계속하기',
-                icon: Icons.g_mobiledata,
-                loading: _loading == _Provider.google,
-                enabled: _loading == null,
-                onPressed: _handleGoogle,
-              ),
-              if (kEnableKakaoLogin) ...[
-                const SizedBox(height: 12),
-                _ProviderButton(
-                  label: '카카오로 계속하기',
-                  icon: Icons.chat_bubble,
-                  loading: _loading == _Provider.kakao,
-                  enabled: _loading == null,
-                  onPressed: _handleKakao,
                 ),
-              ],
-              if (isIOS && kEnableAppleLogin) ...[
-                const SizedBox(height: 12),
-                _ProviderButton(
-                  label: 'Apple로 계속하기',
-                  icon: Icons.apple,
-                  loading: _loading == _Provider.apple,
-                  enabled: _loading == null,
-                  onPressed: _handleApple,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '만 14세 이상만 가입할 수 있어요',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textPlaceholder,
                 ),
-              ],
+              ),
             ],
           ),
         ),
@@ -277,9 +393,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
+class _LoginBenefit extends StatelessWidget {
+  final String label;
+
+  const _LoginBenefit(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.check, size: 18, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 14, color: AppColors.textLabel),
+        ),
+      ],
+    );
+  }
+}
+
 class _ProviderButton extends StatelessWidget {
   final String label;
   final IconData icon;
+  final Color background;
+  final Color foreground;
+  final Color? border;
   final bool loading;
   final bool enabled;
   final VoidCallback onPressed;
@@ -287,6 +426,9 @@ class _ProviderButton extends StatelessWidget {
   const _ProviderButton({
     required this.label,
     required this.icon,
+    required this.background,
+    required this.foreground,
+    this.border,
     required this.loading,
     required this.enabled,
     required this.onPressed,
@@ -299,16 +441,26 @@ class _ProviderButton extends StatelessWidget {
       child: OutlinedButton.icon(
         onPressed: enabled ? onPressed : null,
         icon: loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: foreground,
+                ),
               )
-            : Icon(icon),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            : Icon(icon, color: foreground),
+        label: Text(
+          label,
+          style: TextStyle(fontWeight: FontWeight.w600, color: foreground),
+        ),
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.borderCard),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field)),
+          backgroundColor: background,
+          disabledBackgroundColor: background,
+          side: border != null ? BorderSide(color: border!) : BorderSide.none,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.field),
+          ),
         ),
       ),
     );
