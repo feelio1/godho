@@ -20,6 +20,11 @@ import '../widgets/picker_sheet_chrome.dart';
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
 
+/// 방문 목적 분류 칩("펫클 앱 디자인" 캔버스 시안 RecordForm.dc.html) —
+/// [MedicalRecord.category]는 여전히 자유 입력 문자열이라, 칩은 그 값을
+/// 빠르게 채워주는 단축 입력일 뿐이다.
+const _categoryChoices = ['진찰', '백신', '검사', '영상', '입원', '기타'];
+
 /// 진료/방문 기록 추가·수정 폼(스프린트 8 지시서 2, 스프린트 9에서 필드
 /// 라벨·사진 첨부 UI 개선). 병원은 우리 DB에서 검색해 고르거나 직접 입력할
 /// 수 있다. 몸무게·진료비는 기록으로만 남기고 판정·평가 문구는 어디에도
@@ -46,7 +51,9 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
   late final TextEditingController _memoController;
   late final TextEditingController _weightController;
   late final TextEditingController _costController;
+  late final TextEditingController _categoryController;
   String? _selectedHospitalId;
+  String? _selectedCategoryChip;
   String? _photoPath;
   bool _showSuggestions = false;
 
@@ -60,8 +67,18 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     _memoController = TextEditingController(text: existing?.memo ?? '');
     _weightController = TextEditingController(text: existing?.weightKg?.toString() ?? '');
     _costController = TextEditingController(text: existing?.costWon?.toString() ?? '');
+    _categoryController = TextEditingController(text: existing?.category ?? '');
     _selectedHospitalId = existing?.hospitalId;
     _photoPath = existing?.photoPath;
+
+    final initialCategory = existing?.category ?? '';
+    if (initialCategory.isEmpty) {
+      _selectedCategoryChip = null;
+    } else if (_categoryChoices.contains(initialCategory) && initialCategory != '기타') {
+      _selectedCategoryChip = initialCategory;
+    } else {
+      _selectedCategoryChip = '기타';
+    }
   }
 
   @override
@@ -70,6 +87,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     _memoController.dispose();
     _weightController.dispose();
     _costController.dispose();
+    _categoryController.dispose();
     super.dispose();
   }
 
@@ -147,6 +165,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
       memo: _memoController.text.trim(),
       weightKg: weight,
       costWon: cost,
+      category: _categoryController.text.trim(),
       photoPath: _photoPath,
     );
     try {
@@ -266,6 +285,37 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
                 ),
               ),
             ),
+            const SizedBox(height: AppSpacing.formField),
+            const FormFieldLabel('방문 목적'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _categoryChoices
+                  .map((choice) => ChoiceChip(
+                        label: Text(choice),
+                        selected: _selectedCategoryChip == choice,
+                        onSelected: (_) => setState(() {
+                          _selectedCategoryChip = choice;
+                          if (choice == '기타') {
+                            if (_categoryChoices.contains(_categoryController.text)) {
+                              _categoryController.clear();
+                            }
+                          } else {
+                            _categoryController.text = choice;
+                          }
+                        }),
+                      ))
+                  .toList(),
+            ),
+            if (_selectedCategoryChip == '기타') ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _categoryController,
+                autofocus: true,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(hintText: '방문 목적을 입력해주세요'),
+              ),
+            ],
             const SizedBox(height: AppSpacing.formField),
             const FormFieldLabel('진료 내용'),
             TextField(

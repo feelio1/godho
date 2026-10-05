@@ -9,6 +9,7 @@ import '../providers/location_provider.dart';
 import '../providers/saved_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../theme/app_text_styles.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
@@ -39,7 +40,21 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
     final location = ref.watch(locationProvider).value;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('저장')),
+      appBar: AppBar(
+        title: savedAsync.value == null
+            ? const Text('저장한 병원')
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('저장한 병원'),
+                  const SizedBox(width: 6),
+                  Text(
+                    '${savedAsync.value!.length}',
+                    style: AppTextStyles.mono(size: 15, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+      ),
       body: savedAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),

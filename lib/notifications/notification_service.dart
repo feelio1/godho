@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
+import '../data/app_settings.dart';
 import '../models/appointment.dart';
 
 /// 진료 예약 로컬 알림(스프린트 9 지시서 3, 스프린트 12에서 정확한 시각
@@ -115,6 +116,11 @@ class NotificationService {
     await cancelAppointmentReminders(appointment.id);
     if (appointment.reminders.isEmpty) return;
 
+    if (!await const AppSettings().notificationsEnabled()) {
+      _log('설정에서 예약 알림이 꺼져 있어 예약(${appointment.id})을 스케줄하지 않음');
+      return;
+    }
+
     await _ensureInitialized();
     if (!_initialized) {
       _log('초기화가 안 돼 있어 예약(${appointment.id})을 스케줄하지 않음');
@@ -173,6 +179,21 @@ class NotificationService {
         // 이미 없는 알림을 지우는 경우 등 — 무시하고 계속 진행.
         _log('알림 취소 중 예외(무시): $e');
       }
+    }
+  }
+
+  /// 설정 화면에서 "예약 알림"을 끌 때 호출 — 이미 예약된 알림을 모두
+  /// 지운다. 각 예약이 몇 개의 알림을 걸어뒀는지 여기서는 알 수 없으므로,
+  /// 쓰일 수 있는 id 전체 범위를 지운다(개별 예약 id를 따로 모아두지
+  /// 않는 이 서비스의 기존 구조를 바꾸지 않기 위한 선택).
+  Future<void> cancelAll() async {
+    await _ensureInitialized();
+    if (!_initialized) return;
+    try {
+      await _plugin.cancelAll();
+      _log('모든 알림 취소 완료');
+    } catch (e) {
+      _log('모든 알림 취소 중 예외(무시): $e');
     }
   }
 

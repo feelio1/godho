@@ -357,10 +357,20 @@ class _DayRecordTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      record.hospitalName,
-                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            record.hospitalName,
+                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (record.category.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Chip(label: Text(record.category)),
+                        ],
+                      ],
                     ),
                     if (record.memo.isNotEmpty) ...[
                       const SizedBox(height: 4),

@@ -175,7 +175,7 @@ class _RecordsTab extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           child: MascotMessage(
             title: '아직 진료기록이 없어요',
-            subtitle: '병원 방문·접종·몸무게를 기록해두면 여기에서 한눈에 볼 수 있어요.',
+            subtitle: '다녀온 날짜와 진료 내용, 비용을 남겨두면 다음 진료 때 꺼내 볼 수 있어요.',
             assetPath: MascotImage.emptyRecordAssetPath,
             overlayIcon: Icons.description_outlined,
             trailing: FilledButton.icon(
@@ -393,10 +393,20 @@ class _RecordTile extends StatelessWidget {
                       style: AppTextStyles.mono(size: 12, color: AppColors.neutral),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      record.hospitalName,
-                      style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            record.hospitalName,
+                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (record.category.isNotEmpty) ...[
+                          const SizedBox(width: 6),
+                          Chip(label: Text(record.category)),
+                        ],
+                      ],
                     ),
                     if (record.memo.isNotEmpty) ...[
                       const SizedBox(height: 6),

@@ -34,6 +34,12 @@ class FeeWeightNotifier extends Notifier<FeeWeightState> {
     state = FeeWeightState(bucket: bucket, isUserSelected: true);
   }
 
+  /// 설정 화면의 "시세 입력값 초기화" — 사용자가 직접 고른 체중 구간을
+  /// 지우고 기본값(5kg 미만, 미선택 상태)으로 되돌린다.
+  void reset() {
+    state = const FeeWeightState(bucket: FeeWeightBucket.u5, isUserSelected: false);
+  }
+
   /// 반려동물 체중이 확인되면(등록·입력) 그 구간을 기본값으로 반영한다 —
   /// 사용자가 이미 직접 고른 경우는 덮어쓰지 않는다.
   void applyPetWeightIfUnset(double weightKg) {

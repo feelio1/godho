@@ -22,6 +22,11 @@ class MedicalRecord {
   final double? weightKg;
   final int? costWon;
 
+  /// 방문 목적 분류(예: 진찰/백신/검사) — [Appointment.reason]과 같은
+  /// 방식의 자유 입력 문자열이다. 비어 있으면(기존 기록) 목록에 칩을
+  /// 달지 않을 뿐, 어떤 판정도 하지 않는다.
+  final String category;
+
   /// 로컬 파일 경로(기기 내, 예: 영수증 사진). 서버 업로드 없음.
   final String? photoPath;
 
@@ -34,6 +39,7 @@ class MedicalRecord {
     this.memo = '',
     this.weightKg,
     this.costWon,
+    this.category = '',
     this.photoPath,
   });
 
@@ -44,6 +50,7 @@ class MedicalRecord {
     String? memo,
     double? weightKg,
     int? costWon,
+    String? category,
     String? photoPath,
     bool clearHospitalId = false,
     bool clearWeight = false,
@@ -59,6 +66,7 @@ class MedicalRecord {
       memo: memo ?? this.memo,
       weightKg: clearWeight ? null : (weightKg ?? this.weightKg),
       costWon: clearCost ? null : (costWon ?? this.costWon),
+      category: category ?? this.category,
       photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     );
   }
@@ -72,6 +80,7 @@ class MedicalRecord {
         memo: json['memo'] as String? ?? '',
         weightKg: (json['weightKg'] as num?)?.toDouble(),
         costWon: (json['costWon'] as num?)?.toInt(),
+        category: json['category'] as String? ?? '',
         photoPath: json['photoPath'] as String?,
       );
 
@@ -84,6 +93,7 @@ class MedicalRecord {
         'memo': memo,
         'weightKg': weightKg,
         'costWon': costWon,
+        'category': category,
         'photoPath': photoPath,
       };
 
@@ -96,6 +106,7 @@ class MedicalRecord {
         memo: json['memo'] as String? ?? '',
         weightKg: (json['weightKg'] as num?)?.toDouble(),
         costWon: (json['costWon'] as num?)?.toInt(),
+        category: json['category'] as String? ?? '',
       );
 
   Map<String, dynamic> toFirestore() => {
@@ -105,6 +116,7 @@ class MedicalRecord {
         'memo': memo,
         'weightKg': weightKg,
         'costWon': costWon,
+        'category': category,
         'createdAt': Timestamp.now(),
       };
 

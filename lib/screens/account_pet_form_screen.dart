@@ -56,7 +56,7 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
   late final TextEditingController _weightController;
   late PetSpecies _species;
   late PetSex _sex;
-  late bool _neutered;
+  bool? _neutered;
   DateTime? _birthMonth;
   File? _newPhotoFile;
   bool _removePhoto = false;
@@ -70,7 +70,7 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
     _weightController = TextEditingController(text: existing != null ? _formatWeight(existing.weightKg) : '');
     _species = existing?.species ?? PetSpecies.dog;
     _sex = existing?.sex ?? PetSex.unknown;
-    _neutered = existing?.neutered ?? false;
+    _neutered = existing?.neutered;
     _birthMonth = existing != null ? _parseBirthMonth(existing.birth) : null;
   }
 
@@ -219,17 +219,7 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
   Widget build(BuildContext context) {
     final isEditing = widget.existing != null;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(isEditing ? '반려동물 정보 수정' : '반려동물 정보'),
-        actions: [
-          if (isEditing)
-            IconButton(
-              tooltip: '삭제',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: _confirmDelete,
-            ),
-        ],
-      ),
+      appBar: AppBar(title: Text(isEditing ? '반려동물 정보 수정' : '반려동물 정보')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.page),
@@ -284,6 +274,7 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const _GroupTitle('필수 정보'),
                   const FormFieldLabel('종류'),
                   _SegmentRow<PetSpecies>(
                     value: _species,
@@ -292,7 +283,7 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
                     onChanged: (s) => setState(() => _species = s),
                   ),
                   const SizedBox(height: AppSpacing.formField),
-                  const FormFieldLabel('품종 *'),
+                  const FormFieldLabel('품종'),
                   _SelectField(
                     icon: Icons.pets_outlined,
                     label: _breedController.text.trim().isEmpty ? '품종 선택' : _breedController.text.trim(),
@@ -300,29 +291,49 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
                     onTap: _pickBreed,
                   ),
                   const SizedBox(height: AppSpacing.formField),
-                  const FormFieldLabel('체중 *'),
-                  TextField(
-                    controller: _weightController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      hintText: '0.0',
-                      suffixText: 'kg',
-                      suffixStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const FormFieldLabel('체중'),
+                            TextField(
+                              controller: _weightController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                hintText: '0.0',
+                                suffixText: 'kg',
+                                suffixStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const FormFieldLabel('생년월'),
+                            _SelectField(
+                              icon: Icons.calendar_today_outlined,
+                              label: _birthMonth != null ? DateFormat('yyyy.MM').format(_birthMonth!) : '설정 안 함',
+                              placeholder: _birthMonth == null,
+                              onTap: _pickBirthMonth,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: AppSpacing.formField),
-                  const FormFieldLabel('생년월 *'),
-                  _SelectField(
-                    icon: Icons.calendar_today_outlined,
-                    label: _birthMonth != null ? DateFormat('yyyy년 M월').format(_birthMonth!) : '설정 안 함',
-                    placeholder: _birthMonth == null,
-                    onTap: _pickBirthMonth,
-                  ),
-                  const SizedBox(height: AppSpacing.formField),
-                  const FormFieldLabel('이름 (선택)'),
+                  const SizedBox(height: AppSpacing.section),
+                  const _GroupTitle('선택 정보'),
+                  const FormFieldLabel('이름'),
                   TextField(controller: _nameController, decoration: const InputDecoration(hintText: '반려동물 이름')),
                   const SizedBox(height: AppSpacing.formField),
-                  const FormFieldLabel('성별 (선택)'),
+                  const FormFieldLabel('성별'),
                   _SegmentRow<PetSex>(
                     value: _sex,
                     options: const [PetSex.unknown, PetSex.male, PetSex.female],
@@ -330,12 +341,29 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
                     onChanged: (s) => setState(() => _sex = s),
                   ),
                   const SizedBox(height: AppSpacing.formField),
-                  Row(
-                    children: [
-                      const Expanded(child: Text('중성화 수술')),
-                      Switch(value: _neutered, onChanged: (v) => setState(() => _neutered = v)),
-                    ],
+                  const FormFieldLabel('중성화'),
+                  _SegmentRow<bool?>(
+                    value: _neutered,
+                    options: const [true, false, null],
+                    labelOf: (v) => v == true
+                        ? '했어요'
+                        : v == false
+                            ? '안 했어요'
+                            : '모름',
+                    onChanged: (v) => setState(() => _neutered = v),
                   ),
+                  if (isEditing) ...[
+                    const SizedBox(height: AppSpacing.section),
+                    Center(
+                      child: TextButton(
+                        onPressed: _confirmDelete,
+                        child: const Text(
+                          '이 반려동물 삭제',
+                          style: TextStyle(color: AppColors.textSecondary, decoration: TextDecoration.underline),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -346,6 +374,23 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GroupTitle extends StatelessWidget {
+  final String label;
+
+  const _GroupTitle(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.formField),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
       ),
     );
   }
