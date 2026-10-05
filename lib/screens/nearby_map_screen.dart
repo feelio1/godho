@@ -21,7 +21,6 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/map_clustering.dart';
 import '../widgets/fee_context_chip.dart';
-import '../widgets/hospital_avatar.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 import 'detail_screen.dart';
@@ -485,31 +484,25 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                   ),
                 ),
               ),
+              // "펫클 앱 디자인" 캔버스 시안(Map.dc.html)의 바텀시트 카드도
+              // 검색결과 카드와 같은 아바타 없는 레이아웃이다 — 이름+주소
+              // (좌) · 상태 칩(우).
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const HospitalAvatar(size: 52),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                hospital.name,
-                                style: Theme.of(sheetContext).textTheme.titleSmall,
-                              ),
-                            ),
-                            Flexible(child: HospitalStatusTag(hospital: hospital)),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
                         Text(
-                          // 영업중은 위 HospitalStatusTag가 운영 N년차를 이미
-                          // 보여주므로 중복 표기하지 않는다(스프린트 16) —
-                          // 폐업/정보부족은 주소 옆에 운영기간을 함께 보여준다.
+                          hospital.name,
+                          style: Theme.of(sheetContext).textTheme.titleSmall,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          // 영업중은 아래 상태 칩이 운영 N년차를 이미 보여주므로
+                          // 중복 표기하지 않는다(스프린트 16) — 폐업/정보부족은
+                          // 주소 옆에 운영기간을 함께 보여준다.
                           hospital.status == HospitalStatus.open
                               ? hospital.roadAddr
                               : [hospital.roadAddr, hospitalOperatingLabel(hospital)].join(' · '),
@@ -521,6 +514,8 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  HospitalStatusTag(hospital: hospital),
                 ],
               ),
               if (hospital.status != HospitalStatus.closed) ...[
@@ -741,12 +736,12 @@ class _MapSearchBar extends StatelessWidget {
         Expanded(
           child: Material(
             color: AppColors.surfaceLight,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
+            borderRadius: BorderRadius.circular(AppRadius.card),
             elevation: 3,
             shadowColor: const Color(0x330F172A),
             child: InkWell(
               onTap: onSearchTap,
-              borderRadius: BorderRadius.circular(AppRadius.pill),
+              borderRadius: BorderRadius.circular(AppRadius.card),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
                 child: Row(
@@ -766,12 +761,12 @@ class _MapSearchBar extends StatelessWidget {
         const SizedBox(width: 8),
         Material(
           color: AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
+          borderRadius: BorderRadius.circular(AppRadius.card),
           elevation: 3,
           shadowColor: const Color(0x330F172A),
           child: InkWell(
             onTap: onListTap,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
+            borderRadius: BorderRadius.circular(AppRadius.card),
             child: const Padding(
               padding: EdgeInsets.all(13),
               child: Icon(Icons.view_list_outlined, size: 20, color: AppColors.primary),

@@ -1,210 +1,198 @@
 import 'package:flutter/material.dart';
 
-import '../models/fee.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
-import '../widgets/fee_item_card.dart';
+import '../theme/app_text_styles.dart';
+import '../widgets/mascot_image.dart';
+import 'login_screen.dart';
 
-/// 첫 실행 온보딩(3장) — 사용법 + 가격 읽는 법(중간값·지역 시세)을 짧게
-/// 안내한다("캘린더 하단탭화 + 진료 연대기" 지시서 B). 로그인 여부와
-/// 무관하게 항상 보여주고, 과장·평가·추천·"싸다/비싸다" 표현은 어디에도
-/// 쓰지 않는다(CLAUDE.md 원칙 1, 지시서 B4 — 사실·안내 톤만).
-class OnboardingScreen extends StatefulWidget {
+/// 첫 실행 온보딩 — "펫클 앱 디자인" 캔버스 시안(Onboarding.dc.html)
+/// 그대로, 슬라이드 없이 한 화면으로 보여준다("디자인 2단계" 지시서,
+/// 사용자 확인하에 적용). 이전 3장 슬라이드의 "중간값 vs 평균" 설명은
+/// 삭제했지만, 그 정보 자체는 진료비가 나오는 모든 화면의 "중간값"
+/// 배지([FeeItemCard])에 항상 붙어 있어 없어지지 않는다.
+///
+/// 로그인 여부와 무관하게 항상 보여주고, 과장·평가·추천·"싸다/비싸다"
+/// 표현은 어디에도 쓰지 않는다(CLAUDE.md 원칙 1).
+class OnboardingScreen extends StatelessWidget {
   final VoidCallback onDone;
 
   const OnboardingScreen({super.key, required this.onDone});
 
-  @override
-  State<OnboardingScreen> createState() => _OnboardingScreenState();
-}
-
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const _pageCount = 3;
-
-  final _controller = PageController();
-  int _page = 0;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _next() {
-    if (_page == _pageCount - 1) {
-      widget.onDone();
-      return;
-    }
-    _controller.nextPage(duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+  Future<void> _login(BuildContext context) async {
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    if (context.mounted) onDone();
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLast = _page == _pageCount - 1;
     return Scaffold(
       backgroundColor: AppColors.surfaceLight,
       body: SafeArea(
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: TextButton(
-                  onPressed: widget.onDone,
-                  child: const Text('건너뛰기', style: TextStyle(color: AppColors.textSecondary)),
-                ),
-              ),
-            ),
-            Expanded(
-              child: PageView(
-                controller: _controller,
-                onPageChanged: (i) => setState(() => _page = i),
-                children: const [
-                  _UsageSlide(),
-                  _MedianSlide(),
-                  _RegionSlide(),
-                ],
-              ),
-            ),
-            _PageDots(count: _pageCount, index: _page),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.page, 16, AppSpacing.page, 24),
-              child: SizedBox(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            24,
+            AppSpacing.page,
+            16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 220,
                 width: double.infinity,
-                child: FilledButton(
-                  onPressed: _next,
-                  child: Text(isLast ? '시작하기' : '다음'),
+                decoration: BoxDecoration(
+                  color: AppColors.backgroundLight,
+                  borderRadius: BorderRadius.circular(AppRadius.card),
+                ),
+                alignment: Alignment.center,
+                child: const MascotImage(size: 120),
+              ),
+              const SizedBox(height: AppSpacing.section),
+              const Text(
+                '동물병원,\n사실부터 확인하세요',
+                style: TextStyle(
+                  fontSize: 27,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.5,
+                  color: AppColors.textPrimary,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+              const Text(
+                '펫클은 정부 공공데이터로 병원의 개원 시기와 같은 주소의 인허가 기록, 지역 진료비 시세를 보여드려요.',
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.6,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.section),
+              const _OnboardingStep(
+                number: '01',
+                title: '병원 행정 기록 · 지역 시세 확인',
+                subtitle: '로그인 없이 바로 검색할 수 있어요',
+              ),
+              const SizedBox(height: 16),
+              const _OnboardingStep(
+                number: '02',
+                title: '우리 아이 진료기록 · 예약 알림',
+                subtitle: '로그인하면 계정에 저장돼요',
+              ),
+              const SizedBox(height: 16),
+              const _OnboardingStep(
+                number: '03',
+                title: '병원 저장 · 캘린더',
+                subtitle: '다니는 병원과 일정을 한곳에서',
+              ),
+              const SizedBox(height: AppSpacing.section),
+              Text(
+                '공공데이터 기반 · 병원으로부터 비용을 받지 않습니다',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.src(AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: FilledButton(
+                  onPressed: onDone,
+                  style: FilledButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.field),
+                    ),
+                  ),
+                  child: const Text(
+                    '시작하기',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: TextButton(
+                  onPressed: () => _login(context),
+                  child: const Text(
+                    '이미 계정이 있어요 · 로그인',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textLabel,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// 슬라이드 공통 레이아웃 — 원형 아이콘 + 제목 + 설명, 선택적으로 예시
-/// 위젯(2번째 장의 진료비 카드 등)을 아래에 붙인다.
-class _OnboardingSlide extends StatelessWidget {
-  final IconData icon;
+class _OnboardingStep extends StatelessWidget {
+  final String number;
   final String title;
-  final String description;
-  final Widget? example;
+  final String subtitle;
 
-  const _OnboardingSlide({
-    required this.icon,
+  const _OnboardingStep({
+    required this.number,
     required this.title,
-    required this.description,
-    this.example,
+    required this.subtitle,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 32, AppSpacing.page, 16),
-      child: Column(
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: const BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 44, color: AppColors.primaryDark),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, height: 1.5, color: AppColors.textSecondary),
-          ),
-          if (example != null) ...[
-            const SizedBox(height: 24),
-            example!,
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _UsageSlide extends StatelessWidget {
-  const _UsageSlide();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _OnboardingSlide(
-      icon: Icons.fact_check_outlined,
-      title: '공개 정보를 확인하고,\n우리 아이 기록도 함께 관리해요',
-      description:
-          '동물병원의 공개된 행정 정보와 진료비 시세를 확인하고,\n우리 아이의 진료기록과 예약을 캘린더로 관리할 수 있어요.',
-    );
-  }
-}
-
-/// 대표값이 "중간값"인 이유를 실제 진료비 카드([FeeItemCard])와 같은
-/// 모양의 예시로 보여준다 — 실제 화면에서 볼 카드와 다르게 생기면 오히려
-/// 헷갈리므로 같은 위젯을 그대로 재사용한다.
-class _MedianSlide extends StatelessWidget {
-  const _MedianSlide();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _OnboardingSlide(
-      icon: Icons.bar_chart_outlined,
-      title: '대표 가격은 평균이 아니라\n중간값이에요',
-      description: '유난히 비싸거나 저렴한 병원 하나에 휘둘리지 않도록,\n중간값과 범위(최저~최고)를 함께 보여드려요.',
-      example: FeeItemCard(
-        item: FeeItem(id: 'onboarding-example', name: '예시 진료 항목', category: '', weightBased: false),
-        value: FeeValue(mid: 10000, min: 5000, max: 22000, sampleLow: false),
-      ),
-    );
-  }
-}
-
-class _RegionSlide extends StatelessWidget {
-  const _RegionSlide();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _OnboardingSlide(
-      icon: Icons.location_city_outlined,
-      title: '시세는 특정 병원이 아니라\n지역(구) 시세예요',
-      description: '보여드리는 가격은 한 병원의 가격이 아니라,\n같은 지역(구) 안 병원들의 가격을 모은 참고 정보예요.',
-    );
-  }
-}
-
-class _PageDots extends StatelessWidget {
-  final int count;
-  final int index;
-
-  const _PageDots({required this.count, required this.index});
-
-  @override
-  Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(
-        count,
-        (i) => AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: i == index ? 20 : 6,
-          height: 6,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
-            color: i == index ? AppColors.primary : AppColors.borderCard,
-            borderRadius: BorderRadius.circular(3),
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            number,
+            style: AppTextStyles.mono(
+              size: 13,
+              weight: FontWeight.w500,
+              color: AppColors.primary,
+            ),
           ),
         ),
-      ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

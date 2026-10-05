@@ -118,16 +118,20 @@ class AppTheme {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        shape: const StadiumBorder(),
+        // "펫클 앱 디자인" 캔버스 시안의 `.chip`은 알약(pill)이 아니라
+        // radius 6의 살짝 둥근 사각형이다 — 이전 스테이디움(완전 캡슐)
+        // 모양을 걷어낸다.
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
         side: BorderSide.none,
-        backgroundColor: AppColors.inputFill,
+        backgroundColor: AppColors.closedBg,
         selectedColor: AppColors.primarySoft,
-        labelStyle: textTheme.labelSmall?.copyWith(color: AppColors.textLabel),
-        secondaryLabelStyle: textTheme.labelSmall?.copyWith(
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textLabel),
+        secondaryLabelStyle: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
           color: AppColors.primaryTextTone,
-          fontWeight: FontWeight.w800,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

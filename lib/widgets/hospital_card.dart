@@ -5,17 +5,17 @@ import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../theme/app_text_styles.dart';
 import 'fee_context_chip.dart';
-import 'hospital_avatar.dart';
 import 'status_badge.dart';
 
-/// 병원 카드(스프린트 14, Petcli 시안): 아바타(건물 아이콘, 틴트 배경) +
-/// 병원명 + 상태 pill + 메타(개설·운영·거리) + "이 지역 초진 시세" 회색
-/// 칩(진료비 지시서 — 병원 자체 가격이 아니라 소속 시/군/구 시세) +
-/// 우측 chevron(저장 화면 등에서는 채워진 북마크로 대체 가능). 폐업
-/// 병원은 카드 전체가 옅은 회색으로 가라앉고 시세 칩도 달지 않는다 —
-/// 경고가 아니라 그저 인허가 기록상 사실이라는 뜻(CLAUDE.md 평가 금지
-/// 원칙).
+/// 병원 카드 — "펫클 앱 디자인" 캔버스 시안(Search.dc.html)의 검색결과
+/// 카드 그대로: 병원명+주소(좌) · 거리(우, 모노스페이스) 상단 한 줄 +
+/// 칩 한 줄(운영기간/상태 + 같은 주소 기록 건수, 폐업은 폐업 칩 + 등록
+/// 연도 범위) + "이 지역 초진 시세" 칩(진료비 지시서 — 병원 자체 가격이
+/// 아니라 소속 시/군/구 시세, 시안엔 없지만 기존 기능 유지) + 비교
+/// 추가. 폐업 병원은 카드 전체가 옅은 회색으로 가라앉는다 — 경고가
+/// 아니라 그저 인허가 기록상 사실이라는 뜻(CLAUDE.md 평가 금지 원칙).
 class HospitalCard extends StatelessWidget {
   final Hospital hospital;
   final int sameAddressRecordCount;
@@ -41,23 +41,19 @@ class HospitalCard extends StatelessWidget {
     this.trailingIcon = Icons.chevron_right,
   });
 
+  static String _formatDistance(double km) {
+    if (km < 1) return '${(km * 1000).round()}m';
+    return '${km.toStringAsFixed(1)}km';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final isClosed = hospital.status == HospitalStatus.closed;
-
-    final metaParts = <String>[
-      if (hospital.openDate != null) '${DateFormat('yyyy.MM').format(hospital.openDate!)} 개설',
-      // 영업중은 이름 옆 HospitalStatusTag가 운영 N년차를 이미 보여주므로
-      // 메타 줄에서는 중복 표기하지 않는다(스프린트 16) — 폐업/정보부족은
-      // 이름 옆에 여전히 상태 배지만 있으므로 운영기간을 메타 줄에 둔다.
-      if (hospital.status != HospitalStatus.open) hospitalOperatingLabel(hospital),
-      // 좌표가 없는 병원은 목록에서 빼지 않되, 거리 대신 "거리 정보 없음"으로
-      // 표시한다 (스프린트 2 지시서 3).
-      if (hasUserLocation)
-        distanceKm != null ? '${distanceKm!.toStringAsFixed(1)}km' : '거리 정보 없음',
-      if (sameAddressRecordCount > 1) '동일 주소 기록 $sameAddressRecordCount건',
-    ];
+    final distanceLabel = !hasUserLocation
+        ? null
+        : distanceKm != null
+            ? _formatDistance(distanceKm!)
+            : '거리 정보 없음';
 
     return Card(
       margin: EdgeInsets.zero,
@@ -77,57 +73,64 @@ class HospitalCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  HospitalAvatar(size: 52, radius: isClosed ? AppRadius.avatar : AppRadius.avatar),
-                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                hospital.name,
-                                style: textTheme.titleSmall?.copyWith(
-                                  color: isClosed ? AppColors.textSecondary : AppColors.textPrimary,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Flexible(child: HospitalStatusTag(hospital: hospital)),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
                         Text(
-                          metaParts.join(' · '),
-                          style: textTheme.bodySmall?.copyWith(
-                            color: isClosed ? AppColors.textPlaceholder : AppColors.textSecondary,
+                          hospital.name,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: isClosed ? AppColors.textSecondary : AppColors.textPrimary,
                           ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          hospital.roadAddr,
+                          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (isClosed) ...[
                           const SizedBox(height: 2),
-                          Text(
+                          const Text(
                             '지금은 문을 닫았어요',
-                            style: textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
+                            style: TextStyle(fontSize: 12.5, color: AppColors.textPlaceholder),
                           ),
                         ],
                       ],
                     ),
                   ),
+                  if (distanceLabel != null) ...[
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        distanceLabel,
+                        style: distanceKm != null
+                            ? AppTextStyles.mono(size: 13, color: AppColors.textLabel)
+                            : const TextStyle(fontSize: 12, color: AppColors.textPlaceholder),
+                      ),
+                    ),
+                  ],
                   const SizedBox(width: 4),
-                  Icon(trailingIcon, size: 20, color: AppColors.textPlaceholder),
+                  Icon(trailingIcon, size: 18, color: AppColors.textPlaceholder),
                 ],
               ),
               const SizedBox(height: 10),
               Wrap(
-                spacing: 8,
-                runSpacing: 4,
+                spacing: 6,
+                runSpacing: 6,
                 children: [
+                  HospitalStatusTag(hospital: hospital),
+                  if (isClosed && hospital.openDate != null)
+                    _DateRangeChip(hospital: hospital)
+                  else if (sameAddressRecordCount > 1)
+                    Chip(label: Text('같은 주소 기록 $sameAddressRecordCount건')),
                   // 폐업 병원엔 시세 칩을 달지 않는다 — 회색 톤은 유지하되
                   // 헛걸음 방지를 위한 정보(폐업 표시)에 집중한다.
                   if (!isClosed) FeeContextChip(hospital: hospital),
@@ -159,5 +162,20 @@ class HospitalCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 폐업 병원의 등록 연도 범위("2011.04 – 2021.06") — 숫자라 모노스페이스로
+/// 보여준다(Search.dc.html의 폐업 카드 둘째 칩).
+class _DateRangeChip extends StatelessWidget {
+  final Hospital hospital;
+
+  const _DateRangeChip({required this.hospital});
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateFormat('yyyy.MM').format(hospital.openDate!);
+    final end = hospital.closeDate != null ? DateFormat('yyyy.MM').format(hospital.closeDate!) : '현재';
+    return Chip(label: Text('$start – $end', style: AppTextStyles.mono(size: 12, color: AppColors.textLabel)));
   }
 }
