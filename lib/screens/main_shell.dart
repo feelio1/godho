@@ -22,13 +22,16 @@ import '../widgets/mascot_message.dart';
 import 'calendar_screen.dart';
 import 'health_record_screen.dart';
 import 'home_screen.dart';
+import 'my_info_screen.dart';
 import 'nearby_map_screen.dart';
-import 'saved_screen.dart';
 
-/// Root shell holding the 5 bottom tabs: 홈 / 주변 병원 / 캘린더 / 진료기록 /
-/// 저장(스프린트 9 지시서 1 — 건강기록을 홈 진입 카드에서 탭으로 승격,
-/// "캘린더 하단탭화 + 진료 연대기" 지시서 A1 — 진료기록 화면 안에 있던
-/// 예약 캘린더를 독립 탭으로 승격).
+/// Root shell holding the 5 bottom tabs: 홈 / 지도 / 캘린더 / 진료기록 /
+/// 내 정보("디자인 1단계" 지시서 1 — IA 재구성. "주변" 라벨은 "지도"로,
+/// "저장" 탭은 "내 정보" 탭으로 바뀌었다. 저장 화면 자체는 사라지지
+/// 않고 내 정보 탭에서 진입한다). 이전엔 "저장" 탭이었다(스프린트 9
+/// 지시서 1 — 건강기록을 홈 진입 카드에서 탭으로 승격, "캘린더
+/// 하단탭화 + 진료 연대기" 지시서 A1 — 진료기록 화면 안에 있던 예약
+/// 캘린더를 독립 탭으로 승격).
 ///
 /// Every tab reads from [repositoryProvider], which requires the bundle to
 /// already be loaded — so the whole shell waits for it here rather than
@@ -189,7 +192,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
             NearbyMapScreen(),
             CalendarScreen(),
             HealthRecordScreen(),
-            SavedScreen(),
+            MyInfoScreen(),
           ],
         ),
         // 스프린트 15 지시서 6: 전역 배너를 걷어내고 홈 화면 안(검색 세트
@@ -200,10 +203,10 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
               ref.read(selectedTabProvider.notifier).state = index,
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-            NavigationDestination(icon: Icon(Icons.near_me_outlined), selectedIcon: Icon(Icons.near_me), label: '주변'),
+            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: '지도'),
             NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: '캘린더'),
             NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
-            NavigationDestination(icon: Icon(Icons.bookmark_outline), selectedIcon: Icon(Icons.bookmark), label: '저장'),
+            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),
           ],
         ),
       ),

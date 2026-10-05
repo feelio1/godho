@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -91,6 +92,20 @@ class ExternalLinks {
       Uri.parse('https://www.animal.go.kr'),
       mode: LaunchMode.externalApplication,
     );
+  }
+
+  /// 문의하기(내 정보 탭) — 메일 앱을 열어본다. 메일 앱이 없는 기기 등
+  /// 열지 못하면 무반응 대신 이메일 주소를 클립보드에 복사해 안내한다
+  /// ("디자인 1단계" 지시서 2-A/2-B — "탭 시 메일 앱/복사").
+  static Future<void> emailContact(BuildContext context, String email) async {
+    final launched = await launchUrl(Uri(scheme: 'mailto', path: email));
+    if (launched) return;
+    await Clipboard.setData(ClipboardData(text: email));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('메일 앱을 열 수 없어 이메일 주소($email)를 복사했어요.')),
+      );
+    }
   }
 
   static Future<void> shareHospital(Hospital hospital) async {

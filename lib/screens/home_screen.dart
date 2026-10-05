@@ -22,7 +22,6 @@ import '../widgets/fee_summary_card.dart';
 import '../widgets/home_banner.dart';
 import '../widgets/hospital_card.dart';
 import '../widgets/search_set_card.dart';
-import 'account_menu_sheet.dart';
 import 'account_ui.dart';
 import 'detail_screen.dart';
 import 'info_screens.dart';
@@ -295,11 +294,13 @@ class _BrandHeader extends StatelessWidget {
   }
 }
 
-/// 로그인 상태면 "OO님"(탭하면 계정 메뉴 — 반려동물 관리+로그아웃),
-/// 게스트면 "로그인"(탭하면 로그인 화면) — [authStateProvider]를 watch해
-/// 로그인/로그아웃에 즉시 반응한다. 게스트도 앱은 그대로 쓸 수 있으므로
-/// 게이팅이 아니라 그저 상태 표시 + 진입점이다("계정 메뉴에 반려동물 관리
-/// 통합" 지시서 1 — 예전엔 로그아웃 한 줄뿐인 작은 팝업이었다).
+/// 로그인 상태면 "OO님"(탭하면 내 정보 탭으로 이동), 게스트면 "로그인"
+/// (탭하면 로그인 화면) — [authStateProvider]를 watch해 로그인/로그아웃에
+/// 즉시 반응한다. 게스트도 앱은 그대로 쓸 수 있으므로 게이팅이 아니라
+/// 그저 상태 표시 + 진입점이다. 예전엔 이 배지가 반려동물 관리+로그아웃
+/// 바텀시트(account_menu_sheet.dart)를 열었지만, "디자인 1단계" 지시서
+/// 2-C에서 그 내용을 내 정보 탭(MyInfoScreen)으로 옮기면서 배지는 그
+/// 탭으로 이동만 시킨다.
 class _AccountStatusChip extends ConsumerWidget {
   const _AccountStatusChip();
 
@@ -322,7 +323,7 @@ class _AccountStatusChip extends ConsumerWidget {
     }
 
     return TextButton(
-      onPressed: () => showAccountMenuSheet(context, ref, user),
+      onPressed: () => ref.read(selectedTabProvider.notifier).state = 4,
       style: TextButton.styleFrom(
         foregroundColor: AppColors.primaryTextTone,
         padding: const EdgeInsets.symmetric(horizontal: 8),

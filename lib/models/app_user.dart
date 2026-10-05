@@ -12,6 +12,15 @@ enum LoginType {
         (e) => e.name == value,
         orElse: () => LoginType.google,
       );
+
+  /// 내 정보 탭 프로필 배지에 쓰는 표시용 라벨("Google 로그인" 등 —
+  /// "디자인 1단계" 지시서 2-A).
+  String get badgeLabel => switch (this) {
+        LoginType.google => 'Google 로그인',
+        LoginType.kakao => '카카오 로그인',
+        LoginType.apple => 'Apple 로그인',
+        LoginType.email => '이메일 로그인',
+      };
 }
 
 /// 가입 플로우(신규 가입 전부 필수 — "자체 회원가입·로그인·비밀번호

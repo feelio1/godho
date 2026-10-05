@@ -66,6 +66,14 @@ void main() {
       expect(restored.loginType, LoginType.google);
     });
 
+    test('LoginType.badgeLabel은 내 정보 탭 프로필 배지에 쓸 한국어 라벨을 돌려준다'
+        '("디자인 1단계" 지시서 2-A)', () {
+      expect(LoginType.google.badgeLabel, 'Google 로그인');
+      expect(LoginType.kakao.badgeLabel, '카카오 로그인');
+      expect(LoginType.apple.badgeLabel, 'Apple 로그인');
+      expect(LoginType.email.badgeLabel, '이메일 로그인');
+    });
+
     test('자체(이메일) 가입 사용자는 loginType "email"로 저장·복원된다'
         '("자체 회원가입·로그인·비밀번호 재설정" 지시서 1-4)', () {
       final now = DateTime(2026, 4, 1);

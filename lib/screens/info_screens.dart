@@ -133,6 +133,40 @@ class SourcesScreen extends ConsumerWidget {
   }
 }
 
+/// 개인정보처리방침 — "디자인 1단계" 지시서 3: 이번 단계는 화면 틀 +
+/// 라우팅만. 실제 본문은 다음 단계에서 최종본으로 채운다. 크래시 없이
+/// 열리기만 하면 된다.
+class PrivacyPolicyScreen extends StatelessWidget {
+  const PrivacyPolicyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('개인정보처리방침')),
+      body: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('개인정보처리방침은 곧 업데이트됩니다.'),
+      ),
+    );
+  }
+}
+
+/// 이용약관 — 위와 같은 이유로 틀만(지시서 3), "준비 중입니다" 안내.
+class TermsScreen extends StatelessWidget {
+  const TermsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('이용약관')),
+      body: const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('이용약관은 준비 중입니다.'),
+      ),
+    );
+  }
+}
+
 class GuideScreen extends StatelessWidget {
   const GuideScreen({super.key});
 
