@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/no_pets_message.dart';
@@ -389,7 +390,7 @@ class _RecordTile extends StatelessWidget {
                   children: [
                     Text(
                       DateFormat('yyyy.MM.dd').format(record.date),
-                      style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
+                      style: AppTextStyles.mono(size: 12, color: AppColors.neutral),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -408,7 +409,7 @@ class _RecordTile extends StatelessWidget {
                         spacing: 8,
                         children: chips
                             .map((c) => Chip(
-                                  label: Text(c, style: const TextStyle(fontSize: 11)),
+                                  label: Text(c, style: AppTextStyles.mono(size: 11, color: AppColors.textLabel)),
                                   visualDensity: VisualDensity.compact,
                                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                   padding: EdgeInsets.zero,

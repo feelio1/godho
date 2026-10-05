@@ -12,6 +12,7 @@ import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../theme/app_text_styles.dart';
 import '../utils/appointment_calendar.dart';
 import '../utils/medical_record_calendar.dart';
 import '../widgets/no_pets_message.dart';
@@ -371,7 +372,7 @@ class _DayRecordTile extends StatelessWidget {
                         spacing: 8,
                         children: chips
                             .map((c) => Chip(
-                                  label: Text(c, style: const TextStyle(fontSize: 11)),
+                                  label: Text(c, style: AppTextStyles.mono(size: 11, color: AppColors.textLabel)),
                                   visualDensity: VisualDensity.compact,
                                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                   padding: EdgeInsets.zero,
@@ -421,7 +422,7 @@ class _DayAppointmentTile extends StatelessWidget {
                 children: [
                   Text(
                     DateFormat('HH:mm').format(appointment.dateTime),
-                    style: textTheme.bodySmall?.copyWith(color: AppColors.neutral),
+                    style: AppTextStyles.mono(size: 12.5, color: AppColors.neutral),
                   ),
                   if (appointment.isUpcoming) ...[
                     const SizedBox(width: 8),
