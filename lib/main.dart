@@ -33,7 +33,19 @@ Future<void> main() async {
   }
 
   if (isKakaoMapConfigured) {
-    await KakaoMapSdk.instance.initialize(kakaoNativeKey);
+    // 키가 있어도 네이티브 초기화 자체가 실패할 수 있다(키 형식 오류,
+    // 앱 키해시 미등록 등) — 예전엔 이 호출이 예외를 던지면 runApp()
+    // 전체가 막혀 앱이 시작도 못 하고 튕겼다("지도 수정" 지시서 1-2).
+    // 다른 네이티브 SDK 초기화(Firebase, KakaoSdk.init)와 같은 방어
+    // 패턴으로, 실패해도 로그만 남기고 지도 탭만 "준비 중" 스텁으로
+    // 안전하게 대체한다(kakaoMapSdkInitialized로 화면에서 확인).
+    try {
+      await KakaoMapSdk.instance.initialize(kakaoNativeKey);
+      kakaoMapSdkInitialized = true;
+      debugPrint('[KakaoMap] 지도 SDK 초기화 성공');
+    } catch (e, st) {
+      debugPrint('[KakaoMap] 지도 SDK 초기화 실패(주변 병원 탭은 준비 중 안내로 대체): $e\n$st');
+    }
     // 2단계(로그인) 지시서 1: 로그인용 카카오 SDK(kakao_flutter_sdk_user)는
     // 지도 SDK와 별개 모듈이라 따로 초기화해야 한다 — 같은 네이티브 키를
     // 재사용한다. 카카오 로그인 버튼은 항상 "준비 중" 안내로 안전하게

@@ -12,6 +12,7 @@ import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../widgets/guest_gate.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/no_pets_message.dart';
@@ -49,20 +50,31 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
     // 반려동물이 뜬다 — effectivePetsProvider가 그 전환을 맡는다(펫클
     // 3단계 지시서 2). 로컬 데이터 자체는 이 화면이 무엇을 보여주든 절대
     // 건드리지 않는다.
-    final petsAsync = ref.watch(effectivePetsProvider);
     final uid = ref.watch(authStateProvider).value?.uid;
-    final isLoggedIn = uid != null;
+
+    // 진료기록도 캘린더와 같은 로그인 필요 기능이다("로그인 게이팅"
+    // 지시서 1). 게스트는 탭 내용 대신 혜택 톤 안내만 본다.
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('진료기록')),
+        body: const GuestFeatureNotice(
+          title: '로그인하면 진료기록을 쓸 수 있어요',
+          message: '로그인하면 우리 아이 진료기록을 기기가 바뀌어도 이어서 볼 수 있어요.',
+        ),
+      );
+    }
+
+    final petsAsync = ref.watch(effectivePetsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('진료기록'),
         actions: [
-          if (isLoggedIn)
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: '반려동물 추가',
-              onPressed: () => _addAccountPet(uid),
-            ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: '반려동물 추가',
+            onPressed: () => _addAccountPet(uid),
+          ),
         ],
       ),
       body: petsAsync.when(
@@ -71,8 +83,8 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
         data: (pets) {
           if (pets.isEmpty) {
             return NoPetsMessage(
-              isLoggedIn: isLoggedIn,
-              onAddAccountPet: () => _addAccountPet(uid!),
+              isLoggedIn: true,
+              onAddAccountPet: () => _addAccountPet(uid),
             );
           }
           final selected = pets.firstWhere(

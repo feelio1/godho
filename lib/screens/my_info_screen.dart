@@ -334,8 +334,10 @@ class _MenuRow extends StatelessWidget {
 }
 
 /// 반려동물 한 줄 — 사진(있으면)·이름·종류/품종/체중/생년월 + "수정"
-/// (전체 폼, 삭제는 그 안에서). 빠른 삭제 아이콘은 두지 않는다(참고
-/// 이미지와 동일 — 삭제는 수정 화면을 거친다).
+/// (전체 폼으로 들어가 바꾸거나 거기서도 지울 수 있음) + 삭제 아이콘.
+/// 삭제가 수정 화면 안에만 있어 눈에 잘 안 보인다는 피드백에 따라
+/// ([AccountPetActions.confirmAndDelete], 확인 팝업 거침) 목록에서도 바로
+/// 지울 수 있게 한다("반려동물 삭제 노출" 지시서 4).
 class _PetRow extends ConsumerWidget {
   final SignupPet pet;
   final String uid;
@@ -371,6 +373,11 @@ class _PetRow extends ConsumerWidget {
           TextButton(
             onPressed: () => AccountPetActions.editOrDelete(context, ref, uid, pet),
             child: const Text('수정'),
+          ),
+          IconButton(
+            tooltip: '삭제',
+            icon: const Icon(Icons.delete_outline, color: AppColors.textSecondary),
+            onPressed: () => AccountPetActions.confirmAndDelete(context, ref, uid, pet),
           ),
         ],
       ),

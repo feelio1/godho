@@ -579,7 +579,7 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!isKakaoMapConfigured || _mapFailed) {
+    if (!isKakaoMapConfigured || !kakaoMapSdkInitialized || _mapFailed) {
       return const _MapStub();
     }
 
@@ -647,6 +647,10 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
               }
             },
             onMapError: (error) {
+              // 전엔 에러 객체를 그냥 버려서, 실기기에서 "왜 안 뜨는지"를
+              // logcat으로도 확인할 수 없었다("지도 수정" 지시서 2) —
+              // 네이티브 키 인증 실패 등 대표적인 원인이 여기로 들어온다.
+              debugPrint('[KakaoMap] onMapError: $error');
               if (mounted) setState(() => _mapFailed = true);
             },
           ),

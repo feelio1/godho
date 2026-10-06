@@ -15,6 +15,7 @@ import '../theme/app_text_styles.dart';
 import '../utils/external_links.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fee_hospital_section.dart';
+import '../widgets/guest_gate.dart';
 import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
@@ -35,6 +36,19 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(recentHospitalsProvider.notifier).recordVisit(widget.hospitalId);
     });
+  }
+
+  /// 병원 저장은 로그인 필요 기능이다("로그인 게이팅" 지시서 1) — 게스트가
+  /// 누르면 먼저 로그인하도록 안내하고, 로그인에 성공하면 그 자리에서 바로
+  /// 저장까지 이어간다.
+  Future<void> _toggleSaved(String hospitalId) async {
+    final ok = await requireLogin(
+      context,
+      ref,
+      message: '로그인하면 관심 있는 병원을 저장해두고 언제든 다시 찾아볼 수 있어요.',
+    );
+    if (!ok) return;
+    ref.read(savedHospitalsProvider.notifier).toggle(hospitalId);
   }
 
   @override
@@ -67,7 +81,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             tooltip: isSaved ? '저장 해제' : '저장',
             icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border),
             color: isSaved ? AppColors.primary : AppColors.textPrimary,
-            onPressed: () => ref.read(savedHospitalsProvider.notifier).toggle(hospital.id),
+            onPressed: () => _toggleSaved(hospital.id),
           ),
           IconButton(
             tooltip: '공유',

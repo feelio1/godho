@@ -15,6 +15,7 @@ import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/appointment_calendar.dart';
 import '../utils/medical_record_calendar.dart';
+import '../widgets/guest_gate.dart';
 import '../widgets/no_pets_message.dart';
 import '../widgets/pet_switcher.dart';
 import 'account_pet_actions.dart';
@@ -48,20 +49,33 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     // 로그인 상태면 계정(Firestore) 반려동물이, 게스트면 기존 로컬
     // 반려동물이 뜬다 — 진료기록 화면과 같은 소스(effectivePetsProvider)라
     // 두 화면에서 항상 같은 반려동물 목록을 본다.
-    final petsAsync = ref.watch(effectivePetsProvider);
     final uid = ref.watch(authStateProvider).value?.uid;
-    final isLoggedIn = uid != null;
+
+    // 캘린더는 로그인 필요 기능이다("로그인 게이팅" 지시서 1) — 게스트는
+    // 탭 내용 대신 로그인하면 뭐가 좋은지 안내만 본다. 로그인하면
+    // authStateProvider가 바뀌어 이 build()가 다시 실행되며 바로 실제
+    // 내용으로 넘어간다 — 별도 "로그인 후 이어가기" 처리가 필요 없다.
+    if (uid == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('캘린더')),
+        body: const GuestFeatureNotice(
+          title: '로그인하면 캘린더를 쓸 수 있어요',
+          message: '로그인하면 우리 아이 진료기록·예약을 기기가 바뀌어도 이어서 볼 수 있어요.',
+        ),
+      );
+    }
+
+    final petsAsync = ref.watch(effectivePetsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('캘린더'),
         actions: [
-          if (isLoggedIn)
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: '반려동물 추가',
-              onPressed: () => _addAccountPet(uid),
-            ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: '반려동물 추가',
+            onPressed: () => _addAccountPet(uid),
+          ),
         ],
       ),
       body: petsAsync.when(
@@ -70,8 +84,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         data: (pets) {
           if (pets.isEmpty) {
             return NoPetsMessage(
-              isLoggedIn: isLoggedIn,
-              onAddAccountPet: () => _addAccountPet(uid!),
+              isLoggedIn: true,
+              onAddAccountPet: () => _addAccountPet(uid),
             );
           }
           final selected = pets.firstWhere(

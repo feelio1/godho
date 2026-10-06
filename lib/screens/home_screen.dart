@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../ads/global_banner_ad.dart';
 import '../models/region_filter.dart';
+import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
@@ -13,8 +14,11 @@ import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/fee_summary_card.dart';
+import '../widgets/guest_gate.dart';
 import '../widgets/region_indicator.dart';
+import 'account_ui.dart';
 import 'fee_overview_screen.dart';
+import 'login_screen.dart';
 import 'region_select_screen.dart';
 import 'saved_screen.dart';
 import 'search_result_screen.dart';
@@ -50,6 +54,16 @@ class _HomeBody extends ConsumerWidget {
     }
   }
 
+  Future<void> _openSaved(BuildContext context, WidgetRef ref) async {
+    final ok = await requireLogin(
+      context,
+      ref,
+      message: '로그인하면 관심 있는 병원을 저장해두고 언제든 다시 찾아볼 수 있어요.',
+    );
+    if (!ok || !context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SavedScreen()));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(repositoryProvider);
@@ -65,6 +79,8 @@ class _HomeBody extends ConsumerWidget {
         Row(
           children: [
             const Expanded(child: BrandMark()),
+            const _HomeAuthBadge(),
+            const SizedBox(width: 8),
             RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
           ],
         ),
@@ -119,9 +135,7 @@ class _HomeBody extends ConsumerWidget {
               child: _ShortcutButton(
                 icon: Icons.bookmark_outline,
                 label: '저장한 병원',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SavedScreen()),
-                ),
+                onTap: () => _openSaved(context, ref),
               ),
             ),
           ],
@@ -201,6 +215,51 @@ class _ShortcutButton extends StatelessWidget {
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 홈 상단의 로그인 표시 — 게스트는 "로그인" 버튼, 로그인하면 "○○님"으로
+/// 바뀌어 탭하면 내 정보 탭으로 이동한다("홈 화면 로그인 표시" 지시서 3).
+/// [authStateProvider]를 직접 구독해 로그인/로그아웃에 즉시 반응한다.
+class _HomeAuthBadge extends ConsumerWidget {
+  const _HomeAuthBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authStateProvider).value;
+
+    if (user == null) {
+      return InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        ),
+        borderRadius: BorderRadius.circular(999),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Text(
+            '로그인',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary),
+          ),
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: () => ref.read(selectedTabProvider.notifier).state = 4,
+      borderRadius: BorderRadius.circular(999),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 88),
+          child: Text(
+            '${accountLabel(user)}님',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+          ),
         ),
       ),
     );

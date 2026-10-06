@@ -10,6 +10,14 @@ const String kakaoNativeKey =
 
 bool get isKakaoMapConfigured => kakaoNativeKey.isNotEmpty;
 
+/// `main()`에서 `KakaoMapSdk.instance.initialize()`가 실제로 성공했는지.
+/// 키가 들어있어도(=[isKakaoMapConfigured]) 네이티브 초기화 자체가 실패할
+/// 수 있다(키 형식 오류, 앱 키해시 미등록 등) — 그 경우에도 지도 탭은
+/// "준비 중" 스텁으로 안전하게 대체돼야 하므로, 이 값도 함께 확인한다
+/// ("지도 수정" 지시서 1-2: 초기화 실패를 앱 전체 크래시로 번지게 하지
+/// 않는다).
+bool kakaoMapSdkInitialized = false;
+
 /// Kakao Local REST API key — 좌표→행정구역 변환(coord2regioncode)에만
 /// 쓴다. 지도 SDK 키(네이티브 앱 키)와는 다른 키다.
 ///
