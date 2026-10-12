@@ -329,4 +329,61 @@ void main() {
       expect(appointments.single.id, 'a1');
     });
   });
+
+  group('deleteAllUserData — 회원 탈퇴("회원 탈퇴 구현" 지시서 E)', () {
+    test('반려동물·진료기록·예약·사용자 문서를 전부 지운다', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(
+        AppUser(uid: 'uid-withdraw', loginType: LoginType.email, email: 'a@b.com', createdAt: now, updatedAt: now),
+      );
+      final petId = await repository.addPet(
+        'uid-withdraw',
+        const SignupPet(species: PetSpecies.dog, breed: '말티즈', weightKg: 3.0, birth: '2023-01', name: '구름'),
+      );
+      await repository.addRecord(
+        'uid-withdraw',
+        petId,
+        MedicalRecord(id: 'r1', petId: petId, date: DateTime(2026, 1, 5), hospitalName: '서울동물병원'),
+      );
+      await repository.addAppointment(
+        'uid-withdraw',
+        petId,
+        Appointment(id: 'ap1', petId: petId, dateTime: DateTime(2026, 2, 1), hospitalName: '서울동물병원'),
+      );
+
+      await repository.deleteAllUserData('uid-withdraw');
+
+      expect(await repository.userExists('uid-withdraw'), isFalse);
+      expect(await repository.fetchPets('uid-withdraw'), isEmpty);
+      expect(await repository.fetchRecords('uid-withdraw', petId), isEmpty);
+      expect(await repository.fetchAppointments('uid-withdraw', petId), isEmpty);
+    });
+
+    test('다른 사용자의 데이터는 건드리지 않는다', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(AppUser(uid: 'uid-a', loginType: LoginType.google, createdAt: now, updatedAt: now));
+      await repository.createUser(AppUser(uid: 'uid-b', loginType: LoginType.google, createdAt: now, updatedAt: now));
+      await repository.addPet(
+        'uid-b',
+        const SignupPet(species: PetSpecies.cat, breed: '코숏', weightKg: 3.5, birth: '2024-02', name: '보리'),
+      );
+
+      await repository.deleteAllUserData('uid-a');
+
+      expect(await repository.userExists('uid-a'), isFalse);
+      expect(await repository.userExists('uid-b'), isTrue);
+      final bPets = await repository.fetchPets('uid-b');
+      expect(bPets, hasLength(1));
+      expect(bPets.single.name, '보리');
+    });
+
+    test('반려동물이 없는 계정도 예외 없이 지워진다', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(AppUser(uid: 'uid-empty', loginType: LoginType.google, createdAt: now, updatedAt: now));
+
+      await repository.deleteAllUserData('uid-empty');
+
+      expect(await repository.userExists('uid-empty'), isFalse);
+    });
+  });
 }

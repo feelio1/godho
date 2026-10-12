@@ -65,13 +65,14 @@ void main() {
         expect(find.text('로그아웃'), findsNothing);
       });
 
-      testWidgets('개인정보처리방침·이용약관 화면은 본문 없이도 크래시 없이 열린다'
-          '("디자인 1단계" 지시서 3 — 틀+라우팅만)', (tester) async {
+      testWidgets('개인정보처리방침·이용약관 화면은 실제 본문(assets/legal/*.md)을 '
+          '크래시 없이 불러와 보여준다("법률 본문 삽입" 지시서 F)', (tester) async {
         await pumpGuest(tester);
 
         await tester.tap(find.text('개인정보처리방침'));
         await tester.pumpAndSettle();
         expect(find.text('개인정보처리방침'), findsWidgets);
+        expect(find.textContaining('아깽이상점'), findsWidgets);
         expect(tester.takeException(), isNull);
 
         await tester.pageBack();
@@ -80,6 +81,7 @@ void main() {
         await tester.tap(find.text('이용약관'));
         await tester.pumpAndSettle();
         expect(find.text('이용약관'), findsWidgets);
+        expect(find.textContaining('아깽이상점'), findsWidgets);
         expect(tester.takeException(), isNull);
       });
 

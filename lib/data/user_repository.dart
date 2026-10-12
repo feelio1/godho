@@ -173,4 +173,32 @@ class UserRepository {
         .snapshots()
         .map((snap) => snap.docs.map((doc) => Appointment.fromFirestore(petId, doc.id, doc.data())).toList());
   }
+
+  // --- 회원 탈퇴 ("회원 탈퇴 구현" 지시서 E) ---
+
+  /// [uid]의 계정 데이터를 전부 지운다 — 반려동물마다 진료기록·예약
+  /// 서브컬렉션을 먼저 지운 뒤(부모 문서를 지워도 서브컬렉션은 자동으로
+  /// 지워지지 않는다) 반려동물 문서(+사진)를 지우고, 마지막으로
+  /// `users/{uid}` 문서 자체를 지운다. 호출부(설정 화면)가 Firebase Auth
+  /// 계정 삭제까지 이어서 처리한다. 게스트(기기 로컬) 데이터는 이 메서드가
+  /// 전혀 알지 못하므로 건드리지 않는다.
+  Future<void> deleteAllUserData(String uid) async {
+    final pets = await fetchPets(uid);
+    for (final pet in pets) {
+      final petId = pet.id;
+      if (petId == null) continue;
+      final records = await _records(uid, petId).get();
+      final appointments = await _appointments(uid, petId).get();
+      final batch = _firestore.batch();
+      for (final doc in records.docs) {
+        batch.delete(doc.reference);
+      }
+      for (final doc in appointments.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      await deletePet(uid, petId);
+    }
+    await _users.doc(uid).delete();
+  }
 }

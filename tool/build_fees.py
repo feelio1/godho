@@ -85,7 +85,7 @@ SIDO_MAP = {
 }
 
 META = {
-    "source": "동물병원 진료비 조사 공개 데이터",
+    "source": "농림축산식품부 「동물병원 진료비용 현황 공개」 (animalclinicfee.or.kr)",
     "baseDate": "2026-09-01",
 }
 

@@ -1,21 +1,26 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
 import '../data/app_settings.dart';
+import '../models/app_user.dart';
 import '../models/hospital_status.dart';
 import '../notifications/notification_service.dart';
+import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/fee_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/auth_error_message.dart';
 import '../utils/external_links.dart';
+import '../widgets/legal_markdown_view.dart';
 
-/// 설정 화면(Settings.dc.html) — 기기 로컬 설정만 다룬다. 서버·계정 데이터를
-/// 바꾸는 항목(회원 탈퇴)은 자리만 두고 "준비 중"으로 안내한다(지시서:
-/// "회원 탈퇴는 자리만 만들고 준비 중으로").
+/// 설정 화면(Settings.dc.html) — 기기 로컬 설정 + "계정" 섹션(회원 탈퇴).
+/// 회원 탈퇴는 로그인 상태에서만 보인다(지시서 E) — 되돌릴 수 없는 작업이라
+/// 2단계 확인을 거친다.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -101,10 +106,158 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _showAccountDeletionPlaceholder(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('회원 탈퇴는 준비 중입니다.')),
+  /// 회원 탈퇴 전체 흐름: 강한 경고 → 체크 확인 → 실제 삭제. 삭제 순서가
+  /// 중요하다 — Firestore(본인 데이터)를 먼저 지운 뒤 Auth 계정을 지운다.
+  /// 반대로 하면 Auth 계정이 없어진 순간 보안 규칙상 본인 데이터에 더는
+  /// 쓸 수 없어 Firestore 정리가 막힌다. Auth 삭제가 `requires-recent-login`
+  /// 로 실패하면 로그인 수단에 맞게 재인증한 뒤 다시 시도한다.
+  Future<void> _confirmAndDeleteAccount(BuildContext context, String uid) async {
+    final step1 = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('회원 탈퇴'),
+        content: const Text(
+          '계정과 저장된 진료기록·예약·저장한 병원이 모두 삭제되며 되돌릴 수 없어요.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('계속', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
     );
+    if (step1 != true || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => const _DeleteAccountConfirmDialog(),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await _performAccountDeletion(context, uid);
+  }
+
+  Future<void> _performAccountDeletion(BuildContext context, String uid) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5)),
+            SizedBox(width: 16),
+            Text('탈퇴 처리 중…'),
+          ],
+        ),
+      ),
+    );
+
+    String? errorMessage;
+    try {
+      await ref.read(userRepositoryProvider).deleteAllUserData(uid);
+      if (!context.mounted) return;
+      await _deleteAuthAccountWithReauth(context, uid);
+    } on FirebaseAuthException catch (e) {
+      errorMessage = authErrorMessage(e);
+    } on _ReauthNotSupportedException catch (e) {
+      errorMessage = e.message;
+    } catch (e) {
+      errorMessage = '탈퇴에 실패했어요. 잠시 후 다시 시도해주세요. ($e)';
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // 처리 중 다이얼로그 닫기
+
+    if (errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMessage)));
+      return;
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('탈퇴가 완료됐습니다.')),
+    );
+  }
+
+  /// Auth 계정 삭제를 시도하고, `requires-recent-login`이면 로그인 수단에
+  /// 맞게 재인증한 뒤 한 번 더 시도한다. 카카오(현재 Firebase 세션으로
+  /// 이어지지 않아 실제로는 도달하지 않음)나 수단을 알 수 없는 경우는
+  /// 재인증 방법이 없어 안내만 하고 멈춘다(크래시 금지).
+  Future<void> _deleteAuthAccountWithReauth(BuildContext context, String uid) async {
+    final authRepo = ref.read(authRepositoryProvider);
+    try {
+      await authRepo.deleteCurrentUser();
+      return;
+    } on FirebaseAuthException catch (e) {
+      if (e.code != 'requires-recent-login') rethrow;
+    }
+
+    final profile = await ref.read(currentUserProfileProvider.future);
+    final loginType = profile?.loginType;
+
+    switch (loginType) {
+      case LoginType.google:
+        await authRepo.reauthenticateWithGoogle();
+      case LoginType.apple:
+        await authRepo.reauthenticateWithApple();
+      case LoginType.email:
+        if (!context.mounted) {
+          throw const _ReauthNotSupportedException('보안을 위해 다시 로그인한 뒤 탈퇴해주세요.');
+        }
+        final password = await _promptPassword(context);
+        if (password == null) {
+          throw const _ReauthNotSupportedException('탈퇴가 취소됐습니다. 다시 시도해주세요.');
+        }
+        final email = ref.read(authStateProvider).value?.email ?? profile?.email;
+        if (email == null) {
+          throw const _ReauthNotSupportedException('이메일 정보를 확인할 수 없어요. 보안을 위해 다시 로그인한 뒤 탈퇴해주세요.');
+        }
+        await authRepo.reauthenticateWithEmail(email, password);
+      case LoginType.kakao:
+      case null:
+        throw const _ReauthNotSupportedException('보안을 위해 다시 로그인한 뒤 탈퇴해주세요.');
+    }
+
+    await authRepo.deleteCurrentUser();
+  }
+
+  Future<String?> _promptPassword(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('다시 로그인'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('보안을 위해 비밀번호를 다시 입력해주세요.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(hintText: '비밀번호'),
+              onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('취소')),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (result == null || result.isEmpty) return null;
+    return result;
   }
 
   static String _locationPermissionLabel(LocationPermission? permission) {
@@ -128,6 +281,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final bundle = ref.watch(bundleProvider).value;
     final generatedAt = bundle?.generatedAt;
+    final uid = ref.watch(authStateProvider).value?.uid;
 
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
@@ -200,17 +354,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _SettingsSection(
-            title: '계정',
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('회원 탈퇴'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _showAccountDeletionPlaceholder(context),
-              ),
-            ],
-          ),
+          if (uid != null) ...[
+            const SizedBox(height: 16),
+            _SettingsSection(
+              title: '계정',
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('회원 탈퇴'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _confirmAndDeleteAccount(context, uid),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           Center(
             child: Text(
@@ -220,6 +377,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 재인증 방법이 없거나(알 수 없는 로그인 수단) 사용자가 재인증을
+/// 취소했을 때 — [FirebaseAuthException]이 아니라 이 앱이 만든 안내용
+/// 예외라 `authErrorMessage`를 거치지 않고 [message]를 그대로 보여준다.
+class _ReauthNotSupportedException implements Exception {
+  final String message;
+  const _ReauthNotSupportedException(this.message);
+
+  @override
+  String toString() => message;
+}
+
+/// 회원 탈퇴 2단계 확인 — 체크를 해야만 "탈퇴"가 눌린다. 실수로 바로
+/// 눌러 지워지는 일을 막는다.
+class _DeleteAccountConfirmDialog extends StatefulWidget {
+  const _DeleteAccountConfirmDialog();
+
+  @override
+  State<_DeleteAccountConfirmDialog> createState() => _DeleteAccountConfirmDialogState();
+}
+
+class _DeleteAccountConfirmDialogState extends State<_DeleteAccountConfirmDialog> {
+  bool _acknowledged = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('정말 탈퇴하시겠어요?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('반려동물 정보, 진료기록, 예약, 저장한 병원이 모두 삭제되며 복구할 수 없어요.'),
+          const SizedBox(height: 12),
+          InkWell(
+            onTap: () => setState(() => _acknowledged = !_acknowledged),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: _acknowledged,
+                  onChanged: (value) => setState(() => _acknowledged = value ?? false),
+                ),
+                const Expanded(child: Text('삭제된 데이터는 복구할 수 없다는 것을 확인했습니다.')),
+              ],
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('취소')),
+        TextButton(
+          onPressed: _acknowledged ? () => Navigator.of(context).pop(true) : null,
+          child: const Text('탈퇴', style: TextStyle(color: AppColors.error)),
+        ),
+      ],
     );
   }
 }
@@ -427,36 +642,65 @@ class _HowStep extends StatelessWidget {
   }
 }
 
-/// 개인정보처리방침 — "디자인 1단계" 지시서 3: 이번 단계는 화면 틀 +
-/// 라우팅만. 실제 본문은 다음 단계에서 최종본으로 채운다. 크래시 없이
-/// 열리기만 하면 된다.
-class PrivacyPolicyScreen extends StatelessWidget {
-  const PrivacyPolicyScreen({super.key});
+/// 개인정보처리방침·이용약관 공용 틀 — assets/legal/*.md를 읽어 그대로
+/// 보여준다(지시서 F: 본문을 줄이거나 바꿔 쓰지 않는다. 【...】 같은
+/// 자리표시자도 그대로 노출 — 출시 시 이 에셋 파일만 교체하면 반영된다).
+class _LegalDocumentScreen extends StatelessWidget {
+  final String title;
+  final String assetPath;
+
+  const _LegalDocumentScreen({required this.title, required this.assetPath});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('개인정보처리방침')),
-      body: const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('개인정보처리방침은 곧 업데이트됩니다.'),
+      appBar: AppBar(title: Text(title)),
+      body: FutureBuilder<String>(
+        future: DefaultAssetBundle.of(context).loadString(assetPath),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError || !snapshot.hasData) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('$title을 불러오지 못했습니다.', style: Theme.of(context).textTheme.bodyMedium),
+              ),
+            );
+          }
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: LegalMarkdownView(markdown: snapshot.data!),
+          );
+        },
       ),
     );
   }
 }
 
-/// 이용약관 — 위와 같은 이유로 틀만(지시서 3), "준비 중입니다" 안내.
+/// 개인정보처리방침.
+class PrivacyPolicyScreen extends StatelessWidget {
+  const PrivacyPolicyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const _LegalDocumentScreen(
+      title: '개인정보처리방침',
+      assetPath: 'assets/legal/privacy_policy.md',
+    );
+  }
+}
+
+/// 이용약관.
 class TermsScreen extends StatelessWidget {
   const TermsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('이용약관')),
-      body: const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('이용약관은 준비 중입니다.'),
-      ),
+    return const _LegalDocumentScreen(
+      title: '이용약관',
+      assetPath: 'assets/legal/terms_of_service.md',
     );
   }
 }

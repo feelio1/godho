@@ -88,6 +88,7 @@ flutter:
     - assets/hospitals.json
     - assets/fees.json
     - assets/mascot/
+    - assets/legal/
 
   fonts:
     - family: IBM Plex Sans KR

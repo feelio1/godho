@@ -147,6 +147,57 @@ class AuthRepository {
     }
   }
 
+  // --- 회원 탈퇴 ("회원 탈퇴 구현" 지시서 E) ---
+
+  /// Firebase Auth 계정 자체를 지운다. 마지막 로그인이 오래됐으면
+  /// `requires-recent-login` [FirebaseAuthException]을 던진다 — 호출부가
+  /// 로그인 수단에 맞는 `reauthenticateWith*`로 재인증한 뒤 다시 호출해야
+  /// 한다. Firestore 쪽 데이터는 [UserRepository.deleteAllUserData]가
+  /// 별도로 지우므로(순서상 이 메서드보다 먼저 호출돼야 함 — 계정이
+  /// 없어지면 보안 규칙상 본인 데이터에 더는 접근할 수 없다), 이 메서드는
+  /// Auth 계정 삭제만 책임진다.
+  Future<void> deleteCurrentUser() async {
+    await _auth.currentUser?.delete();
+  }
+
+  /// 구글 재인증 — 재로그인 화면을 새로 만들지 않고 구글 로그인 플로우를
+  /// 그대로 다시 태운다.
+  Future<void> reauthenticateWithGoogle() async {
+    await _ensureGoogleSignInInitialized();
+    final account = await GoogleSignIn.instance.authenticate();
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw StateError('구글 재인증에서 idToken을 받지 못했습니다.');
+    }
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
+    await _auth.currentUser?.reauthenticateWithCredential(credential);
+  }
+
+  /// 애플 재인증 — [signInWithApple]과 같은 nonce 플로우.
+  Future<void> reauthenticateWithApple() async {
+    final rawNonce = _generateNonce();
+    final nonce = _sha256(rawNonce);
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: const [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: nonce,
+    );
+    final oauthCredential = OAuthProvider('apple.com').credential(
+      idToken: appleCredential.identityToken,
+      rawNonce: rawNonce,
+    );
+    await _auth.currentUser?.reauthenticateWithCredential(oauthCredential);
+  }
+
+  /// 이메일 재인증 — 비밀번호를 다시 입력받아야 한다(호출부가 다이얼로그로
+  /// 받아 넘긴다).
+  Future<void> reauthenticateWithEmail(String email, String password) async {
+    final credential = EmailAuthProvider.credential(email: email, password: password);
+    await _auth.currentUser?.reauthenticateWithCredential(credential);
+  }
+
   static String _generateNonce([int length = 32]) {
     const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
     final random = Random.secure();
