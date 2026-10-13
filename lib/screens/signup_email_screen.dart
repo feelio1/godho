@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/auth_error_message.dart';
+import '../utils/network_error.dart';
 import '../widgets/signup_steps.dart';
 import 'signup_age_gender_screen.dart';
 
@@ -80,7 +81,7 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
     } on FirebaseAuthException catch (e) {
       _showError(authErrorMessage(e));
     } catch (e) {
-      _showError('잠시 후 다시 시도해주세요');
+      _showError(actionFailureMessage(e, '가입'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

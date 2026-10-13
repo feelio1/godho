@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/auth_error_message.dart';
+import '../utils/network_error.dart';
 import 'password_reset_screen.dart';
 import 'signup_age_gender_screen.dart';
 import 'signup_email_screen.dart';
@@ -59,7 +60,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } on FirebaseAuthException catch (e) {
       _showError(authErrorMessage(e));
     } catch (e) {
-      _showError('잠시 후 다시 시도해주세요');
+      _showError(actionFailureMessage(e, '로그인'));
     } finally {
       if (mounted) setState(() => _loading = null);
     }
@@ -84,9 +85,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final credential = await repo.signInWithGoogle();
       await _afterSignedIn(credential.user);
     } on FirebaseAuthException catch (e) {
-      _showError('구글 로그인에 실패했어요. (${e.code})');
+      _showError(authErrorMessage(e));
     } catch (e) {
-      // 사용자가 계정 선택 창을 닫은 경우 등 — 조용히 무시한다.
+      // 사용자가 계정 선택 창을 닫은 경우 등은 조용히 무시하지만, 네트워크
+      // 오류(가입 여부 확인용 Firestore 조회 실패 등)는 안내한다.
+      if (isNetworkError(e)) {
+        _showError(actionFailureMessage(e, '로그인'));
+      }
     } finally {
       if (mounted) setState(() => _loading = null);
     }
@@ -112,9 +117,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final credential = await repo.signInWithApple();
       await _afterSignedIn(credential.user);
     } on FirebaseAuthException catch (e) {
-      _showError('애플 로그인에 실패했어요. (${e.code})');
+      _showError(authErrorMessage(e));
     } catch (e) {
-      // 취소 등 — 조용히 무시한다.
+      // 취소 등은 조용히 무시하지만, 네트워크 오류는 안내한다.
+      if (isNetworkError(e)) {
+        _showError(actionFailureMessage(e, '로그인'));
+      }
     } finally {
       if (mounted) setState(() => _loading = null);
     }

@@ -11,6 +11,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/hospital_card.dart';
+import '../widgets/inline_error_message.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import 'detail_screen.dart';
@@ -57,7 +58,10 @@ class _SavedScreenState extends ConsumerState<SavedScreen> {
       ),
       body: savedAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),
+        error: (error, _) => InlineErrorMessage(
+          error: error,
+          onRetry: () => ref.invalidate(savedHospitalsProvider),
+        ),
         data: (savedIds) {
           final hospitals = savedIds.map(repo.byId).whereType<Hospital>().toList();
           if (hospitals.isEmpty) {

@@ -17,6 +17,7 @@ import '../theme/app_text_styles.dart';
 import '../utils/appointment_calendar.dart';
 import '../utils/medical_record_calendar.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/inline_error_message.dart';
 import '../widgets/no_pets_message.dart';
 import '../widgets/pet_switcher.dart';
 import 'account_pet_actions.dart';
@@ -94,7 +95,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       ),
       body: petsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),
+        error: (error, _) => InlineErrorMessage(
+          error: error,
+          onRetry: () => ref.invalidate(effectivePetsProvider),
+        ),
         data: (pets) {
           if (pets.isEmpty) {
             return NoPetsMessage(

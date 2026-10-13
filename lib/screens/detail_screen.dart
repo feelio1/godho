@@ -16,6 +16,7 @@ import '../utils/external_links.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fee_hospital_section.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/hospital_mini_map.dart';
 import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
@@ -90,9 +91,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [CompareFloatingBar(), GlobalBannerAd()],
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [CompareFloatingBar(), GlobalBannerAd(inline: true)],
+        ),
       ),
       body: SafeArea(
         child: ListView(
@@ -193,6 +197,8 @@ class _Header extends ConsumerWidget {
         const SizedBox(height: 4),
         Text(hospital.roadAddr, style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
         const SizedBox(height: 10),
+        HospitalMiniMap(hospital: hospital),
+        if (hospital.hasCoordinates) const SizedBox(height: 10),
         // "저장(bookmark)"과는 별개인 지정(단골) 병원 등록. 아이콘만으로는
         // 잘 안 보인다는 스프린트 9 피드백(지시서 2)에 따라, 글자 라벨이
         // 있는 칩으로 확실히 눈에 띄게 하고 눌렀을 때 스낵바로 확인해준다.

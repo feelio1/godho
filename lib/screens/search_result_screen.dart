@@ -120,9 +120,12 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('검색')),
-      bottomNavigationBar: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [CompareFloatingBar(), GlobalBannerAd()],
+      bottomNavigationBar: const SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [CompareFloatingBar(), GlobalBannerAd(inline: true)],
+        ),
       ),
       body: Column(
         children: [

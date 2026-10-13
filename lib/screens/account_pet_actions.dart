@@ -5,6 +5,7 @@ import '../models/signup_pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
+import '../utils/network_error.dart';
 import 'account_pet_form_screen.dart';
 
 /// 계정(Firestore) 반려동물 추가/수정/삭제의 공통 로직 — 진료기록 화면과
@@ -39,7 +40,7 @@ class AccountPetActions {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('반려동물 추가에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+          SnackBar(content: Text(actionFailureMessage(e, '반려동물 추가'))),
         );
       }
       return null;
@@ -88,7 +89,7 @@ class AccountPetActions {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+          SnackBar(content: Text(actionFailureMessage(e, '저장'))),
         );
       }
       return false;
@@ -132,7 +133,7 @@ class AccountPetActions {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+          SnackBar(content: Text(actionFailureMessage(e, '삭제'))),
         );
       }
     }

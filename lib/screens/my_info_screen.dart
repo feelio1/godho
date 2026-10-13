@@ -10,6 +10,7 @@ import '../providers/saved_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/external_links.dart';
+import '../widgets/inline_error_message.dart';
 import 'account_pet_actions.dart';
 import 'account_ui.dart';
 import 'info_screens.dart';
@@ -198,7 +199,10 @@ class _LoggedInBody extends ConsumerWidget {
           ),
           error: (error, _) => Padding(
             padding: const EdgeInsets.all(16),
-            child: Text('불러오지 못했습니다: $error', style: const TextStyle(color: AppColors.textSecondary)),
+            child: InlineErrorMessage(
+              error: error,
+              onRetry: () => ref.invalidate(accountSignupPetsProvider),
+            ),
           ),
           data: (pets) => Column(
             children: [

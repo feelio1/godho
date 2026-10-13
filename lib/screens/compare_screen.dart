@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
+import '../providers/fee_provider.dart';
+import '../providers/location_provider.dart';
 import '../theme/app_colors.dart';
 import '../utils/external_links.dart';
+import '../widgets/fee_context_chip.dart';
+import '../widgets/fee_format.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
 
@@ -20,6 +25,10 @@ class CompareScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final compareIds = ref.watch(compareListProvider);
     final bundle = ref.watch(bundleProvider).value;
+    final location = ref.watch(locationProvider).value;
+    final feeBundle = ref.watch(feeBundleProvider).value;
+    final feeWeight = ref.watch(feeWeightProvider).bucket;
+    final feeItem = feeBundle?.itemById(representativeFeeItemId);
 
     final hospitals = compareIds
         .map((id) => ref.watch(hospitalByIdProvider(id)))
@@ -80,6 +89,45 @@ class CompareScreen extends ConsumerWidget {
                       tooltip: '동일 주소에서 확인된 인허가 기록 수입니다. 운영자가 동일하다는 의미는 아닙니다.',
                       hospitals: hospitals,
                       valueBuilder: (h) => '${bundle?.sameAddressRecordCount(h) ?? 1}건',
+                    ),
+                    _CompareRow(
+                      label: '거리',
+                      tooltip: '현 위치에서의 대략적인 직선거리입니다. 위치 정보가 없으면 표시되지 않습니다.',
+                      hospitals: hospitals,
+                      valueBuilder: (h) {
+                        final d = HospitalRepository.distanceKm(
+                          location?.latitude,
+                          location?.longitude,
+                          h.lat,
+                          h.lng,
+                        );
+                        return d != null ? '${d.toStringAsFixed(1)}km' : '확인 불가';
+                      },
+                    ),
+                    _CompareRow(
+                      label: '지역 시세',
+                      tooltip:
+                          '같은 시/군/구의 "${feeItem?.name ?? '초진 진찰료'}" 중간값입니다. 병원별 가격이 아니라 '
+                          '지역(구) 단위 시세라, 같은 구에 속한 병원은 값이 같게 보일 수 있습니다.',
+                      hospitals: hospitals,
+                      valueBuilder: (h) {
+                        if (feeBundle == null) return '확인 불가';
+                        final value = feeBundle.lookup(
+                          sido: h.sido,
+                          sigungu: h.sigungu,
+                          itemId: representativeFeeItemId,
+                          weight: feeWeight,
+                        );
+                        if (value == null) return '데이터 없음';
+                        return value.sampleLow ? '참고용(표본 적음)' : '중간 ${feeWonLabel(value.mid)}';
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: _labelColumnWidth, top: 2, bottom: 4),
+                      child: Text(
+                        '지역(구) 시세 · 병원별 가격 아님',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
+                      ),
                     ),
                     _CompareRow(
                       label: '갱신일',

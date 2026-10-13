@@ -13,6 +13,7 @@ import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/inline_error_message.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/no_pets_message.dart';
@@ -79,7 +80,10 @@ class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
       ),
       body: petsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('불러오지 못했습니다: $error')),
+        error: (error, _) => InlineErrorMessage(
+          error: error,
+          onRetry: () => ref.invalidate(effectivePetsProvider),
+        ),
         data: (pets) {
           if (pets.isEmpty) {
             return NoPetsMessage(

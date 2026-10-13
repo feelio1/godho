@@ -16,6 +16,7 @@ import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/auth_error_message.dart';
 import '../utils/external_links.dart';
+import '../utils/network_error.dart';
 import '../widgets/legal_markdown_view.dart';
 
 /// 설정 화면(Settings.dc.html) — 기기 로컬 설정 + "계정" 섹션(회원 탈퇴).
@@ -165,7 +166,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } on _ReauthNotSupportedException catch (e) {
       errorMessage = e.message;
     } catch (e) {
-      errorMessage = '탈퇴에 실패했어요. 잠시 후 다시 시도해주세요. ($e)';
+      errorMessage = actionFailureMessage(e, '탈퇴');
     }
 
     if (!context.mounted) return;

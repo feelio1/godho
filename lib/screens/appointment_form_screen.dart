@@ -10,6 +10,7 @@ import '../models/reminder_offset.dart';
 import '../notifications/notification_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/network_error.dart';
 import '../widgets/date_picker_sheet.dart';
 import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
@@ -226,7 +227,7 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+          SnackBar(content: Text(actionFailureMessage(e, '저장'))),
         );
       }
     }
@@ -241,7 +242,7 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+          SnackBar(content: Text(actionFailureMessage(e, '삭제'))),
         );
       }
     }

@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/signup_flow_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/network_error.dart';
 import 'account_pet_form_screen.dart';
 import 'signup_done_screen.dart';
 
@@ -113,7 +114,7 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장에 실패했어요. 잠시 후 다시 시도해주세요. ($e)')),
+          SnackBar(content: Text(actionFailureMessage(e, '저장'))),
         );
       }
     } finally {
