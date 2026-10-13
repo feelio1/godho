@@ -290,12 +290,19 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
           children: [
             // 수정 모드에서는 종류를 바꿀 수 없다(기존 기록/예약을 바꾸고
             // 싶으면 삭제 후 새로 추가) — 세그먼트 자체를 숨긴다
-            // ("진료기록·예약 통합 입력" 지시서 4).
+            // ("진료기록·예약 통합 입력" 지시서 4). 날짜가 과거면 "예약"
+            // 옵션을 막는다 — 미래 날짜에서 "진료기록"을 막은 것과
+            // 대칭으로, 과거 날짜 예약도 만들 수 없게 한다("판단 콜
+            // 답변" 지시서).
             if (widget.existing == null) ...[
               SegmentedButton<RecordOrAppointmentKind>(
-                segments: const [
-                  ButtonSegment(value: RecordOrAppointmentKind.record, label: Text('진료기록')),
-                  ButtonSegment(value: RecordOrAppointmentKind.appointment, label: Text('예약')),
+                segments: [
+                  const ButtonSegment(value: RecordOrAppointmentKind.record, label: Text('진료기록')),
+                  ButtonSegment(
+                    value: RecordOrAppointmentKind.appointment,
+                    label: const Text('예약'),
+                    enabled: !isPastDay(_date),
+                  ),
                 ],
                 selected: const {RecordOrAppointmentKind.record},
                 showSelectedIcon: false,

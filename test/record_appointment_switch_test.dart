@@ -11,30 +11,38 @@ import 'package:petcliniccheck/screens/medical_record_form_screen.dart';
 import 'package:petcliniccheck/utils/record_appointment_flow.dart';
 
 // hospitals.json(실제 asset) 로딩이 필요한 HospitalPickerField가 두 폼에
-// 모두 들어있어, 이 파일엔 테스트를 하나만 둔다 — 같은 파일 안에서 두
-// 번째 real-asset 로드를 하면 끝나지 않는 현상이 이미 여러 테스트에서
-// 재현됐다. bundleProvider를 pumpWidget 전에 먼저 resolve해두는 것도
-// 중요하다 — HospitalPickerField가 의존하는 repositoryProvider는
-// `bundleProvider`가 아직 loading이면 `requireValue`에서 바로 던지므로,
-// 첫 프레임이 뜨기 전에 미리 받아둬야 한다.
+// 모두 들어있다 — 같은 파일 안에서 testWidgets마다 따로 real-asset을
+// 로드하면 두 번째부터 끝나지 않는 현상이 이미 여러 테스트에서
+// 재현됐다. 그래서 container를 setUpAll에서 "딱 한 번" 만들어 모든
+// testWidgets가 공유한다(setUpAll은 testWidgets의 fake-async 존 밖이라
+// tester.runAsync 없이 바로 await해도 된다). bundleProvider를 미리
+// resolve해두는 것도 중요하다 — HospitalPickerField가 의존하는
+// repositoryProvider는 bundleProvider가 아직 loading이면 requireValue에서
+// 바로 던지므로, 첫 프레임이 뜨기 전에 미리 받아둬야 한다.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets(
-    '진료기록⇄예약 통합 입력: 신규는 세그먼트로 전환되고 입력값이 유지되며, 수정 모드는 세그먼트가 없다',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      // 이 테스트 환경에선 FirebaseAuth를 초기화할 수 없다(실제 User를
-      // 만들 수 없는 제약은 이 레포 테스트 전반에서 이미 문서화돼
-      // 있음) — authStateProvider를 게스트(null)로 고정해 Firebase 플러그인
-      // 부재로 인한 자동 재시도 타이머가 테스트 종료 뒤까지 남는 것을
-      // 막는다.
-      final container = ProviderContainer(
-        overrides: [authStateProvider.overrideWith((ref) => Stream<User?>.value(null))],
-      );
-      addTearDown(container.dispose);
-      await tester.runAsync(() => container.read(bundleProvider.future));
+  late ProviderContainer container;
 
+  setUpAll(() async {
+    // 이 테스트 환경에선 FirebaseAuth를 초기화할 수 없다(실제 User를
+    // 만들 수 없는 제약은 이 레포 테스트 전반에서 이미 문서화돼 있음) —
+    // authStateProvider를 게스트(null)로 고정해 Firebase 플러그인 부재로
+    // 인한 자동 재시도 타이머가 테스트 종료 뒤까지 남는 것을 막는다.
+    container = ProviderContainer(
+      overrides: [authStateProvider.overrideWith((ref) => Stream<User?>.value(null))],
+    );
+    SharedPreferences.setMockInitialValues({});
+    await container.read(bundleProvider.future);
+  });
+
+  tearDownAll(() {
+    container.dispose();
+  });
+
+  testWidgets(
+    '진료기록⇄예약 통합 입력: 신규는 세그먼트로 전환되고 입력값이 유지된다',
+    (tester) async {
       // 폼이 길어 기본 테스트 화면 크기에선 일부 필드가 스크롤해야 보인다 —
       // 세그먼트 탭이 다른 위젯에 가려지는 것을 피하려고 화면을 넉넉히
       // 키운다(ListView(children:)라 스크롤 여부와 무관하게 위젯 자체는
@@ -51,10 +59,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 신규 모드엔 세그먼트가 보인다.
+      // 신규 모드엔 세그먼트가 보이고, 날짜가 오늘이라 둘 다 고를 수 있다.
       expect(find.byType(SegmentedButton<RecordOrAppointmentKind>), findsOneWidget);
       expect(find.text('진료기록'), findsOneWidget);
       expect(find.text('예약'), findsOneWidget);
+      final initialSegmented =
+          tester.widget<SegmentedButton<RecordOrAppointmentKind>>(
+        find.byType(SegmentedButton<RecordOrAppointmentKind>),
+      );
+      for (final segment in initialSegmented.segments) {
+        expect(segment.enabled, isTrue);
+      }
 
       // 병원·메모·방문 목적(기타 직접입력)을 채운다. 병원 이름은 실제
       // hospitals.json 어떤 항목과도 매칭되지 않을 영문 문자열을 쓴다 —
@@ -115,11 +130,65 @@ void main() {
 
       // 세그먼트만 눌러 넘어왔으니 날짜는 그대로 오늘이다 — 오늘은
       // 기록·예약 둘 다 유효해 "진료기록" 옵션이 막혀 있지 않다.
-      final appointmentSegmented =
-          tester.widget<SegmentedButton<RecordOrAppointmentKind>>(find.byType(SegmentedButton<RecordOrAppointmentKind>));
-      final recordSegment =
-          appointmentSegmented.segments.firstWhere((s) => s.label is Text && (s.label as Text).data == '진료기록');
+      final appointmentSegmented = tester.widget<SegmentedButton<RecordOrAppointmentKind>>(
+        find.byType(SegmentedButton<RecordOrAppointmentKind>),
+      );
+      final recordSegment = appointmentSegmented.segments
+          .firstWhere((s) => s.label is Text && (s.label as Text).data == '진료기록');
       expect(recordSegment.enabled, isTrue);
+    },
+  );
+
+  testWidgets(
+    '날짜가 과거인 신규 진료기록 폼에서는 "예약" 옵션이 막혀 있다(미래 날짜에서 "진료기록"을 막은 것과 대칭)',
+    (tester) async {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: MedicalRecordFormScreen(
+              petId: 'local1',
+              initialDate: DateTime.now().subtract(const Duration(days: 3)),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final segmented = tester.widget<SegmentedButton<RecordOrAppointmentKind>>(
+        find.byType(SegmentedButton<RecordOrAppointmentKind>),
+      );
+      final appointmentOption = segmented.segments
+          .firstWhere((s) => s.label is Text && (s.label as Text).data == '예약');
+      final recordOption = segmented.segments
+          .firstWhere((s) => s.label is Text && (s.label as Text).data == '진료기록');
+      expect(appointmentOption.enabled, isFalse);
+      expect(recordOption.enabled, isTrue);
+    },
+  );
+
+  testWidgets(
+    '날짜가 미래인 신규 예약 폼에서는 "진료기록" 옵션이 막혀 있다',
+    (tester) async {
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: AppointmentFormScreen(
+              petId: 'local1',
+              initialDate: DateTime.now().add(const Duration(days: 5)),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final segmented = tester.widget<SegmentedButton<RecordOrAppointmentKind>>(
+        find.byType(SegmentedButton<RecordOrAppointmentKind>),
+      );
+      final recordOption = segmented.segments
+          .firstWhere((s) => s.label is Text && (s.label as Text).data == '진료기록');
+      expect(recordOption.enabled, isFalse);
     },
   );
 }

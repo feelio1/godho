@@ -150,15 +150,17 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
   }
 
   /// 수정 모드에서는 기존 예약 수정 의미를 유지해 범위를 오늘(1일
-  /// 여유)~5년 뒤로 두지만, 새 예약은 진료기록 폼과 같은 범위(2000년부터)
-  /// 까지 과거로 고를 수 있다 — 과거·오늘을 고르면 여기서 바로 진료기록
-  /// 폼으로 넘어간다("진료기록·예약 통합 입력" 지시서 1, 2).
+  /// 여유)~5년 뒤로 두고, 새 예약은 오늘부터만 고를 수 있다 — 과거 날짜
+  /// 예약은 세그먼트에서도 막혀 있어("판단 콜 답변" 지시서) 애초에 날짜
+  /// 피커에서도 과거로 못 가게 range를 좁혔다. 과거로 바꾸면 자동으로
+  /// 기록 폼으로 넘어가는 분기 자체는 안전망으로 그대로 둔다(세그먼트
+  /// 쪽 변경과 독립적으로 유지 — "진료기록·예약 통합 입력" 지시서 1, 2).
   Future<void> _pickDate() async {
     final isNew = widget.existing == null;
     final picked = await showAppDatePickerSheet(
       context,
       initialDate: _date,
-      firstDate: isNew ? DateTime(2000) : DateTime.now().subtract(const Duration(days: 1)),
+      firstDate: isNew ? DateTime.now() : DateTime.now().subtract(const Duration(days: 1)),
       lastDate: DateTime(_date.year + 5),
     );
     if (picked == null) return;
