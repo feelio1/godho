@@ -16,6 +16,7 @@ import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/appointment_calendar.dart';
 import '../utils/medical_record_calendar.dart';
+import '../utils/record_appointment_flow.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/inline_error_message.dart';
 import '../widgets/no_pets_message.dart';
@@ -173,23 +174,12 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
     }
   }
 
-  /// 과거 날짜를 고르면 그 날짜로 진료기록을, 오늘·미래를 고르면 예약을
-  /// 추가한다 — 기존 진료기록/예약 폼을 그대로 재사용한다("캘린더
-  /// 하단탭화 + 진료 연대기" 지시서 3).
+  /// 과거·오늘을 고르면 그 날짜로 진료기록을, 미래를 고르면 예약을
+  /// 추가한다 — 모든 진입점이 공유하는 통합 입구를 그대로 쓴다("진료기록·
+  /// 예약 통합 입력" 지시서 5). 어느 쪽으로 열렸든 폼 상단 세그먼트로
+  /// 다시 바꿀 수 있다.
   void _addForSelectedDay() {
-    if (isPastDay(_selectedDay)) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => MedicalRecordFormScreen(petId: widget.pet.id, initialDate: _selectedDay),
-        ),
-      );
-    } else {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => AppointmentFormScreen(petId: widget.pet.id, initialDate: _selectedDay),
-        ),
-      );
-    }
+    openRecordOrAppointmentEntry(context, petId: widget.pet.id, initialDate: _selectedDay);
   }
 
   @override
@@ -204,7 +194,9 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
 
     final selectedRecords = recordsByDate[_selectedDay] ?? const [];
     final selectedAppointments = appointmentsByDate[_selectedDay] ?? const [];
-    final selectedIsPast = isPastDay(_selectedDay);
+    // 과거·오늘은 진료기록, 미래만 예약 — 폼의 날짜 기반 자동 전환과 같은
+    // 기준("진료기록·예약 통합 입력" 지시서 2, 5).
+    final selectedIsFuture = isFutureDay(_selectedDay);
 
     return Column(
       children: [
@@ -295,8 +287,8 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: _addForSelectedDay,
-              icon: Icon(selectedIsPast ? Icons.edit_note : Icons.add, size: 18),
-              label: Text(selectedIsPast ? '이 날짜로 진료기록 추가' : '이 날짜로 예약 추가'),
+              icon: Icon(selectedIsFuture ? Icons.add : Icons.edit_note, size: 18),
+              label: Text(selectedIsFuture ? '이 날짜로 예약 추가' : '이 날짜로 진료기록 추가'),
             ),
           ),
         ),
@@ -304,7 +296,7 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
           child: (selectedRecords.isEmpty && selectedAppointments.isEmpty)
               ? Center(
                   child: Text(
-                    selectedIsPast ? '이 날짜엔 기록이 없어요' : '이 날짜엔 예약이 없어요',
+                    selectedIsFuture ? '이 날짜엔 예약이 없어요' : '이 날짜엔 기록이 없어요',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                   ),
                 )

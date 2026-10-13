@@ -74,4 +74,26 @@ void main() {
       expect(isPastDay(lateToday), isFalse);
     });
   });
+
+  group('isFutureDay — 진료기록·예약 통합 입력에서 미래(예약) vs 과거·오늘(진료기록) 판단', () {
+    test('내일은 미래다', () {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      expect(isFutureDay(tomorrow), isTrue);
+    });
+
+    test('오늘은 미래로 치지 않는다', () {
+      expect(isFutureDay(DateTime.now()), isFalse);
+    });
+
+    test('어제는 미래가 아니다', () {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      expect(isFutureDay(yesterday), isFalse);
+    });
+
+    test('시각과 무관하게 날짜만 본다(오늘 자정 직전이어도 미래가 아님)', () {
+      final now = DateTime.now();
+      final lateToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      expect(isFutureDay(lateToday), isFalse);
+    });
+  });
 }

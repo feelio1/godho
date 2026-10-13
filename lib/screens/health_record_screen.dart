@@ -12,6 +12,7 @@ import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
+import '../utils/record_appointment_flow.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/inline_error_message.dart';
 import '../widgets/mascot_image.dart';
@@ -195,9 +196,7 @@ class _RecordsTab extends StatelessWidget {
             assetPath: MascotImage.emptyRecordAssetPath,
             overlayIcon: Icons.description_outlined,
             trailing: FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => MedicalRecordFormScreen(petId: pet.id)),
-              ),
+              onPressed: () => openRecordOrAppointmentEntry(context, petId: pet.id),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('첫 기록 남기기'),
             ),
@@ -211,9 +210,7 @@ class _RecordsTab extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => MedicalRecordFormScreen(petId: pet.id)),
-            ),
+            onPressed: () => openRecordOrAppointmentEntry(context, petId: pet.id),
             icon: const Icon(Icons.add, size: 18),
             label: const Text('진료 기록 추가'),
           ),

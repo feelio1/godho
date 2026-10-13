@@ -15,6 +15,7 @@ import '../screens/medical_record_form_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/appointment_calendar.dart';
+import '../utils/record_appointment_flow.dart';
 
 /// 홈의 "우리 아이" 카드("출시 전 마무리" 지시서 C) — 로그인하고 계정
 /// 반려동물이 1마리 이상일 때만 보인다(게스트에겐 노출 안 함). 모든
@@ -85,9 +86,7 @@ class OurPetCard extends ConsumerWidget {
 
     final firstPet = pets.first;
     return _OurPetCardShell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => MedicalRecordFormScreen(petId: firstPet.id)),
-      ),
+      onTap: () => openRecordOrAppointmentEntry(context, petId: firstPet.id),
       icon: Icons.pets_outlined,
       child: Row(
         children: [

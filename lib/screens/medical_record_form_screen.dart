@@ -11,12 +11,15 @@ import '../models/pet.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../utils/appointment_calendar.dart';
 import '../utils/network_error.dart';
+import '../utils/record_appointment_flow.dart';
 import '../widgets/date_picker_sheet.dart';
 import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
 import '../widgets/photo_attach_field.dart';
 import '../widgets/picker_sheet_chrome.dart';
+import 'appointment_form_screen.dart';
 
 String _newLocalId() =>
     '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
@@ -39,7 +42,24 @@ class MedicalRecordFormScreen extends ConsumerStatefulWidget {
   /// 연대기" 지시서 3). 생략하면 기존과 같이 오늘 날짜로 시작한다.
   final DateTime? initialDate;
 
-  const MedicalRecordFormScreen({super.key, required this.petId, this.existing, this.initialDate});
+  /// 예약 폼에서 세그먼트로 전환해 넘어올 때 함께 들고 오는 입력값
+  /// (수정 시엔 무시) — "진료기록·예약 통합 입력" 지시서 3. [existing]이
+  /// 있으면 이 값들은 쓰지 않는다.
+  final String? initialHospitalId;
+  final String? initialHospitalName;
+  final String? initialMemo;
+  final String? initialCategory;
+
+  const MedicalRecordFormScreen({
+    super.key,
+    required this.petId,
+    this.existing,
+    this.initialDate,
+    this.initialHospitalId,
+    this.initialHospitalName,
+    this.initialMemo,
+    this.initialCategory,
+  });
 
   @override
   ConsumerState<MedicalRecordFormScreen> createState() => _MedicalRecordFormScreenState();
@@ -64,15 +84,17 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     final existing = widget.existing;
     _date = existing?.date ?? widget.initialDate ?? DateTime.now();
     _petId = widget.petId;
-    _hospitalController = TextEditingController(text: existing?.hospitalName ?? '');
-    _memoController = TextEditingController(text: existing?.memo ?? '');
+    _hospitalController =
+        TextEditingController(text: existing?.hospitalName ?? widget.initialHospitalName ?? '');
+    _memoController = TextEditingController(text: existing?.memo ?? widget.initialMemo ?? '');
     _weightController = TextEditingController(text: existing?.weightKg?.toString() ?? '');
     _costController = TextEditingController(text: existing?.costWon?.toString() ?? '');
-    _categoryController = TextEditingController(text: existing?.category ?? '');
-    _selectedHospitalId = existing?.hospitalId;
+    _categoryController =
+        TextEditingController(text: existing?.category ?? widget.initialCategory ?? '');
+    _selectedHospitalId = existing?.hospitalId ?? widget.initialHospitalId;
     _photoPath = existing?.photoPath;
 
-    final initialCategory = existing?.category ?? '';
+    final initialCategory = existing?.category ?? widget.initialCategory ?? '';
     if (initialCategory.isEmpty) {
       _selectedCategoryChip = null;
     } else if (_categoryChoices.contains(initialCategory) && initialCategory != '기타') {
@@ -92,14 +114,61 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     super.dispose();
   }
 
+  /// 수정 모드에서는 기존 기록 수정 의미를 유지해 범위를 과거~오늘로
+  /// 두지만, 새 기록은 예약 폼과 같은 범위(5년 뒤까지)까지 고를 수 있다 —
+  /// 미래 날짜를 고르면 저장 직전이 아니라 여기서 바로 예약 폼으로
+  /// 넘어간다(미래 날짜 진료기록 저장 금지, "진료기록·예약 통합 입력"
+  /// 지시서 1, 하지 말 것).
   Future<void> _pickDate() async {
+    final isNew = widget.existing == null;
     final picked = await showAppDatePickerSheet(
       context,
       initialDate: _date,
       firstDate: DateTime(2000),
-      lastDate: DateTime.now(),
+      lastDate: isNew ? DateTime(_date.year + 5) : DateTime.now(),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked == null) return;
+    if (isNew && isFutureDay(picked)) {
+      await _switchToAppointment(targetDate: picked, dateDriven: true);
+      return;
+    }
+    setState(() => _date = picked);
+  }
+
+  /// 체중·비용·사진 중 하나라도 입력돼 있으면 예약으로 넘어갈 때
+  /// 버려진다는 확인을 먼저 받는다("진료기록·예약 통합 입력" 지시서 3).
+  bool get _hasRecordOnlyData =>
+      _weightController.text.trim().isNotEmpty ||
+      _costController.text.trim().isNotEmpty ||
+      _photoPath != null;
+
+  Future<void> _switchToAppointment({DateTime? targetDate, bool dateDriven = false}) async {
+    if (_hasRecordOnlyData) {
+      final confirmed =
+          await confirmKindSwitch(context, '체중·비용·사진은 예약에 저장되지 않아요. 계속할까요?');
+      if (!confirmed) return;
+    }
+    if (!mounted) return;
+    // 날짜를 미래로 바꿔서 자동으로 넘어가는 경우만 왜 바뀌었는지 짧게
+    // 안내한다 — 세그먼트를 직접 눌러 넘어갈 땐 의도한 전환이라 안내가
+    // 필요 없다("진료기록·예약 통합 입력" 지시서 2).
+    if (dateDriven) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('미래 날짜라 예약으로 저장돼요')),
+      );
+    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => AppointmentFormScreen(
+          petId: _petId,
+          initialDate: targetDate ?? _date,
+          initialHospitalId: _selectedHospitalId,
+          initialHospitalName: _hospitalController.text.trim(),
+          initialMemo: _memoController.text.trim(),
+          initialReason: _categoryController.text.trim(),
+        ),
+      ),
+    );
   }
 
   Future<void> _pickPet(List<Pet> pets) async {
@@ -209,7 +278,7 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existing == null ? '진료기록 추가' : '진료 기록 수정'),
+        title: Text(widget.existing == null ? '기록·예약 추가' : '진료 기록 수정'),
         actions: [
           if (widget.existing != null)
             IconButton(icon: const Icon(Icons.delete_outline), onPressed: _delete),
@@ -219,6 +288,25 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
         child: ListView(
           padding: const EdgeInsets.all(AppSpacing.page),
           children: [
+            // 수정 모드에서는 종류를 바꿀 수 없다(기존 기록/예약을 바꾸고
+            // 싶으면 삭제 후 새로 추가) — 세그먼트 자체를 숨긴다
+            // ("진료기록·예약 통합 입력" 지시서 4).
+            if (widget.existing == null) ...[
+              SegmentedButton<RecordOrAppointmentKind>(
+                segments: const [
+                  ButtonSegment(value: RecordOrAppointmentKind.record, label: Text('진료기록')),
+                  ButtonSegment(value: RecordOrAppointmentKind.appointment, label: Text('예약')),
+                ],
+                selected: const {RecordOrAppointmentKind.record},
+                showSelectedIcon: false,
+                onSelectionChanged: (selection) {
+                  if (selection.first == RecordOrAppointmentKind.appointment) {
+                    _switchToAppointment();
+                  }
+                },
+              ),
+              const SizedBox(height: AppSpacing.formField),
+            ],
             const FormFieldLabel('반려동물'),
             InkWell(
               onTap: () => _pickPet(pets),
