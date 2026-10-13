@@ -12,9 +12,12 @@ import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
+import '../widgets/affiliate_fee_card.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/fee_summary_card.dart';
 import '../widgets/guest_gate.dart';
+import '../widgets/home_greeting_banner.dart';
+import '../widgets/our_pet_card.dart';
 import '../widgets/region_indicator.dart';
 import 'account_ui.dart';
 import 'fee_overview_screen.dart';
@@ -26,13 +29,13 @@ import 'search_result_screen.dart';
 /// Only ever mounted once [MainShell] has confirmed the bundle is loaded.
 ///
 /// "펫클 앱 디자인" 캔버스 시안(Main.dc.html)을 그대로 따른다 — 브랜드
-/// 헤더(아이콘+펫클 · 지역 칩) → 타이틀 → 검색 진입 → 전국 기록 수 →
-/// 3개 바로가기(주변 병원·진료비 시세·저장한 병원) → 지역 진료비 시세
-/// 카드 → 광고. 이전의 "내 주변 가까운 병원 / 운영 20년 이상 / 최근
-/// 개원 / 최근 확인한 병원 / 저장한 병원" 세로 리스트 섹션들은 시안에
-/// 없어 걷어냈다(사용자 확인) — 해당 병원들은 지도·검색·저장 탭에서
-/// 계속 볼 수 있다. 로그인 상태 배지도 시안엔 없다 — 내 정보 탭이
-/// 그 역할을 전담한다.
+/// 헤더(아이콘+펫클 · 지역 칩) → 장구름 인사 → 타이틀 → 검색 진입 →
+/// (로그인+반려동물) 우리 아이 카드 → 3개 바로가기(주변 병원·진료비
+/// 시세·저장한 병원) → 펫보험 제휴 카드 → 지역 진료비 시세 요약 → 광고
+/// ("출시 전 마무리" 지시서 A~C). 이전의 "내 주변 가까운 병원 / 운영
+/// 20년 이상 / 최근 개원 / 최근 확인한 병원 / 저장한 병원" 세로 리스트
+/// 섹션들은 시안에 없어 걷어냈다(사용자 확인) — 해당 병원들은 지도·검색·
+/// 저장 탭에서 계속 볼 수 있다.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -84,6 +87,8 @@ class _HomeBody extends ConsumerWidget {
             RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
           ],
         ),
+        const SizedBox(height: 14),
+        const HomeGreetingBanner(),
         const SizedBox(height: AppSpacing.section),
         Text(
           '동물병원의 기록을\n사실 그대로 확인하세요',
@@ -105,6 +110,8 @@ class _HomeBody extends ConsumerWidget {
           '전국 ${NumberFormat('#,###').format(repo.all.length)}곳 인허가 기록 · $dateLabel 기준',
           style: AppTextStyles.src(AppColors.textSecondary),
         ),
+        const SizedBox(height: AppSpacing.section),
+        const OurPetCard(),
         const SizedBox(height: AppSpacing.section),
         Row(
           children: [
@@ -140,6 +147,8 @@ class _HomeBody extends ConsumerWidget {
             ),
           ],
         ),
+        const SizedBox(height: AppSpacing.section),
+        const AffiliateFeeCard(),
         const SizedBox(height: AppSpacing.section),
         const FeeSummaryCard(),
         const SizedBox(height: AppSpacing.section),

@@ -7,6 +7,7 @@ import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../providers/auth_provider.dart';
+import '../providers/calendar_focus_provider.dart';
 import '../providers/effective_appointments_provider.dart';
 import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
@@ -37,6 +38,7 @@ class CalendarScreen extends ConsumerStatefulWidget {
 
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   String? _selectedPetId;
+  DateTime? _pendingFocusDate;
 
   Future<void> _addAccountPet(String uid) async {
     final petId = await AccountPetActions.add(context, ref, uid);
@@ -64,6 +66,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         ),
       );
     }
+
+    // 홈의 "우리 아이" 카드(가장 가까운 예약)에서 넘어온 1회성 포커스
+    // 요청 — 반영하자마자 비운다("출시 전 마무리" 지시서 C). ref.listen은
+    // build가 끝난 뒤 실행되므로 그 안에서 provider를 비워도 안전하다.
+    ref.listen<CalendarFocusRequest?>(calendarFocusRequestProvider, (previous, next) {
+      if (next == null) return;
+      setState(() {
+        _selectedPetId = next.petId;
+        _pendingFocusDate = next.date;
+      });
+      ref.read(calendarFocusRequestProvider.notifier).state = null;
+    });
 
     final petsAsync = ref.watch(effectivePetsProvider);
 
@@ -100,7 +114,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   selectedId: selected.id,
                   onSelect: (id) => setState(() => _selectedPetId = id),
                 ),
-              Expanded(child: _PetCalendarBody(key: ValueKey(selected.id), pet: selected)),
+              Expanded(
+                child: _PetCalendarBody(
+                  key: ValueKey(selected.id),
+                  pet: selected,
+                  initialDate: _pendingFocusDate,
+                ),
+              ),
             ],
           );
         },
@@ -112,7 +132,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 class _PetCalendarBody extends ConsumerStatefulWidget {
   final Pet pet;
 
-  const _PetCalendarBody({super.key, required this.pet});
+  /// 홈의 "우리 아이" 카드에서 넘어온 포커스 날짜 — 있으면 오늘 대신 이
+  /// 날짜로 시작한다("출시 전 마무리" 지시서 C).
+  final DateTime? initialDate;
+
+  const _PetCalendarBody({super.key, required this.pet, this.initialDate});
 
   @override
   ConsumerState<_PetCalendarBody> createState() => _PetCalendarBodyState();
@@ -125,9 +149,24 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
   @override
   void initState() {
     super.initState();
-    final today = dateOnly(DateTime.now());
-    _focusedDay = today;
-    _selectedDay = today;
+    final start = widget.initialDate != null ? dateOnly(widget.initialDate!) : dateOnly(DateTime.now());
+    _focusedDay = start;
+    _selectedDay = start;
+  }
+
+  /// 같은 반려동물이 선택된 채로(= [_PetCalendarBody]가 새로 만들어지지
+  /// 않은 채로) 새 포커스 날짜가 또 들어온 경우 — [initState]는 다시
+  /// 불리지 않으므로 여기서 한 번 더 반영한다.
+  @override
+  void didUpdateWidget(_PetCalendarBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialDate != null && widget.initialDate != oldWidget.initialDate) {
+      final target = dateOnly(widget.initialDate!);
+      setState(() {
+        _selectedDay = target;
+        _focusedDay = target;
+      });
+    }
   }
 
   /// 과거 날짜를 고르면 그 날짜로 진료기록을, 오늘·미래를 고르면 예약을

@@ -47,9 +47,10 @@ void main() {
       await tester.pump();
 
       // "지역을 선택하면..."에 더 이상 머물지 않고, 실제 시세 카드
-      // (_WithData만 쓰는 "중간값" 표기)가 렌더링돼야 한다.
+      // (대표 항목들을 중간값+범위로 보여주는 _WithItems)가 렌더링돼야
+      // 한다("출시 전 마무리" 지시서 A-2 — 초진 하나만 보여주던 걸 확장).
       expect(find.textContaining('지역을 선택하면'), findsNothing);
-      expect(find.textContaining('중간값'), findsOneWidget);
+      expect(find.textContaining('초진 진찰료'), findsOneWidget);
       expect(find.textContaining('서구'), findsOneWidget);
     },
   );

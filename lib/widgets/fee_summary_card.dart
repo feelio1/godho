@@ -10,15 +10,29 @@ import '../screens/fee_overview_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/fee_no_data_message.dart';
-import 'fee_context_chip.dart';
 import 'fee_format.dart';
 
-/// 홈 상단 진료비 시세 카드(화면 01) — 선택한 지역의 초진 진찰료 시세를
-/// 한눈에 보여주고 탭하면 진료비 시세 전체 페이지(21)로 이동한다. 특정
-/// 병원의 가격이 아니라 "이 지역" 시세임을 항상 명시한다(CLAUDE.md
+/// 홈 상단 진료비 시세 카드(화면 01) — 선택한 지역의 대표 항목 3~4개
+/// 시세를 한눈에 보여주고 탭하면 진료비 시세 전체 페이지(21)로 이동한다
+/// ("출시 전 마무리" 지시서 A-2 — 초진 하나만 보여주던 것을 확장).
+/// 특정 병원의 가격이 아니라 "이 지역" 시세임을 항상 명시한다(CLAUDE.md
 /// 진료비 원칙 2).
 class FeeSummaryCard extends ConsumerWidget {
   const FeeSummaryCard({super.key});
+
+  /// 대표로 시도해볼 항목 우선순위 — 초진 진찰료 → 종합백신(개) →
+  /// 광견병백신 → 재진 진찰료 → 혈액검사(CBC). 그 구에 데이터가 없는
+  /// 항목은 건너뛰고(대체·추정 금지), 있는 것만 최대 4개까지 보여준다.
+  /// 항목명 자체는 여기서 새로 짓지 않고 항상 fees.json의 [FeeItem.name]을
+  /// 그대로 쓴다.
+  static const _candidateItemIds = [
+    'consult_first',
+    'vaccine_combo_dog',
+    'vaccine_rabies',
+    'consult_revisit',
+    'test_cbc',
+  ];
+  static const _maxItems = 4;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,78 +78,105 @@ class FeeSummaryCard extends ConsumerWidget {
       return _NoFeeData(regionLabel: region.shortLabel, sigungu: sigungu);
     }
 
-    final value = bundle.lookup(
-      sido: sido,
-      sigungu: sigungu,
-      itemId: representativeFeeItemId,
-      weight: weight,
-    );
-    final item = bundle.itemById(representativeFeeItemId);
-    if (value == null || item == null) {
-      // 이 구에 다른 항목 데이터는 있지만 대표 항목(초진 진찰료)만
-      // 없는 드문 경우 — 같은 "자료가 아직 없다" 안내로 충분하다.
+    final items = _representativeItems(bundle, sido, sigungu, weight);
+    if (items.isEmpty) {
+      // 이 구에 다른 항목 데이터는 있지만 대표 후보 항목은 전부 없는
+      // 드문 경우 — 같은 "자료가 아직 없다" 안내로 충분하다.
       return _NoFeeData(regionLabel: region.shortLabel, sigungu: sigungu);
     }
 
-    return _WithData(regionLabel: region.shortLabel, itemName: item.name, value: value, weight: weight);
+    return _WithItems(regionLabel: region.shortLabel, weight: weight, items: items);
+  }
+
+  List<(FeeItem, FeeValue)> _representativeItems(
+    FeeBundle bundle,
+    String sido,
+    String sigungu,
+    FeeWeightBucket weight,
+  ) {
+    final result = <(FeeItem, FeeValue)>[];
+    for (final id in _candidateItemIds) {
+      final item = bundle.itemById(id);
+      if (item == null) continue;
+      final value = bundle.lookup(sido: sido, sigungu: sigungu, itemId: id, weight: weight);
+      if (value == null) continue;
+      result.add((item, value));
+      if (result.length >= _maxItems) break;
+    }
+    return result;
   }
 }
 
-class _WithData extends StatelessWidget {
+class _WithItems extends StatelessWidget {
   final String regionLabel;
-  final String itemName;
-  final FeeValue value;
   final FeeWeightBucket weight;
+  final List<(FeeItem, FeeValue)> items;
 
-  const _WithData({
-    required this.regionLabel,
-    required this.itemName,
-    required this.value,
-    required this.weight,
-  });
+  const _WithItems({required this.regionLabel, required this.weight, required this.items});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$regionLabel · $itemName 시세',
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '$regionLabel 진료비 시세 · ${weight.label} 기준',
                 style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
               ),
-              const SizedBox(height: 6),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    feeWonLabel(value.mid),
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(width: 6),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '중간값',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value.sampleLow
-                    ? '참고용 · ${weight.label} 기준'
-                    : '범위 ${feeWonRangeLabel(value.min, value.max)} · ${weight.label} 기준',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ],
-          ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
+          ],
         ),
-        const Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
+        const SizedBox(height: 8),
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const Divider(height: 1, color: AppColors.borderCard),
+          _FeeSummaryRow(item: items[i].$1, value: items[i].$2),
+        ],
       ],
+    );
+  }
+}
+
+class _FeeSummaryRow extends StatelessWidget {
+  final FeeItem item;
+  final FeeValue value;
+
+  const _FeeSummaryRow({required this.item, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              item.name,
+              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            value.sampleLow ? '참고용' : feeWonLabel(value.mid),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: value.sampleLow ? AppColors.textPlaceholder : AppColors.textPrimary,
+            ),
+          ),
+          if (!value.sampleLow) ...[
+            const SizedBox(width: 6),
+            Text(
+              feeWonRangeLabel(value.min, value.max),
+              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

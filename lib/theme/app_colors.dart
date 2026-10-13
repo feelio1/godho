@@ -77,6 +77,12 @@ class AppColors {
   static const surfaceLight = Color(0xFFFFFFFF); // 카드 배경
   static const inputFill = Color(0xFFF5F6F8); // 인셋 입력 필드 배경
   static const surfaceMutedLight = Color(0xFFEEF1F4);
+
+  /// 홈 인사 영역 전용 보조 배경("출시 전 마무리" 지시서 B — "온기") —
+  /// 네이비는 여전히 주색이고, 이 크림 톤은 장구름 인사 영역처럼 친근함을
+  /// 담당하는 좁은 자리에만 쓴다. 병원 데이터 카드는 계속 흰 배경
+  /// ([surfaceLight])을 쓴다 — 신뢰가 중요한 영역에 감성 톤을 섞지 않는다.
+  static const warmBackground = Color(0xFFFFF8EC);
   /// 폐업 병원 카드 배경 — [backgroundLight]와 같은 톤이라 카드가 페이지
   /// 배경 위에서 옅게 가라앉아 보이되 완전히 묻히지는 않는다.
   static const closedCardBg = Color(0xFFF5F6F8);
