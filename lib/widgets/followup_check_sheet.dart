@@ -8,6 +8,10 @@ import 'mascot_image.dart';
 /// 지난 예약 "진료 받으셨어요?" 확인 바텀시트("지난 예약 확인" 지시서
 /// 3) — 담백하게 묻기만 하고, 실제 네비게이션·저장은 호출부(콜백)가
 /// 맡는다. 재촉·죄책감 문구 없이 사실(날짜·병원·진료 내용)만 보여준다.
+///
+/// [onLater]는 "아직 진료 전이에요" 버튼 — 문구만 바뀌었을 뿐("기준
+/// 시각 변경" 지시서 2) 동작은 기존 "나중에"와 같다: 아무 상태도 쓰지
+/// 않고 이번 세션에서만 다시 묻지 않는다.
 class FollowUpCheckSheet extends StatelessWidget {
   final String petName;
   final Appointment appointment;
@@ -72,7 +76,7 @@ class FollowUpCheckSheet extends StatelessWidget {
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: TextButton(onPressed: onLater, child: const Text('나중에')),
+              child: TextButton(onPressed: onLater, child: const Text('아직 진료 전이에요')),
             ),
           ],
         ),

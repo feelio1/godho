@@ -53,7 +53,7 @@ void main() {
     await tester.tap(find.text('안 갔어요'));
     expect(skipped, 1);
 
-    await tester.tap(find.text('나중에'));
+    await tester.tap(find.text('아직 진료 전이에요'));
     expect(later, 1);
     expect(recorded, 1);
   });

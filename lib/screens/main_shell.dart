@@ -85,13 +85,20 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   static const _exitConfirmWindow = Duration(seconds: 2);
   DateTime? _lastBackPressAt;
 
-  // "지난 예약 확인" 지시서 3 — 같은 세션에선 한 번만 묻는다.
+  // "지난 예약 확인" 지시서 3, "기준 시각 변경" 지시서 4 — 같은(포그라운드)
+  // 세션에선 한 번만 묻는다. 백그라운드 복귀는 새 세션으로 쳐서
+  // didChangeAppLifecycleState에서 다시 false로 되돌린다 — 백그라운드에
+  // 있는 동안 지났을 수 있는 예약도 다시 물어볼 수 있어야 한다.
   bool _followUpShownThisSession = false;
   // 백그라운드 복귀 직후부터 앱 오픈 광고 흐름이 끝났다는 신호
   // (appOpenAdFlowSettledProvider)가 올 때까지는 확인 시트를 띄우지
   // 않는다(겹침 금지). 콜드 스타트에는 광고가 뜨지 않으므로(AppOpenAdGate
   // 자체 설계) 이 플래그는 항상 false로 시작한다.
   bool _awaitingAdFlowSettle = false;
+  // pendingFollowUpProvider를 invalidate하면(아래) 그 provider를 보는
+  // ref.listen이 다시 이 함수를 부를 수 있다 — 재진입으로 무한 루프가
+  // 되지 않게 막는다("기준 시각 변경" 지시서 3).
+  bool _checkingFollowUp = false;
 
   @override
   void initState() {
@@ -113,6 +120,10 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _awaitingAdFlowSettle = true;
+      // 복귀는 새 세션으로 친다 — "아직 진료 전이에요"로 넘어갔던
+      // 예약도 백그라운드에 있는 동안 시각이 지났을 수 있으니 다시
+      // 물어볼 수 있어야 한다("기준 시각 변경" 지시서 4).
+      _followUpShownThisSession = false;
     }
   }
 
@@ -177,16 +188,31 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   /// 확인하고, 조건이 맞으면 딱 1건만 띄운다("지난 예약 확인" 지시서 1,
   /// 3) — 이미 이 세션에서 띄웠거나, 광고 흐름이 아직 안 끝났거나, 홈
   /// 탭이 보이는 중이 아니거나, 확인할 예약이 없으면 조용히 넘어간다.
+  ///
+  /// pendingFollowUpProvider는 내부에서 DateTime.now()를 한 번만 계산해
+  /// 캐시하므로, 호출될 때마다 먼저 invalidate해 항상 "지금" 시각
+  /// 기준으로 다시 계산하게 한다 — 앱이 백그라운드에 머무는 동안 시각이
+  /// 지나 새로 지난 예약이 된 건을 놓치지 않기 위해서다("기준 시각
+  /// 변경" 지시서 3). invalidate가 이 provider를 보는 ref.listen을
+  /// 다시 불러 이 함수가 재진입될 수 있어 `_checkingFollowUp`으로 막는다.
   void _maybeShowFollowUpSheet() {
-    if (_followUpShownThisSession || _awaitingAdFlowSettle || !mounted) return;
-    if (ref.read(selectedTabProvider) != 0) return;
-    final pending = ref.read(pendingFollowUpProvider);
-    if (pending == null) return;
+    if (_checkingFollowUp) return;
+    _checkingFollowUp = true;
+    try {
+      if (_followUpShownThisSession || _awaitingAdFlowSettle || !mounted) return;
+      if (ref.read(selectedTabProvider) != 0) return;
+      ref.invalidate(pendingFollowUpProvider);
+      final pending = ref.read(pendingFollowUpProvider);
+      if (pending == null) return;
 
-    _followUpShownThisSession = true;
-    final pet = pending.pet;
-    final appointment = pending.appointment;
+      _followUpShownThisSession = true;
+      _showFollowUpSheet(pending.pet, pending.appointment);
+    } finally {
+      _checkingFollowUp = false;
+    }
+  }
 
+  void _showFollowUpSheet(Pet pet, Appointment appointment) {
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(

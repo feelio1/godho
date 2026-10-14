@@ -14,14 +14,14 @@ Appointment _appointment(
 void main() {
   final now = DateTime(2026, 10, 15, 12, 0);
 
-  group('selectFollowUpAppointment — "지난 예약 확인" 지시서 1', () {
-    test('예약 시각+1시간이 아직 안 지났으면 대상이 아니다', () {
-      final appointment = _appointment('a1', now.subtract(const Duration(minutes: 30)));
+  group('selectFollowUpAppointment — "지난 예약 확인" 지시서 1, "기준 시각 변경" 지시서 1', () {
+    test('예약 시각이 아직 안 지났으면(지연 없이) 대상이 아니다', () {
+      final appointment = _appointment('a1', now.add(const Duration(minutes: 1)));
       expect(selectFollowUpAppointment([appointment], now: now), isNull);
     });
 
-    test('예약 시각+1시간이 막 지났으면 대상이다', () {
-      final appointment = _appointment('a1', now.subtract(const Duration(hours: 1, minutes: 1)));
+    test('예약 시각이 막 지났으면(1시간 유예 없이 바로) 대상이다', () {
+      final appointment = _appointment('a1', now.subtract(const Duration(minutes: 1)));
       expect(selectFollowUpAppointment([appointment], now: now)?.id, 'a1');
     });
 
