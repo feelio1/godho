@@ -18,3 +18,17 @@ Appointment? selectFollowUpAppointment(List<Appointment> appointments, {DateTime
   }
   return oldest;
 }
+
+/// 백그라운드에 머문 시간이 [threshold](기본 5분) 이상이면 복귀를 "새
+/// 세션"으로 본다 — 사진 선택·로그인 창처럼 잠깐 포커스를 잃는 전환까지
+/// 새 세션으로 치면 너무 자주 다시 묻게 된다("복귀 시 과도한 재노출
+/// 방지" 지시서 2). [pausedAt]이 null이면(한 번도 백그라운드로 간 적
+/// 없음) false.
+bool shouldResetFollowUpSession({
+  required DateTime? pausedAt,
+  required DateTime resumedAt,
+  Duration threshold = const Duration(minutes: 5),
+}) {
+  if (pausedAt == null) return false;
+  return resumedAt.difference(pausedAt) >= threshold;
+}

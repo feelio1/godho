@@ -65,4 +65,49 @@ void main() {
       expect(selectFollowUpAppointment([appointment], now: now), isNull);
     });
   });
+
+  group('shouldResetFollowUpSession — "복귀 시 과도한 재노출 방지" 지시서 2', () {
+    test('한 번도 백그라운드로 간 적 없으면(pausedAt null) 새 세션이 아니다', () {
+      expect(
+        shouldResetFollowUpSession(pausedAt: null, resumedAt: now),
+        isFalse,
+      );
+    });
+
+    test('5분보다 짧게 비웠으면(사진 선택·로그인 창 등) 새 세션이 아니다', () {
+      final pausedAt = now.subtract(const Duration(minutes: 4, seconds: 59));
+      expect(
+        shouldResetFollowUpSession(pausedAt: pausedAt, resumedAt: now),
+        isFalse,
+      );
+    });
+
+    test('정확히 5분 비웠으면 새 세션이다', () {
+      final pausedAt = now.subtract(const Duration(minutes: 5));
+      expect(
+        shouldResetFollowUpSession(pausedAt: pausedAt, resumedAt: now),
+        isTrue,
+      );
+    });
+
+    test('5분보다 길게 비웠으면 새 세션이다', () {
+      final pausedAt = now.subtract(const Duration(hours: 1));
+      expect(
+        shouldResetFollowUpSession(pausedAt: pausedAt, resumedAt: now),
+        isTrue,
+      );
+    });
+
+    test('threshold를 직접 넘기면 그 기준을 쓴다', () {
+      final pausedAt = now.subtract(const Duration(minutes: 1));
+      expect(
+        shouldResetFollowUpSession(
+          pausedAt: pausedAt,
+          resumedAt: now,
+          threshold: const Duration(seconds: 30),
+        ),
+        isTrue,
+      );
+    });
+  });
 }

@@ -23,6 +23,7 @@ import '../providers/region_auto_detect.dart';
 import '../providers/search_provider.dart';
 import '../theme/app_dimens.dart';
 import '../utils/appointment_calendar.dart' show dateOnly;
+import '../utils/followup_appointment.dart' show shouldResetFollowUpSession;
 import '../widgets/followup_check_sheet.dart';
 import '../widgets/mascot_message.dart';
 import 'appointment_form_screen.dart';
@@ -85,10 +86,12 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   static const _exitConfirmWindow = Duration(seconds: 2);
   DateTime? _lastBackPressAt;
 
-  // "지난 예약 확인" 지시서 3, "기준 시각 변경" 지시서 4 — 같은(포그라운드)
-  // 세션에선 한 번만 묻는다. 백그라운드 복귀는 새 세션으로 쳐서
-  // didChangeAppLifecycleState에서 다시 false로 되돌린다 — 백그라운드에
-  // 있는 동안 지났을 수 있는 예약도 다시 물어볼 수 있어야 한다.
+  // "지난 예약 확인" 지시서 3, "기준 시각 변경" 지시서 4 — 같은 세션에선
+  // 한 번만 묻는다. 백그라운드에 5분 넘게 머물다 복귀하면 새 세션으로
+  // 쳐서 didChangeAppLifecycleState에서 다시 false로 되돌린다("복귀 시
+  // 과도한 재노출 방지" 지시서 2) — 사진 선택·로그인 창 같은 짧은 전환
+  // 으로는 재질문하지 않되, 오래 비웠다 돌아오면 그사이 지났을 수 있는
+  // 예약을 다시 물을 수 있어야 한다.
   bool _followUpShownThisSession = false;
   // 백그라운드 복귀 직후부터 앱 오픈 광고 흐름이 끝났다는 신호
   // (appOpenAdFlowSettledProvider)가 올 때까지는 확인 시트를 띄우지
@@ -99,6 +102,9 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   // ref.listen이 다시 이 함수를 부를 수 있다 — 재진입으로 무한 루프가
   // 되지 않게 막는다("기준 시각 변경" 지시서 3).
   bool _checkingFollowUp = false;
+  // paused로 들어간 시각 — resumed에서 shouldResetFollowUpSession이
+  // "5분 이상 백그라운드"였는지 가릴 때 쓴다.
+  DateTime? _pausedAt;
 
   @override
   void initState() {
@@ -118,12 +124,20 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedAt = DateTime.now();
+      return;
+    }
     if (state == AppLifecycleState.resumed) {
       _awaitingAdFlowSettle = true;
-      // 복귀는 새 세션으로 친다 — "아직 진료 전이에요"로 넘어갔던
-      // 예약도 백그라운드에 있는 동안 시각이 지났을 수 있으니 다시
-      // 물어볼 수 있어야 한다("기준 시각 변경" 지시서 4).
-      _followUpShownThisSession = false;
+      final pausedAt = _pausedAt;
+      _pausedAt = null;
+      // 5분 넘게 백그라운드에 있었을 때만 새 세션으로 친다 — 사진
+      // 선택·로그인 창 같은 짧은 전환으로는 다시 묻지 않는다("복귀 시
+      // 과도한 재노출 방지" 지시서 2).
+      if (shouldResetFollowUpSession(pausedAt: pausedAt, resumedAt: DateTime.now())) {
+        _followUpShownThisSession = false;
+      }
     }
   }
 
@@ -187,7 +201,12 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   /// 지난 예약 "진료 받으셨어요?" 확인 시트를 띄울 수 있는 상태인지
   /// 확인하고, 조건이 맞으면 딱 1건만 띄운다("지난 예약 확인" 지시서 1,
   /// 3) — 이미 이 세션에서 띄웠거나, 광고 흐름이 아직 안 끝났거나, 홈
-  /// 탭이 보이는 중이 아니거나, 확인할 예약이 없으면 조용히 넘어간다.
+  /// 탭이 보이는 중이 아니거나, MainShell 자신의 라우트가 최상단이
+  /// 아니거나(기록 폼·상세·다른 시트/다이얼로그가 떠 있음), 확인할
+  /// 예약이 없으면 조용히 넘어간다. "[네]로 기록 폼에 들어가 있는
+  /// 동안엔 다시 묻지 않음"도 이 라우트 체크 하나로 자연히 막힌다 —
+  /// 그 폼이 바로 최상단 라우트가 되기 때문에 별도 진행-중-예약 id
+  /// 가드는 필요 없다("복귀 시 과도한 재노출 방지" 지시서 1, 3).
   ///
   /// pendingFollowUpProvider는 내부에서 DateTime.now()를 한 번만 계산해
   /// 캐시하므로, 호출될 때마다 먼저 invalidate해 항상 "지금" 시각
@@ -201,6 +220,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     try {
       if (_followUpShownThisSession || _awaitingAdFlowSettle || !mounted) return;
       if (ref.read(selectedTabProvider) != 0) return;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
       ref.invalidate(pendingFollowUpProvider);
       final pending = ref.read(pendingFollowUpProvider);
       if (pending == null) return;
