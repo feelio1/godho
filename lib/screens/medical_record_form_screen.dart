@@ -243,7 +243,11 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
       // 로컬 저장소로 — 어느 쪽이든 이 한 줄로 갈린다("진료기록·예약
       // Firestore 저장" 지시서 B-2).
       await EffectiveRecordActions.upsert(ref, record, isNew: widget.existing == null);
-      if (mounted) Navigator.of(context).pop();
+      // true로 pop해 "저장 성공"을 호출부에 알린다 — 지난 예약 확인
+      // 시트에서 넘어온 경우 저장에 성공했을 때만 그 예약을
+      // followUp='recorded'로 표시해야 한다("지난 예약 확인" 지시서 3).
+      // 뒤로가기/시스템 back은 그대로 null로 pop되니 구분된다.
+      if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

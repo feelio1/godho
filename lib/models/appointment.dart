@@ -2,6 +2,26 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'reminder_offset.dart';
 
+/// 지난 예약 "진료 받으셨어요?" 확인 결과("지난 예약 확인" 지시서 2) —
+/// `null`(아직 안 물었거나 "나중에")이면 다음 앱 열기 때 다시 묻는다.
+/// 기존 문서엔 이 필드가 없으므로 읽을 때 `null`로 떨어져야 한다(하위
+/// 호환) — [fromJson]/[fromFirestore] 모두 키가 없으면 `null`을 돌려준다.
+enum AppointmentFollowUp {
+  recorded,
+  skipped;
+
+  static AppointmentFollowUp? fromJson(String? value) {
+    switch (value) {
+      case 'recorded':
+        return AppointmentFollowUp.recorded;
+      case 'skipped':
+        return AppointmentFollowUp.skipped;
+      default:
+        return null;
+    }
+  }
+}
+
 /// 진료 예약 한 건(스프린트 9 지시서 3). `MedicalRecord`와 마찬가지로 병원은
 /// 우리 DB에서 고른 병원(`hospitalId`)일 수도, 직접 입력한 이름일 수도
 /// 있다. 순수 데이터 + JSON 직렬화만 갖고 저장 방식에는 관여하지 않는다.
@@ -21,6 +41,7 @@ class Appointment {
   final String reason;
   final String memo;
   final List<ReminderOffset> reminders;
+  final AppointmentFollowUp? followUp;
 
   const Appointment({
     required this.id,
@@ -31,6 +52,7 @@ class Appointment {
     this.reason = '',
     this.memo = '',
     this.reminders = const [],
+    this.followUp,
   });
 
   bool get isUpcoming => dateTime.isAfter(DateTime.now());
@@ -42,6 +64,7 @@ class Appointment {
     String? reason,
     String? memo,
     List<ReminderOffset>? reminders,
+    AppointmentFollowUp? followUp,
     bool clearHospitalId = false,
   }) {
     return Appointment(
@@ -53,6 +76,7 @@ class Appointment {
       reason: reason ?? this.reason,
       memo: memo ?? this.memo,
       reminders: reminders ?? this.reminders,
+      followUp: followUp ?? this.followUp,
     );
   }
 
@@ -67,6 +91,7 @@ class Appointment {
         reminders: (json['reminders'] as List<dynamic>? ?? const [])
             .map((e) => ReminderOffset.fromJson(e as Map<String, dynamic>))
             .toList(),
+        followUp: AppointmentFollowUp.fromJson(json['followUp'] as String?),
       );
 
   Map<String, dynamic> toJson() => {
@@ -78,6 +103,7 @@ class Appointment {
         'reason': reason,
         'memo': memo,
         'reminders': reminders.map((r) => r.toJson()).toList(),
+        'followUp': followUp?.name,
       };
 
   factory Appointment.fromFirestore(String petId, String id, Map<String, dynamic> json) => Appointment(
@@ -91,6 +117,7 @@ class Appointment {
         reminders: (json['reminders'] as List<dynamic>? ?? const [])
             .map((e) => ReminderOffset.fromJson(e as Map<String, dynamic>))
             .toList(),
+        followUp: AppointmentFollowUp.fromJson(json['followUp'] as String?),
       );
 
   Map<String, dynamic> toFirestore() => {
@@ -100,6 +127,7 @@ class Appointment {
         'reason': reason,
         'memo': memo,
         'reminders': reminders.map((r) => r.toJson()).toList(),
+        'followUp': followUp?.name,
         'createdAt': Timestamp.now(),
       };
 

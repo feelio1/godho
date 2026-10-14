@@ -7,21 +7,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../data/cloud_migration_service.dart';
+import '../data/effective_appointment_actions.dart';
 import '../data/hospital_repository.dart' show SortOption;
+import '../models/appointment.dart';
 import '../models/pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/cloud_migration_provider.dart';
 import '../providers/fee_provider.dart';
+import '../providers/followup_appointment_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/pet_provider.dart';
 import '../providers/region_auto_detect.dart';
 import '../providers/search_provider.dart';
+import '../theme/app_dimens.dart';
+import '../utils/appointment_calendar.dart' show dateOnly;
+import '../widgets/followup_check_sheet.dart';
 import '../widgets/mascot_message.dart';
+import 'appointment_form_screen.dart';
 import 'calendar_screen.dart';
 import 'health_record_screen.dart';
 import 'home_screen.dart';
+import 'medical_record_form_screen.dart';
 import 'my_info_screen.dart';
 import 'nearby_map_screen.dart';
 
@@ -73,9 +81,40 @@ class _MainShellBody extends ConsumerStatefulWidget {
   ConsumerState<_MainShellBody> createState() => _MainShellBodyState();
 }
 
-class _MainShellBodyState extends ConsumerState<_MainShellBody> {
+class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBindingObserver {
   static const _exitConfirmWindow = Duration(seconds: 2);
   DateTime? _lastBackPressAt;
+
+  // "지난 예약 확인" 지시서 3 — 같은 세션에선 한 번만 묻는다.
+  bool _followUpShownThisSession = false;
+  // 백그라운드 복귀 직후부터 앱 오픈 광고 흐름이 끝났다는 신호
+  // (appOpenAdFlowSettledProvider)가 올 때까지는 확인 시트를 띄우지
+  // 않는다(겹침 금지). 콜드 스타트에는 광고가 뜨지 않으므로(AppOpenAdGate
+  // 자체 설계) 이 플래그는 항상 false로 시작한다.
+  bool _awaitingAdFlowSettle = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // 콜드 스타트 — 반려동물·예약 데이터가 아직 로딩 중이면
+    // pendingFollowUpProvider의 ref.listen이 데이터가 들어온 뒤 다시
+    // 알려주므로, 여기서는 이미 로딩이 끝나 있는 경우(드묾)만 바로 확인.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowFollowUpSheet());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _awaitingAdFlowSettle = true;
+    }
+  }
 
   /// 뒤로가기 처리(스프린트 13 지시서 3): 탭 화면 위에 더 push된 화면이
   /// 없는(=이 Scaffold가 곧 최상단 라우트인) 상태에서 시스템 뒤로가기를
@@ -134,9 +173,116 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> {
     );
   }
 
+  /// 지난 예약 "진료 받으셨어요?" 확인 시트를 띄울 수 있는 상태인지
+  /// 확인하고, 조건이 맞으면 딱 1건만 띄운다("지난 예약 확인" 지시서 1,
+  /// 3) — 이미 이 세션에서 띄웠거나, 광고 흐름이 아직 안 끝났거나, 홈
+  /// 탭이 보이는 중이 아니거나, 확인할 예약이 없으면 조용히 넘어간다.
+  void _maybeShowFollowUpSheet() {
+    if (_followUpShownThisSession || _awaitingAdFlowSettle || !mounted) return;
+    if (ref.read(selectedTabProvider) != 0) return;
+    final pending = ref.read(pendingFollowUpProvider);
+    if (pending == null) return;
+
+    _followUpShownThisSession = true;
+    final pet = pending.pet;
+    final appointment = pending.appointment;
+
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+      ),
+      builder: (sheetContext) => FollowUpCheckSheet(
+        petName: pet.name,
+        appointment: appointment,
+        onRecorded: () => _handleFollowUpRecorded(sheetContext, pet, appointment),
+        onSkipped: () => _handleFollowUpSkipped(sheetContext, pet, appointment),
+        onLater: () => Navigator.of(sheetContext).pop(),
+      ),
+    );
+  }
+
+  /// "네, 기록 남길게요" — 예약 내용을 미리 채운 진료기록 폼으로 넘기고,
+  /// 저장에 성공했을 때만(폼이 true로 pop됐을 때만) recorded로
+  /// 표시한다. 폼에서 그냥 뒤로 나가면 미처리로 남아 다음에 다시 묻는다.
+  Future<void> _handleFollowUpRecorded(
+    BuildContext sheetContext,
+    Pet pet,
+    Appointment appointment,
+  ) async {
+    Navigator.of(sheetContext).pop();
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => MedicalRecordFormScreen(
+          petId: pet.id,
+          initialDate: dateOnly(appointment.dateTime),
+          initialHospitalId: appointment.hospitalId,
+          initialHospitalName: appointment.hospitalName,
+          initialCategory: appointment.reason,
+          initialMemo: appointment.memo,
+        ),
+      ),
+    );
+    if (saved == true) {
+      await EffectiveAppointmentActions.markFollowUp(ref, appointment, AppointmentFollowUp.recorded);
+    }
+  }
+
+  /// "안 갔어요" — skipped로 표시한 뒤, 재예약 여부를 짧게 물어본다.
+  Future<void> _handleFollowUpSkipped(
+    BuildContext sheetContext,
+    Pet pet,
+    Appointment appointment,
+  ) async {
+    Navigator.of(sheetContext).pop();
+    await EffectiveAppointmentActions.markFollowUp(ref, appointment, AppointmentFollowUp.skipped);
+    if (!mounted) return;
+
+    final rebook = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: const Text('다시 예약할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('괜찮아요'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('예약하기'),
+          ),
+        ],
+      ),
+    );
+    if (rebook == true && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AppointmentFormScreen(
+            petId: pet.id,
+            initialHospitalId: appointment.hospitalId,
+            initialHospitalName: appointment.hospitalName,
+            initialReason: appointment.reason,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedTabProvider);
+
+    // 지난 예약 확인 — 데이터가 (뒤늦게) 들어와 확인 대상이 생기면
+    // 바로, 백그라운드 복귀 뒤엔 광고 흐름이 끝났다는 신호를 받고서야
+    // 띄운다("지난 예약 확인" 지시서 3).
+    ref.listen<PendingFollowUp?>(pendingFollowUpProvider, (previous, next) {
+      if (next != null) _maybeShowFollowUpSheet();
+    });
+    ref.listen<int>(appOpenAdFlowSettledProvider, (previous, next) {
+      if (previous == next) return;
+      _awaitingAdFlowSettle = false;
+      _maybeShowFollowUpSheet();
+    });
 
     // 로그인(또는 이미 로그인된 채 앱을 다시 시작)할 때마다 이 uid로
     // 이관을 시도한다 — 실제로 옮길 게 있는지, 이미 한 번 시도했는지는

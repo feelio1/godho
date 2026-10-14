@@ -35,6 +35,18 @@ class AppointmentsNotifier extends AsyncNotifier<List<Appointment>> {
     state = AsyncValue.data(current);
     await NotificationService.instance.cancelAppointmentReminders(appointmentId);
   }
+
+  /// 지난 예약 "진료 받으셨어요?" 확인 결과만 저장한다("지난 예약 확인"
+  /// 지시서 2) — [upsert]와 달리 알림을 다시 스케줄하지 않는다(이미 지난
+  /// 예약이라 다시 알릴 것도 없다).
+  Future<void> markFollowUp(String appointmentId, AppointmentFollowUp status) async {
+    final current = List<Appointment>.from(state.value ?? const []);
+    final index = current.indexWhere((a) => a.id == appointmentId);
+    if (index == -1) return; // 그 사이 삭제된 드문 경우 — 할 일이 없다.
+    current[index] = current[index].copyWith(followUp: status);
+    await _store.saveAppointments(current);
+    state = AsyncValue.data(current);
+  }
 }
 
 final appointmentsProvider =

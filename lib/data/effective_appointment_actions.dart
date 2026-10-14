@@ -33,6 +33,27 @@ class EffectiveAppointmentActions {
     await NotificationService.instance.scheduleAppointmentReminders(appointment);
   }
 
+  /// 지난 예약 "진료 받으셨어요?" 확인 결과를 저장한다("지난 예약 확인"
+  /// 지시서 2) — 알림(미리 알림) 스케줄은 전혀 다시 건드리지 않는다(이미
+  /// 지난 예약이라 다시 알릴 것도 없고, 알림 로직 변경 금지 지시와도
+  /// 맞다). 로컬(게스트) 저장소 경로도 함께 지원해두지만, 이 확인 흐름
+  /// 자체는 로그인 사용자에게만 노출된다.
+  static Future<void> markFollowUp(
+    WidgetRef ref,
+    Appointment appointment,
+    AppointmentFollowUp status,
+  ) async {
+    if (!isAccountPetId(appointment.petId)) {
+      await ref.read(appointmentsProvider.notifier).markFollowUp(appointment.id, status);
+      return;
+    }
+    final uid = ref.read(authStateProvider).value?.uid;
+    if (uid == null) return;
+    final docId = accountDocIdFromPetId(appointment.petId);
+    final updated = appointment.copyWith(followUp: status);
+    await ref.read(userRepositoryProvider).updateAppointment(uid, docId, updated);
+  }
+
   static Future<void> delete(WidgetRef ref, String petId, String appointmentId) async {
     if (!isAccountPetId(petId)) {
       await ref.read(appointmentsProvider.notifier).remove(appointmentId);

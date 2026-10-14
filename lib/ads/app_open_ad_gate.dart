@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/bundle_provider.dart';
+import '../providers/followup_appointment_provider.dart';
 import 'app_open_ad_manager.dart';
 
 /// Wraps the app and shows the app-open ad only on a genuine
@@ -37,7 +38,15 @@ class _AppOpenAdGateState extends ConsumerState<AppOpenAdGate> with WidgetsBindi
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _bundleReady) {
-      _manager.showAdIfAvailable();
+      _manager.showAdIfAvailable(
+        // 광고가 떠 있지 않다고 확실해지면(안 떴거나, 뜬 뒤 닫혔으면)
+        // 올린다 — 홈의 지난 예약 확인 시트가 이 신호를 보고서야 뜬다
+        // ("지난 예약 확인" 지시서 3, 겹침 금지).
+        onFlowComplete: () {
+          if (!mounted) return;
+          ref.read(appOpenAdFlowSettledProvider.notifier).state++;
+        },
+      );
     }
   }
 

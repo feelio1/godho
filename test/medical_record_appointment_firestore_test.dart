@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:petcliniccheck/models/appointment.dart';
@@ -91,6 +92,59 @@ void main() {
       final appointment = Appointment(id: 'a3', petId: 'p1', dateTime: DateTime(2026, 1, 1), hospitalName: '병원');
       expect(appointment.toFirestore().containsKey('createdAt'), isTrue);
       expect(appointment.toFirestoreUpdate().containsKey('createdAt'), isFalse);
+    });
+  });
+
+  group('Appointment.followUp — "지난 예약 확인" 지시서 2', () {
+    test('followUp 필드가 없는(기존) Firestore 문서는 null로 읽힌다(하위호환)', () {
+      final legacyData = {
+        'dateTime': Timestamp.fromDate(DateTime(2026, 1, 1)),
+        'hospitalName': '병원',
+      };
+      final restored = Appointment.fromFirestore('p1', 'a4', legacyData);
+      expect(restored.followUp, isNull);
+    });
+
+    test('followUp 필드가 없는(기존) 로컬 JSON도 null로 읽힌다(하위호환)', () {
+      final legacyJson = {
+        'id': 'a5',
+        'petId': 'p1',
+        'dateTime': DateTime(2026, 1, 1).toIso8601String(),
+        'hospitalName': '병원',
+      };
+      final restored = Appointment.fromJson(legacyJson);
+      expect(restored.followUp, isNull);
+    });
+
+    test('recorded/skipped 모두 Firestore·로컬 JSON 왕복 후 그대로 보존된다', () {
+      for (final status in AppointmentFollowUp.values) {
+        final appointment = Appointment(
+          id: 'a6',
+          petId: 'p1',
+          dateTime: DateTime(2026, 1, 1),
+          hospitalName: '병원',
+          followUp: status,
+        );
+        expect(
+          Appointment.fromFirestore('p1', 'a6', appointment.toFirestore()).followUp,
+          status,
+        );
+        expect(Appointment.fromJson(appointment.toJson()).followUp, status);
+      }
+    });
+
+    test('copyWith으로 followUp만 바꿔도 다른 필드는 그대로다', () {
+      final appointment = Appointment(
+        id: 'a7',
+        petId: 'p1',
+        dateTime: DateTime(2026, 1, 1),
+        hospitalName: '병원',
+        reason: '예방접종',
+      );
+      final updated = appointment.copyWith(followUp: AppointmentFollowUp.recorded);
+      expect(updated.followUp, AppointmentFollowUp.recorded);
+      expect(updated.reason, '예방접종');
+      expect(updated.id, appointment.id);
     });
   });
 }

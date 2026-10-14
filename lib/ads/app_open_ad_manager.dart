@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show VoidCallback;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -42,16 +43,27 @@ class AppOpenAdManager {
   /// the caller proceeds straight into the app) if the cooldown hasn't
   /// elapsed yet, or if no ad has finished loading — a load is kicked off
   /// either way so one is ready sooner next time.
-  Future<void> showAdIfAvailable() async {
-    if (_isShowingAd) return;
+  ///
+  /// [onFlowComplete](선택, "지난 예약 확인" 지시서 3)는 화면에 광고가 더
+  /// 이상 떠 있지 않다고 확실해지는 시점에 1번 불린다 — 광고가 애초에 안
+  /// 뜨면(쿨다운 전/로딩 중/실패) 즉시, 뜬 적이 있으면 사용자가 닫은
+  /// 뒤에. 홈의 다른 오버레이(지난 예약 확인 시트 등)가 광고와 겹치지
+  /// 않게 이 신호를 기다릴 수 있다 — 광고 자체의 동작은 바뀌지 않는다.
+  Future<void> showAdIfAvailable({VoidCallback? onFlowComplete}) async {
+    if (_isShowingAd) {
+      onFlowComplete?.call();
+      return;
+    }
 
     if (!await _cooldownElapsed()) {
+      onFlowComplete?.call();
       return;
     }
 
     final ad = _ad;
     if (ad == null) {
       loadAd();
+      onFlowComplete?.call();
       return;
     }
 
@@ -64,6 +76,7 @@ class AppOpenAdManager {
         shownAd.dispose();
         _ad = null;
         loadAd();
+        onFlowComplete?.call();
       },
       onAdDismissedFullScreenContent: (shownAd) {
         _isShowingAd = false;
@@ -71,6 +84,7 @@ class AppOpenAdManager {
         _ad = null;
         unawaited(_recordShown());
         loadAd();
+        onFlowComplete?.call();
       },
     );
     try {
@@ -78,6 +92,7 @@ class AppOpenAdManager {
     } catch (_) {
       // 광고 SDK 쪽 예외로 화면을 막지 않는다 — 실패해도 앱은 정상 진입.
       _isShowingAd = false;
+      onFlowComplete?.call();
     }
   }
 

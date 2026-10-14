@@ -1,0 +1,68 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:petcliniccheck/models/appointment.dart';
+import 'package:petcliniccheck/utils/followup_appointment.dart';
+
+Appointment _appointment(
+  String id,
+  DateTime dateTime, {
+  AppointmentFollowUp? followUp,
+  String petId = 'p1',
+}) =>
+    Appointment(id: id, petId: petId, dateTime: dateTime, hospitalName: '병원', followUp: followUp);
+
+void main() {
+  final now = DateTime(2026, 10, 15, 12, 0);
+
+  group('selectFollowUpAppointment — "지난 예약 확인" 지시서 1', () {
+    test('예약 시각+1시간이 아직 안 지났으면 대상이 아니다', () {
+      final appointment = _appointment('a1', now.subtract(const Duration(minutes: 30)));
+      expect(selectFollowUpAppointment([appointment], now: now), isNull);
+    });
+
+    test('예약 시각+1시간이 막 지났으면 대상이다', () {
+      final appointment = _appointment('a1', now.subtract(const Duration(hours: 1, minutes: 1)));
+      expect(selectFollowUpAppointment([appointment], now: now)?.id, 'a1');
+    });
+
+    test('30일보다 오래된 지난 예약은 묻지 않는다', () {
+      final appointment = _appointment('a1', now.subtract(const Duration(days: 31)));
+      expect(selectFollowUpAppointment([appointment], now: now), isNull);
+    });
+
+    test('정확히 30일 이내는 대상이다', () {
+      final appointment = _appointment('a1', now.subtract(const Duration(days: 30)));
+      expect(selectFollowUpAppointment([appointment], now: now)?.id, 'a1');
+    });
+
+    test('이미 처리된(followUp이 있는) 예약은 다시 묻지 않는다', () {
+      final recorded = _appointment(
+        'a1',
+        now.subtract(const Duration(hours: 2)),
+        followUp: AppointmentFollowUp.recorded,
+      );
+      final skipped = _appointment(
+        'a2',
+        now.subtract(const Duration(hours: 3)),
+        followUp: AppointmentFollowUp.skipped,
+      );
+      expect(selectFollowUpAppointment([recorded, skipped], now: now), isNull);
+    });
+
+    test('여러 건이 대상이면 가장 오래된(날짜가 이른) 것 1건만 돌려준다', () {
+      final older = _appointment('old', now.subtract(const Duration(days: 10)));
+      final newer = _appointment('new', now.subtract(const Duration(days: 2)));
+      final result = selectFollowUpAppointment([newer, older], now: now);
+      expect(result?.id, 'old');
+    });
+
+    test('대상이 없으면 null', () {
+      expect(selectFollowUpAppointment(const [], now: now), isNull);
+    });
+
+    test('미래 예약은 대상이 아니다', () {
+      final appointment = _appointment('a1', now.add(const Duration(days: 1)));
+      expect(selectFollowUpAppointment([appointment], now: now), isNull);
+    });
+  });
+}
