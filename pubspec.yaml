@@ -71,6 +71,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   fake_cloud_firestore: ^4.3.0
+  # 런처 아이콘 생성 도구(빌드 타임 전용) — intl 0.20.2와 충돌 없는
+  # 버전("아이콘" 지시서). 앱 런타임 코드에는 전혀 쓰이지 않는다.
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -133,3 +136,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# 런처 아이콘("아이콘" 지시서) — `dart run flutter_launcher_icons`로 생성.
+# 네이비(#1B4D8C) 배경 + 장구름 마스코트. 안드로이드 adaptive icon은
+# 도구가 foreground에 기본 16% inset을 적용해 안전영역(약 108dp 중
+# 72dp, 가운데 약 66%)에 맞춰줘 원형/둥근사각 마스크에서 잘리지 않는다.
+# iOS는 이번엔 생략.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#1B4D8C"
+  # 같은(에지까지 꽉 찬, 네이비+마스코트) 이미지를 그대로 foreground로
+  # 쓴다 — 도구가 기본으로 16% inset을 적용해 안전영역(약 108dp 중
+  # 72dp)에 맞춰주므로, 여기서 따로 투명 패딩을 넣으면 이중으로 줄어든다.
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
