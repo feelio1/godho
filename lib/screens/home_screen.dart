@@ -123,7 +123,7 @@ class _HomeBody extends ConsumerWidget {
                   // "주변 병원" 최초 사용 시 위치 권한을 요청한다(CLAUDE.md:
                   // 앱 시작 시 강제 요청 금지 — 탭 진입 시점에만 요청).
                   ref.read(locationProvider.notifier).requestAndFetch();
-                  ref.read(selectedTabProvider.notifier).state = 1;
+                  ref.read(selectedTabProvider.notifier).state = AppTab.map.index;
                 },
               ),
             ),
@@ -257,7 +257,7 @@ class _HomeAuthBadge extends ConsumerWidget {
     }
 
     return InkWell(
-      onTap: () => ref.read(selectedTabProvider.notifier).state = 4,
+      onTap: () => ref.read(selectedTabProvider.notifier).state = AppTab.my.index,
       borderRadius: BorderRadius.circular(999),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),

@@ -103,7 +103,7 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
 
   void _goToMap() {
     Navigator.of(context).popUntil((route) => route.isFirst);
-    ref.read(selectedTabProvider.notifier).state = 1;
+    ref.read(selectedTabProvider.notifier).state = AppTab.map.index;
   }
 
   @override

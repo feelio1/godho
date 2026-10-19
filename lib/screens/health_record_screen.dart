@@ -13,116 +13,22 @@ import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/record_appointment_flow.dart';
-import '../widgets/guest_gate.dart';
-import '../widgets/inline_error_message.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
-import '../widgets/no_pets_message.dart';
-import '../widgets/pet_switcher.dart';
 import 'account_pet_actions.dart';
 import 'medical_record_form_screen.dart';
 import 'pet_profile_form_screen.dart';
 
-/// "진료기록" 탭의 메인 화면 — 반려동물 건강기록 리스트(스프린트 8). 예약은
-/// 더 이상 여기 탭으로 두지 않는다 — "캘린더" 탭으로 독립해서(하단 탭 5개:
-/// 홈/주변 병원/캘린더/진료기록/저장) 과거 진료기록과 함께 보여주므로,
-/// 여기서 또 보여주면 같은 정보가 두 곳에 중복된다("캘린더 하단탭화 + 진료
-/// 연대기" 지시서 A5). 로그인 상태에선 계정(Firestore) 반려동물을 여러
-/// 마리 추가·전환할 수 있다(펫클 "계정 반려동물 추가/수정" 지시서 1) —
-/// 게스트(로컬)는 여전히 1마리만 다루는 기존 흐름 그대로다.
-class HealthRecordScreen extends ConsumerStatefulWidget {
-  const HealthRecordScreen({super.key});
-
-  @override
-  ConsumerState<HealthRecordScreen> createState() => _HealthRecordScreenState();
-}
-
-class _HealthRecordScreenState extends ConsumerState<HealthRecordScreen> {
-  String? _selectedPetId;
-
-  Future<void> _addAccountPet(String uid) async {
-    final petId = await AccountPetActions.add(context, ref, uid);
-    if (petId == null || !mounted) return;
-    setState(() => _selectedPetId = 'account:$petId');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 로그인 상태면 계정(Firestore) 반려동물이, 게스트면 기존 로컬
-    // 반려동물이 뜬다 — effectivePetsProvider가 그 전환을 맡는다(펫클
-    // 3단계 지시서 2). 로컬 데이터 자체는 이 화면이 무엇을 보여주든 절대
-    // 건드리지 않는다.
-    final uid = ref.watch(authStateProvider).value?.uid;
-
-    // 진료기록도 캘린더와 같은 로그인 필요 기능이다("로그인 게이팅"
-    // 지시서 1). 게스트는 탭 내용 대신 혜택 톤 안내만 본다.
-    if (uid == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('진료기록')),
-        body: const GuestFeatureNotice(
-          title: '로그인하면 진료기록을 쓸 수 있어요',
-          message: '로그인하면 우리 아이 진료기록을 기기가 바뀌어도 이어서 볼 수 있어요.',
-        ),
-      );
-    }
-
-    final petsAsync = ref.watch(effectivePetsProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('진료기록'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '반려동물 추가',
-            onPressed: () => _addAccountPet(uid),
-          ),
-        ],
-      ),
-      body: petsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => InlineErrorMessage(
-          error: error,
-          onRetry: () => ref.invalidate(effectivePetsProvider),
-        ),
-        data: (pets) {
-          if (pets.isEmpty) {
-            return NoPetsMessage(
-              isLoggedIn: true,
-              onAddAccountPet: () => _addAccountPet(uid),
-            );
-          }
-          final selected = pets.firstWhere(
-            (p) => p.id == _selectedPetId,
-            orElse: () => pets.first,
-          );
-          return Column(
-            children: [
-              if (pets.length > 1)
-                PetSwitcher(
-                  pets: pets,
-                  selectedId: selected.id,
-                  onSelect: (id) => setState(() => _selectedPetId = id),
-                ),
-              Expanded(
-                child: _PetHealthBody(
-                  pet: selected,
-                  onPetDeleted: () => setState(() => _selectedPetId = null),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PetHealthBody extends ConsumerWidget {
+/// 진료기록 보기의 반려동물별 본문 — 원래 독립 탭이던 `HealthRecordScreen`의
+/// 내용이다("탭 개편" 지시서 B). 그 화면의 Scaffold/AppBar/게스트 게이팅/
+/// 반려동물 선택은 이제 `PetTabScreen`(우리 아이 탭)이 한 번만 가지므로,
+/// 여기서는 선택된 반려동물 하나에 대한 본문만 그대로 맡는다(내부 로직
+/// 변경 없음 — 비공개였던 이 위젯을 공개로 옮긴 것뿐).
+class PetHealthBody extends ConsumerWidget {
   final Pet pet;
   final VoidCallback onPetDeleted;
 
-  const _PetHealthBody({required this.pet, required this.onPetDeleted});
+  const PetHealthBody({super.key, required this.pet, required this.onPetDeleted});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

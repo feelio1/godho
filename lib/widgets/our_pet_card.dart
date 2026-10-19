@@ -65,7 +65,7 @@ class OurPetCard extends ConsumerWidget {
             petId: appointmentPet!.id,
             date: dateOnly(nearestAppointment!.dateTime),
           );
-          ref.read(selectedTabProvider.notifier).state = 2;
+          ref.read(selectedTabProvider.notifier).state = AppTab.pet.index;
         },
         icon: Icons.event_available_outlined,
         child: _AppointmentContent(pet: appointmentPet, appointment: nearestAppointment),

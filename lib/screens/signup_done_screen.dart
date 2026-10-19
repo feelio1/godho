@@ -7,7 +7,7 @@ import '../widgets/mascot_image.dart';
 /// 가입 완료("펫클 앱 디자인" 캔버스 시안 SignupDone.dc.html) — 마스코트
 /// + 완료 문구 + "시작하기"(홈까지 전부 pop). "첫 진료기록 남기기"는
 /// 아직 반려동물 문서 id를 모르는 시점(가입 직후 1프레임)이라 섣불리
-/// 특정 화면을 열지 않고, 홈으로 보낸 뒤 사용자가 진료기록 탭에서
+/// 특정 화면을 열지 않고, 홈으로 보낸 뒤 사용자가 우리 아이 탭에서
 /// 직접 시작하게 한다 — 과장·유도 문구 없이 담백하게.
 class SignupDoneScreen extends StatelessWidget {
   final VoidCallback onDone;

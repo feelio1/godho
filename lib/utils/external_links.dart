@@ -94,11 +94,17 @@ class ExternalLinks {
     );
   }
 
-  /// 문의하기(내 정보 탭) — 메일 앱을 열어본다. 메일 앱이 없는 기기 등
-  /// 열지 못하면 무반응 대신 이메일 주소를 클립보드에 복사해 안내한다
-  /// ("디자인 1단계" 지시서 2-A/2-B — "탭 시 메일 앱/복사").
-  static Future<void> emailContact(BuildContext context, String email) async {
-    final launched = await launchUrl(Uri(scheme: 'mailto', path: email));
+  /// 문의하기(내 정보 탭)·입점 문의(쇼핑 탭) — 메일 앱을 열어본다. 메일
+  /// 앱이 없는 기기 등 열지 못하면 무반응 대신 이메일 주소를 클립보드에
+  /// 복사해 안내한다("디자인 1단계" 지시서 2-A/2-B — "탭 시 메일 앱/복사").
+  /// [subject]를 주면 제목을 미리 채운다("탭 개편" 지시서 C).
+  static Future<void> emailContact(BuildContext context, String email, {String? subject}) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      query: subject != null ? 'subject=${Uri.encodeComponent(subject)}' : null,
+    );
+    final launched = await launchUrl(uri);
     if (launched) return;
     await Clipboard.setData(ClipboardData(text: email));
     if (context.mounted) {

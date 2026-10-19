@@ -27,20 +27,21 @@ import '../utils/followup_appointment.dart' show shouldResetFollowUpSession;
 import '../widgets/followup_check_sheet.dart';
 import '../widgets/mascot_message.dart';
 import 'appointment_form_screen.dart';
-import 'calendar_screen.dart';
-import 'health_record_screen.dart';
 import 'home_screen.dart';
 import 'medical_record_form_screen.dart';
 import 'my_info_screen.dart';
 import 'nearby_map_screen.dart';
+import 'pet_tab_screen.dart';
+import 'shop_screen.dart';
 
-/// Root shell holding the 5 bottom tabs: 홈 / 지도 / 캘린더 / 진료기록 /
-/// 내 정보("디자인 1단계" 지시서 1 — IA 재구성. "주변" 라벨은 "지도"로,
-/// "저장" 탭은 "내 정보" 탭으로 바뀌었다. 저장 화면 자체는 사라지지
-/// 않고 내 정보 탭에서 진입한다). 이전엔 "저장" 탭이었다(스프린트 9
-/// 지시서 1 — 건강기록을 홈 진입 카드에서 탭으로 승격, "캘린더
-/// 하단탭화 + 진료 연대기" 지시서 A1 — 진료기록 화면 안에 있던 예약
-/// 캘린더를 독립 탭으로 승격).
+/// Root shell holding the 5 bottom tabs: 홈 / 지도 / 쇼핑 / 우리 아이 /
+/// 내 정보("탭 개편" 지시서 — 쇼핑 탭 추가, 캘린더+진료기록을 "우리 아이"
+/// 탭 하나로 통합). 이전엔 홈 / 지도 / 캘린더 / 진료기록 / 내 정보였다
+/// ("디자인 1단계" 지시서 1 — IA 재구성. "주변" 라벨은 "지도"로, "저장"
+/// 탭은 "내 정보" 탭으로 바뀌었다. 저장 화면 자체는 사라지지 않고 내 정보
+/// 탭에서 진입한다. 스프린트 9 지시서 1 — 건강기록을 홈 진입 카드에서
+/// 탭으로 승격, "캘린더 하단탭화 + 진료 연대기" 지시서 A1 — 진료기록
+/// 화면 안에 있던 예약 캘린더를 독립 탭으로 승격).
 ///
 /// Every tab reads from [repositoryProvider], which requires the bundle to
 /// already be loaded — so the whole shell waits for it here rather than
@@ -150,8 +151,8 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   ///   시간 안에 한 번 더 누르면 그때 앱을 종료한다.
   void _handleBackPress() {
     final selectedIndex = ref.read(selectedTabProvider);
-    if (selectedIndex != 0) {
-      ref.read(selectedTabProvider.notifier).state = 0;
+    if (selectedIndex != AppTab.home.index) {
+      ref.read(selectedTabProvider.notifier).state = AppTab.home.index;
       return;
     }
 
@@ -219,7 +220,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     _checkingFollowUp = true;
     try {
       if (_followUpShownThisSession || _awaitingAdFlowSettle || !mounted) return;
-      if (ref.read(selectedTabProvider) != 0) return;
+      if (ref.read(selectedTabProvider) != AppTab.home.index) return;
       if (ModalRoute.of(context)?.isCurrent != true) return;
       ref.invalidate(pendingFollowUpProvider);
       final pending = ref.read(pendingFollowUpProvider);
@@ -382,8 +383,8 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
           children: const [
             HomeScreen(),
             NearbyMapScreen(),
-            CalendarScreen(),
-            HealthRecordScreen(),
+            ShopScreen(),
+            PetTabScreen(),
             MyInfoScreen(),
           ],
         ),
@@ -396,8 +397,8 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
             NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: '지도'),
-            NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: '캘린더'),
-            NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
+            NavigationDestination(icon: Icon(Icons.shopping_bag_outlined), selectedIcon: Icon(Icons.shopping_bag), label: '쇼핑'),
+            NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets), label: '우리 아이'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),
           ],
         ),

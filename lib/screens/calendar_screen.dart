@@ -6,148 +6,41 @@ import 'package:table_calendar/table_calendar.dart';
 import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
-import '../providers/auth_provider.dart';
-import '../providers/calendar_focus_provider.dart';
 import '../providers/effective_appointments_provider.dart';
 import '../providers/effective_medical_records_provider.dart';
-import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/appointment_calendar.dart';
 import '../utils/medical_record_calendar.dart';
 import '../utils/record_appointment_flow.dart';
-import '../widgets/guest_gate.dart';
-import '../widgets/inline_error_message.dart';
-import '../widgets/no_pets_message.dart';
-import '../widgets/pet_switcher.dart';
-import 'account_pet_actions.dart';
 import 'appointment_form_screen.dart';
 import 'medical_record_form_screen.dart';
 
-/// "캘린더" 탭 — 예약 "알림"이 아니라 우리 아이 진료 정보를 과거·미래
-/// 통틀어 한눈에 보는 화면("캘린더 하단탭화 + 진료 연대기" 지시서 A). 진료
-/// 기록·예약은 각자의 기존 로컬 저장소([medicalRecordsProvider]/
-/// [appointmentsProvider])를 그대로 읽어 합칠 뿐, 이 화면 전용 데이터는
-/// 없다 — 진료기록 화면에 기록하면 여기에도 바로 뜨고, 반대도 마찬가지다
-/// (하나의 데이터, 두 개의 뷰).
-class CalendarScreen extends ConsumerStatefulWidget {
-  const CalendarScreen({super.key});
-
-  @override
-  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
-}
-
-class _CalendarScreenState extends ConsumerState<CalendarScreen> {
-  String? _selectedPetId;
-  DateTime? _pendingFocusDate;
-
-  Future<void> _addAccountPet(String uid) async {
-    final petId = await AccountPetActions.add(context, ref, uid);
-    if (petId == null || !mounted) return;
-    setState(() => _selectedPetId = 'account:$petId');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 로그인 상태면 계정(Firestore) 반려동물이, 게스트면 기존 로컬
-    // 반려동물이 뜬다 — 진료기록 화면과 같은 소스(effectivePetsProvider)라
-    // 두 화면에서 항상 같은 반려동물 목록을 본다.
-    final uid = ref.watch(authStateProvider).value?.uid;
-
-    // 캘린더는 로그인 필요 기능이다("로그인 게이팅" 지시서 1) — 게스트는
-    // 탭 내용 대신 로그인하면 뭐가 좋은지 안내만 본다. 로그인하면
-    // authStateProvider가 바뀌어 이 build()가 다시 실행되며 바로 실제
-    // 내용으로 넘어간다 — 별도 "로그인 후 이어가기" 처리가 필요 없다.
-    if (uid == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('캘린더')),
-        body: const GuestFeatureNotice(
-          title: '로그인하면 캘린더를 쓸 수 있어요',
-          message: '로그인하면 우리 아이 진료기록·예약을 기기가 바뀌어도 이어서 볼 수 있어요.',
-        ),
-      );
-    }
-
-    // 홈의 "우리 아이" 카드(가장 가까운 예약)에서 넘어온 1회성 포커스
-    // 요청 — 반영하자마자 비운다("출시 전 마무리" 지시서 C). ref.listen은
-    // build가 끝난 뒤 실행되므로 그 안에서 provider를 비워도 안전하다.
-    ref.listen<CalendarFocusRequest?>(calendarFocusRequestProvider, (previous, next) {
-      if (next == null) return;
-      setState(() {
-        _selectedPetId = next.petId;
-        _pendingFocusDate = next.date;
-      });
-      ref.read(calendarFocusRequestProvider.notifier).state = null;
-    });
-
-    final petsAsync = ref.watch(effectivePetsProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('캘린더'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '반려동물 추가',
-            onPressed: () => _addAccountPet(uid),
-          ),
-        ],
-      ),
-      body: petsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => InlineErrorMessage(
-          error: error,
-          onRetry: () => ref.invalidate(effectivePetsProvider),
-        ),
-        data: (pets) {
-          if (pets.isEmpty) {
-            return NoPetsMessage(
-              isLoggedIn: true,
-              onAddAccountPet: () => _addAccountPet(uid),
-            );
-          }
-          final selected = pets.firstWhere(
-            (p) => p.id == _selectedPetId,
-            orElse: () => pets.first,
-          );
-          return Column(
-            children: [
-              if (pets.length > 1)
-                PetSwitcher(
-                  pets: pets,
-                  selectedId: selected.id,
-                  onSelect: (id) => setState(() => _selectedPetId = id),
-                ),
-              Expanded(
-                child: _PetCalendarBody(
-                  key: ValueKey(selected.id),
-                  pet: selected,
-                  initialDate: _pendingFocusDate,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _PetCalendarBody extends ConsumerStatefulWidget {
+/// 캘린더 보기의 반려동물별 본문 — 원래 독립 탭이던 `CalendarScreen`의
+/// 내용이다("탭 개편" 지시서 B). 예약 "알림"이 아니라 우리 아이 진료
+/// 정보를 과거·미래 통틀어 한눈에 보는 본문으로("캘린더 하단탭화 + 진료
+/// 연대기" 지시서 A), 그 화면의 Scaffold/AppBar/게스트 게이팅/반려동물
+/// 선택/포커스 요청 처리는 이제 `PetTabScreen`(우리 아이 탭)이 한 번만
+/// 가지므로, 여기서는 선택된 반려동물 하나에 대한 본문만 그대로 맡는다
+/// (내부 로직 변경 없음 — 비공개였던 이 위젯을 공개로 옮긴 것뿐). 진료
+/// 기록·예약은 각자의 기존 저장소를 그대로 읽어 합칠 뿐, 이 화면 전용
+/// 데이터는 없다 — 진료기록 보기에 기록하면 여기에도 바로 뜨고, 반대도
+/// 마찬가지다(하나의 데이터, 두 개의 뷰).
+class PetCalendarBody extends ConsumerStatefulWidget {
   final Pet pet;
 
   /// 홈의 "우리 아이" 카드에서 넘어온 포커스 날짜 — 있으면 오늘 대신 이
   /// 날짜로 시작한다("출시 전 마무리" 지시서 C).
   final DateTime? initialDate;
 
-  const _PetCalendarBody({super.key, required this.pet, this.initialDate});
+  const PetCalendarBody({super.key, required this.pet, this.initialDate});
 
   @override
-  ConsumerState<_PetCalendarBody> createState() => _PetCalendarBodyState();
+  ConsumerState<PetCalendarBody> createState() => _PetCalendarBodyState();
 }
 
-class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
+class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
   late DateTime _focusedDay;
   late DateTime _selectedDay;
 
@@ -159,11 +52,11 @@ class _PetCalendarBodyState extends ConsumerState<_PetCalendarBody> {
     _selectedDay = start;
   }
 
-  /// 같은 반려동물이 선택된 채로(= [_PetCalendarBody]가 새로 만들어지지
+  /// 같은 반려동물이 선택된 채로(= [PetCalendarBody]가 새로 만들어지지
   /// 않은 채로) 새 포커스 날짜가 또 들어온 경우 — [initState]는 다시
   /// 불리지 않으므로 여기서 한 번 더 반영한다.
   @override
-  void didUpdateWidget(_PetCalendarBody oldWidget) {
+  void didUpdateWidget(PetCalendarBody oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialDate != null && widget.initialDate != oldWidget.initialDate) {
       final target = dateOnly(widget.initialDate!);
