@@ -385,5 +385,35 @@ void main() {
 
       expect(await repository.userExists('uid-empty'), isFalse);
     });
+
+    test('장바구니(users/{uid}/cart)도 함께 지운다("쇼핑 기초" 지시서 3)', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(
+        AppUser(uid: 'uid-cart', loginType: LoginType.email, createdAt: now, updatedAt: now),
+      );
+      await firestore.collection('users').doc('uid-cart').collection('cart').add({
+        'productId': 'p1',
+        'optionId': null,
+        'quantity': 2,
+        'addedAt': Timestamp.fromDate(now),
+      });
+
+      await repository.deleteAllUserData('uid-cart');
+
+      expect(await repository.userExists('uid-cart'), isFalse);
+      final cartDocs = await firestore.collection('users').doc('uid-cart').collection('cart').get();
+      expect(cartDocs.docs, isEmpty);
+    });
+
+    test('장바구니가 비어 있는 계정도 예외 없이 지워진다', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(
+        AppUser(uid: 'uid-no-cart', loginType: LoginType.email, createdAt: now, updatedAt: now),
+      );
+
+      await repository.deleteAllUserData('uid-no-cart');
+
+      expect(await repository.userExists('uid-no-cart'), isFalse);
+    });
   });
 }

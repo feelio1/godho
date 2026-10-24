@@ -7,3 +7,12 @@
 const bool kEnableKakaoLogin = false;
 
 const bool kEnableAppleLogin = false;
+
+/// "쇼핑 기초" 지시서 1 — 입점형 스토어 코드의 컴파일 타임 스위치(이중
+/// 스위치 중 하나). 이 값이 false면 쇼핑 탭은 Firestore `config/shop`
+/// 문서를 아예 조회하지 않고 늘 "준비 중" 화면만 보여준다(런타임 스위치
+/// [shopEnabledProvider]보다 앞서 적용되는, 앱 업데이트로만 바꿀 수 있는
+/// 비상 차단 스위치). 상품·주문 기능을 실제로 열 때는 이 값은 true로 두고
+/// Firestore 문서의 `enabled`만 콘솔에서 바꾼다 — 그래야 앱 업데이트 없이
+/// 오픈할 수 있다.
+const bool kEnableShopCode = true;

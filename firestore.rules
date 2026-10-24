@@ -7,6 +7,13 @@ rules_version = '2';
 //
 // 배포는 콘솔/CLI로 나중에 한다(이 커밋은 규칙 코드만 커밋 — 지금은
 // Firestore 테스트 모드라 이 파일과 무관하게 동작한다).
+// "쇼핑 기초" 지시서 3 — 입점형 스토어 뼈대. config/shop은 쇼핑 탭의
+// 런타임 스위치(읽기 공개, 쓰기는 콘솔/관리자 전용이라 클라이언트 쓰기는
+// 항상 거부). sellers/products는 각각 active/active·soldout 상태일 때만
+// 읽을 수 있고, 쓰기는 클라이언트에서 하지 않는다(입점 심사·상품 등록은
+// 나중에 관리자 전용 도구). orders는 본인 것만 읽고, 생성은 본인 uid +
+// status: pendingPayment로만 가능하며, 생성 뒤 상태 변경·삭제는 전부
+// 막는다(결제 승인·배송 처리 등은 서버/관리자 몫 — 지시서 0).
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
@@ -23,6 +30,33 @@ service cloud.firestore {
           allow read, write: if request.auth != null && request.auth.uid == uid;
         }
       }
+
+      match /cart/{itemId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /sellers/{sellerId} {
+      allow read: if resource.data.status == 'active';
+      allow write: if false;
+    }
+
+    match /products/{productId} {
+      allow read: if resource.data.status in ['active', 'soldout'];
+      allow write: if false;
+    }
+
+    match /orders/{orderId} {
+      allow read: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.status == 'pendingPayment';
+      allow update, delete: if false;
     }
   }
 }

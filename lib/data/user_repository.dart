@@ -174,14 +174,20 @@ class UserRepository {
         .map((snap) => snap.docs.map((doc) => Appointment.fromFirestore(petId, doc.id, doc.data())).toList());
   }
 
-  // --- 회원 탈퇴 ("회원 탈퇴 구현" 지시서 E) ---
+  // --- 회원 탈퇴 ("회원 탈퇴 구현" 지시서 E, "쇼핑 기초" 지시서 3) ---
+
+  CollectionReference<Map<String, dynamic>> _cart(String uid) => _users.doc(uid).collection('cart');
 
   /// [uid]의 계정 데이터를 전부 지운다 — 반려동물마다 진료기록·예약
   /// 서브컬렉션을 먼저 지운 뒤(부모 문서를 지워도 서브컬렉션은 자동으로
-  /// 지워지지 않는다) 반려동물 문서(+사진)를 지우고, 마지막으로
-  /// `users/{uid}` 문서 자체를 지운다. 호출부(설정 화면)가 Firebase Auth
-  /// 계정 삭제까지 이어서 처리한다. 게스트(기기 로컬) 데이터는 이 메서드가
-  /// 전혀 알지 못하므로 건드리지 않는다.
+  /// 지워지지 않는다) 반려동물 문서(+사진)를 지우고, 장바구니도 지운 뒤
+  /// 마지막으로 `users/{uid}` 문서 자체를 지운다. 호출부(설정 화면)가
+  /// Firebase Auth 계정 삭제까지 이어서 처리한다. 게스트(기기 로컬)
+  /// 데이터는 이 메서드가 전혀 알지 못하므로 건드리지 않는다.
+  ///
+  /// `orders`는 지우지 않는다 — 전자상거래법상 거래기록 보관 의무가 있어
+  /// 탈퇴 후 처리 방식(비식별화 등)은 나중에 방침·약관과 함께 확정한다.
+  /// TODO(쇼핑 기초 이후): 주문 내역의 탈퇴 후 보관/비식별화 정책 확정.
   Future<void> deleteAllUserData(String uid) async {
     final pets = await fetchPets(uid);
     for (final pet in pets) {
@@ -199,6 +205,16 @@ class UserRepository {
       await batch.commit();
       await deletePet(uid, petId);
     }
+
+    final cartDocs = await _cart(uid).get();
+    if (cartDocs.docs.isNotEmpty) {
+      final cartBatch = _firestore.batch();
+      for (final doc in cartDocs.docs) {
+        cartBatch.delete(doc.reference);
+      }
+      await cartBatch.commit();
+    }
+
     await _users.doc(uid).delete();
   }
 }
