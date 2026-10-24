@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ads/global_banner_ad.dart';
+import '../config/feature_flags.dart';
+import '../shop/providers/shop_providers.dart';
+import '../shop/screens/shop_home_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/external_links.dart';
@@ -8,12 +12,27 @@ import '../widgets/mascot_image.dart';
 
 const _shopInquiryEmail = 'miyaongshop@gmail.com';
 
-/// "쇼핑" 탭("탭 개편" 지시서 C) — 지금은 준비 중 화면만 보여준다. 게스트·
-/// 회원 모두 게이팅 없이 볼 수 있고, 가짜 상품·가격·사전 예약 같은 미끼
-/// 요소나 오픈 알림 신청 같은 데이터 수집은 넣지 않는다. 나중에 실제
-/// 스토어 화면으로 바꿀 때 이 파일 하나만 교체하면 되게 분리해뒀다.
-class ShopScreen extends StatelessWidget {
+/// "쇼핑" 탭 — 이중 스위치로 연다("쇼핑 기초" 지시서 1). 컴파일 플래그
+/// [kEnableShopCode]가 꺼져 있거나, 켜져 있어도 Firestore `config/shop`
+/// 문서의 `enabled`가 true가 아니면("탭 개편" 지시서 C에서 만든) 준비 중
+/// 화면 그대로를 보여준다 — 둘 다 켜져야만 실제 스토어 홈([ShopHomeScreen])
+/// 으로 넘어간다. 기본값은 항상 닫힘이라, 지금처럼 `config/shop` 문서가
+/// 없는 상태에선 사용자가 보는 화면에 아무 변화가 없다.
+class ShopScreen extends ConsumerWidget {
   const ShopScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!kEnableShopCode) return const _ShopComingSoon();
+
+    final enabled = ref.watch(shopEnabledProvider).value ?? false;
+    return enabled ? const ShopHomeScreen() : const _ShopComingSoon();
+  }
+}
+
+/// 기존 "준비 중" 화면("탭 개편" 지시서 C) — 문구·구성 변경 없음.
+class _ShopComingSoon extends StatelessWidget {
+  const _ShopComingSoon();
 
   @override
   Widget build(BuildContext context) {

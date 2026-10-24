@@ -7,6 +7,8 @@ import '../models/signup_pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../providers/saved_provider.dart';
+import '../shop/providers/shop_providers.dart';
+import '../shop/screens/order_history_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/external_links.dart';
@@ -146,6 +148,9 @@ class _LoggedInBody extends ConsumerWidget {
     final petsAsync = ref.watch(accountSignupPetsProvider);
     final savedCount = ref.watch(savedHospitalsProvider).value?.length;
     final initial = name.isNotEmpty ? name.substring(0, 1) : '?';
+    // "쇼핑 기초" 지시서 1 — 주문내역 메뉴도 쇼핑 탭과 같은 런타임 스위치를
+    // 본다. 쇼핑이 꺼져 있으면 주문이 생길 수 없으니 메뉴 자체를 숨긴다.
+    final shopEnabled = ref.watch(shopEnabledProvider).value ?? false;
 
     return ListView(
       padding: const EdgeInsets.only(top: 16),
@@ -223,6 +228,7 @@ class _LoggedInBody extends ConsumerWidget {
           trailingText: savedCount?.toString(),
           onTap: () => _push(context, const SavedScreen()),
         ),
+        if (shopEnabled) _MenuRow(title: '주문내역', onTap: () => _push(context, const OrderHistoryScreen())),
         _MenuRow(title: '설정', onTap: () => _push(context, const SettingsScreen())),
         const SizedBox(height: AppSpacing.section),
         const _SectionHeader('안내'),

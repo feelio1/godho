@@ -14,6 +14,17 @@ enum ProductCategory {
         (e) => e.name == value,
         orElse: () => ProductCategory.etc,
       );
+
+  /// 스토어 홈 카테고리 칩에 쓰는 화면 표시용 라벨.
+  String get label => switch (this) {
+        ProductCategory.food => '사료',
+        ProductCategory.treat => '간식',
+        ProductCategory.supplement => '영양제',
+        ProductCategory.hygiene => '위생용품',
+        ProductCategory.toy => '장난감',
+        ProductCategory.living => '생활용품',
+        ProductCategory.etc => '기타',
+      };
 }
 
 /// 추천 필터용 태그("쇼핑 기초" 지시서 4 — 진료기록이 아니라 반려동물
