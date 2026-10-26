@@ -28,7 +28,7 @@ void main() {
   }
 
   group('PetTabScreen(게스트) — 세그먼트와 무관하게 안내를 1번만 보여준다', () {
-    testWidgets('로그인 안내 문구와 "로그인·가입" 버튼이 보인다 (진료기록/캘린더 세그먼트 라벨은 뜨지 않는다)', (tester) async {
+    testWidgets('로그인 안내 문구와 "로그인·가입" 버튼이 보인다 (진료기록/캘린더/일기 세그먼트 라벨은 뜨지 않는다)', (tester) async {
       await pumpGuest(tester);
 
       expect(find.text('로그인하면 우리 아이 기록을 쓸 수 있어요'), findsOneWidget);
@@ -36,6 +36,7 @@ void main() {
       expect(find.widgetWithText(FilledButton, '로그인 · 가입'), findsOneWidget);
       expect(find.text('진료기록'), findsNothing);
       expect(find.text('캘린더'), findsNothing);
+      expect(find.text('일기'), findsNothing);
     });
 
     testWidgets('"로그인·가입"을 누르면 로그인 화면으로 이동한다', (tester) async {
@@ -62,6 +63,14 @@ void main() {
 
       container.read(petTabViewProvider.notifier).state = PetTabView.calendar;
       expect(container.read(petTabViewProvider), PetTabView.calendar);
+    });
+
+    test('일기로 바꾸면 다시 읽어도 일기로 유지된다("방향 개편" 지시서 D)', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container.read(petTabViewProvider.notifier).state = PetTabView.diary;
+      expect(container.read(petTabViewProvider), PetTabView.diary);
     });
   });
 }

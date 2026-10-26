@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../diary/screens/diary_list_body.dart';
 import '../providers/auth_provider.dart';
 import '../providers/calendar_focus_provider.dart';
 import '../providers/effective_pets_provider.dart';
@@ -14,13 +15,13 @@ import 'account_pet_actions.dart';
 import 'calendar_screen.dart' show PetCalendarBody;
 import 'health_record_screen.dart' show PetHealthBody;
 
-/// "우리 아이" 탭("탭 개편" 지시서 B) — 예전엔 "캘린더"·"진료기록"이 각자
-/// 독립 탭이었지만, 이제 이 하나의 탭 안에서 [진료기록|캘린더] 세그먼트로
-/// 전환한다. 두 보기 모두 기존 화면의 본문(PetHealthBody/PetCalendarBody —
-/// 각각 health_record_screen.dart/calendar_screen.dart에 있던 비공개
-/// 본문을 공개로 옮긴 것뿐, 내부 로직은 그대로다)을 그대로 쓰고, 이 화면이
-/// Scaffold/AppBar/게스트 게이팅/반려동물 선택을 한 번만 갖는다 — 예전처럼
-/// 화면마다 따로 있던 걸 하나로 모았다.
+/// "우리 아이" 탭("탭 개편" 지시서 B, "방향 개편" 지시서 D에서 일기
+/// 추가) — [진료기록|캘린더|일기] 세그먼트로 전환한다. 세 보기 모두
+/// 기존 화면의 본문(PetHealthBody/PetCalendarBody — 각각 health_record_
+/// screen.dart/calendar_screen.dart에 있던 비공개 본문을 공개로 옮긴
+/// 것뿐, 내부 로직은 그대로다 / DiaryListBody — 일기 전용 새 본문)을
+/// 그대로 쓰고, 이 화면이 Scaffold/AppBar/게스트 게이팅/반려동물 선택을
+/// 한 번만 갖는다 — 예전처럼 화면마다 따로 있던 걸 하나로 모았다.
 class PetTabScreen extends ConsumerStatefulWidget {
   const PetTabScreen({super.key});
 
@@ -53,7 +54,7 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
         appBar: AppBar(title: const Text('우리 아이')),
         body: const GuestFeatureNotice(
           title: '로그인하면 우리 아이 기록을 쓸 수 있어요',
-          message: '로그인하면 우리 아이 진료기록·예약을 기기가 바뀌어도 이어서 볼 수 있어요.',
+          message: '로그인하면 우리 아이 진료기록·예약·일기를 기기가 바뀌어도 이어서 볼 수 있어요.',
         ),
       );
     }
@@ -120,7 +121,11 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
                 ),
               Expanded(
                 child: IndexedStack(
-                  index: view == PetTabView.records ? 0 : 1,
+                  index: switch (view) {
+                    PetTabView.records => 0,
+                    PetTabView.calendar => 1,
+                    PetTabView.diary => 2,
+                  },
                   children: [
                     PetHealthBody(
                       key: ValueKey('records-${selected.id}'),
@@ -131,6 +136,11 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
                       key: ValueKey('calendar-${selected.id}'),
                       pet: selected,
                       initialDate: _pendingFocusDate,
+                    ),
+                    DiaryListBody(
+                      key: ValueKey('diary-${selected.id}'),
+                      selectedPet: selected,
+                      allPets: pets,
                     ),
                   ],
                 ),
@@ -163,6 +173,11 @@ class _ViewSegment extends ConsumerWidget {
             value: PetTabView.calendar,
             label: Text('캘린더'),
             icon: Icon(Icons.calendar_month_outlined),
+          ),
+          ButtonSegment(
+            value: PetTabView.diary,
+            label: Text('일기'),
+            icon: Icon(Icons.edit_note),
           ),
         ],
         selected: {value},
