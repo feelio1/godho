@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 하단탭 재구성("디자인 1단계" 지시서 1) — 홈/지도/캘린더/진료기록/
-/// 내 정보 5개로 바뀌었는지, 이전 라벨("주변"/"저장")이 더는 없는지
-/// 확인한다.
+/// 하단탭 — "방향 개편" 지시서 A: "지도" 탭이 "병원" 탭으로 바뀌었다
+/// (화면·로직은 그대로, 라벨·아이콘만). 최종 5개: 홈·병원·쇼핑·우리 아이·
+/// 내 정보.
 ///
 /// [MainShell] 전체를 직접 pump하지 않는다 — 그 안의 [NearbyMapScreen]이
 /// 카카오 지도 SDK 네이티브 플랫폼뷰를 쓰고, 이 테스트 환경(Android
@@ -13,9 +13,10 @@ import 'package:flutter_test/flutter_test.dart';
 /// 그대로 복사해 `NavigationBar` 하나만 독립적으로 pump한다 — 라벨·구성
 /// 자체의 회귀는 이 방식으로도 충분히 잡아내고, 지도/위치/계정 등 다른
 /// 탭의 무거운 의존성은 끌고 오지 않는다. main_shell.dart의 실제
-/// destinations 리스트가 바뀌면 이 테스트도 함께 고쳐야 한다.
+/// destinations 리스트가 바뀌면 이 테스트도 함께 고쳐야 한다(복사본이라
+/// 자동으로 따라가지 않는다).
 void main() {
-  testWidgets('하단탭은 홈·지도·캘린더·진료기록·내 정보 5개이고, 이전 라벨(주변/저장)은 없다', (tester) async {
+  testWidgets('하단탭은 홈·병원·쇼핑·우리 아이·내 정보 5개이고, 이전 라벨(지도·캘린더·진료기록)은 없다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -25,9 +26,9 @@ void main() {
             // main_shell.dart의 NavigationBar destinations와 동일.
             destinations: const [
               NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-              NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: '지도'),
-              NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: '캘린더'),
-              NavigationDestination(icon: Icon(Icons.medical_information_outlined), selectedIcon: Icon(Icons.medical_information), label: '진료기록'),
+              NavigationDestination(icon: Icon(Icons.local_hospital_outlined), selectedIcon: Icon(Icons.local_hospital), label: '병원'),
+              NavigationDestination(icon: Icon(Icons.shopping_bag_outlined), selectedIcon: Icon(Icons.shopping_bag), label: '쇼핑'),
+              NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets), label: '우리 아이'),
               NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),
             ],
           ),
@@ -36,11 +37,12 @@ void main() {
     );
 
     expect(find.text('홈'), findsOneWidget);
-    expect(find.text('지도'), findsOneWidget);
-    expect(find.text('캘린더'), findsOneWidget);
-    expect(find.text('진료기록'), findsOneWidget);
+    expect(find.text('병원'), findsOneWidget);
+    expect(find.text('쇼핑'), findsOneWidget);
+    expect(find.text('우리 아이'), findsOneWidget);
     expect(find.text('내 정보'), findsOneWidget);
-    expect(find.text('주변'), findsNothing);
-    expect(find.text('저장'), findsNothing);
+    expect(find.text('지도'), findsNothing);
+    expect(find.text('캘린더'), findsNothing);
+    expect(find.text('진료기록'), findsNothing);
   });
 }

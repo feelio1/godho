@@ -17,6 +17,7 @@ import '../widgets/brand_mark.dart';
 import '../widgets/fee_summary_card.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/home_greeting_banner.dart';
+import '../widgets/home_shop_recommendation.dart';
 import '../widgets/our_pet_card.dart';
 import '../widgets/region_indicator.dart';
 import 'account_ui.dart';
@@ -28,14 +29,16 @@ import 'search_result_screen.dart';
 
 /// Only ever mounted once [MainShell] has confirmed the bundle is loaded.
 ///
-/// "펫클 앱 디자인" 캔버스 시안(Main.dc.html)을 그대로 따른다 — 브랜드
-/// 헤더(아이콘+펫클 · 지역 칩) → 장구름 인사 → 타이틀 → 검색 진입 →
-/// (로그인+반려동물) 우리 아이 카드 → 3개 바로가기(주변 병원·진료비
-/// 시세·저장한 병원) → 펫보험 제휴 카드 → 지역 진료비 시세 요약 → 광고
-/// ("출시 전 마무리" 지시서 A~C). 이전의 "내 주변 가까운 병원 / 운영
-/// 20년 이상 / 최근 개원 / 최근 확인한 병원 / 저장한 병원" 세로 리스트
-/// 섹션들은 시안에 없어 걷어냈다(사용자 확인) — 해당 병원들은 지도·검색·
-/// 저장 탭에서 계속 볼 수 있다.
+/// "방향 개편" 지시서 B — 포지셔닝("병원 확인에서 시작하는 우리 아이
+/// 관리 앱")에 맞춰 순서를 다시 짰다: 브랜드 헤더 → 장구름 인사 →
+/// (로그인+반려동물) 우리 아이 영역 → 병원 영역(섹션 제목·타이틀·검색·
+/// 3개 바로가기·지역 진료비 시세 요약) → 펫보험 제휴 카드 → 쇼핑 추천
+/// (쇼핑이 열려 있고 판매 중 상품이 있을 때만) → 광고. 이전("출시 전
+/// 마무리" 지시서 A~C)엔 우리 아이 카드가 병원 영역 중간에 끼어 있었고,
+/// 지역 진료비 시세 요약은 맨 아래였다. "내 주변 가까운 병원 / 운영 20년
+/// 이상 / 최근 개원 / 최근 확인한 병원 / 저장한 병원" 세로 리스트 섹션들은
+/// 그보다 전에 시안에 없어 걷어냈다(사용자 확인) — 해당 병원들은 병원
+/// 탭·검색·저장 화면에서 계속 볼 수 있다.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -90,6 +93,17 @@ class _HomeBody extends ConsumerWidget {
         const SizedBox(height: 14),
         const HomeGreetingBanner(),
         const SizedBox(height: AppSpacing.section),
+        // 우리 아이 영역 — 로그인+반려동물이 있을 때만 보인다(OurPetCard가
+        // 스스로 가린다). 오늘의 일기 한 줄은 자리만(연결은 "방향 개편"
+        // 지시서 F, 커밋③).
+        const OurPetCard(),
+        const SizedBox(height: AppSpacing.section),
+        // 병원 영역.
+        const Text(
+          '병원 찾기',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary, letterSpacing: 0.2),
+        ),
+        const SizedBox(height: 10),
         Text(
           '동물병원의 기록을\n사실 그대로 확인하세요',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(height: 1.35),
@@ -110,8 +124,6 @@ class _HomeBody extends ConsumerWidget {
           '전국 ${NumberFormat('#,###').format(repo.all.length)}곳 인허가 기록 · $dateLabel 기준',
           style: AppTextStyles.src(AppColors.textSecondary),
         ),
-        const SizedBox(height: AppSpacing.section),
-        const OurPetCard(),
         const SizedBox(height: AppSpacing.section),
         Row(
           children: [
@@ -148,9 +160,11 @@ class _HomeBody extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.section),
+        const FeeSummaryCard(),
+        const SizedBox(height: AppSpacing.section),
         const AffiliateFeeCard(),
         const SizedBox(height: AppSpacing.section),
-        const FeeSummaryCard(),
+        const HomeShopRecommendation(),
         const SizedBox(height: AppSpacing.section),
         const GlobalBannerAd(inline: true),
       ],

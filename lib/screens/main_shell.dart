@@ -34,9 +34,12 @@ import 'nearby_map_screen.dart';
 import 'pet_tab_screen.dart';
 import 'shop_screen.dart';
 
-/// Root shell holding the 5 bottom tabs: 홈 / 지도 / 쇼핑 / 우리 아이 /
-/// 내 정보("탭 개편" 지시서 — 쇼핑 탭 추가, 캘린더+진료기록을 "우리 아이"
-/// 탭 하나로 통합). 이전엔 홈 / 지도 / 캘린더 / 진료기록 / 내 정보였다
+/// Root shell holding the 5 bottom tabs: 홈 / 병원 / 쇼핑 / 우리 아이 /
+/// 내 정보("방향 개편" 지시서 A — "지도" 탭을 "병원" 탭으로. 화면·로직은
+/// 그대로, 라벨·아이콘만 바뀌었다 — enum 이름(AppTab.map)은 호출부 diff를
+/// 줄이려 그대로 둔다). 이전엔 "탭 개편" 지시서로 쇼핑 탭 추가, 캘린더+
+/// 진료기록을 "우리 아이" 탭 하나로 통합했다. 그 전엔 홈 / 지도 / 캘린더 /
+/// 진료기록 / 내 정보였다
 /// ("디자인 1단계" 지시서 1 — IA 재구성. "주변" 라벨은 "지도"로, "저장"
 /// 탭은 "내 정보" 탭으로 바뀌었다. 저장 화면 자체는 사라지지 않고 내 정보
 /// 탭에서 진입한다. 스프린트 9 지시서 1 — 건강기록을 홈 진입 카드에서
@@ -396,7 +399,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
               ref.read(selectedTabProvider.notifier).state = index,
           destinations: const [
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-            NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map), label: '지도'),
+            NavigationDestination(icon: Icon(Icons.local_hospital_outlined), selectedIcon: Icon(Icons.local_hospital), label: '병원'),
             NavigationDestination(icon: Icon(Icons.shopping_bag_outlined), selectedIcon: Icon(Icons.shopping_bag), label: '쇼핑'),
             NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets), label: '우리 아이'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),

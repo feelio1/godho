@@ -63,3 +63,22 @@ List<Product> filterRecommendedProducts(List<Product> products, List<Pet> pets) 
       .where((p) => pets.any((pet) => _matches(p, pet)))
       .toList();
 }
+
+/// 홈 "쇼핑 추천" 섹션에 보여줄 최대 [limit]개("방향 개편" 지시서 B-6) —
+/// 반려동물이 없으면(게스트, 또는 로그인했지만 미등록) 판매 중 상품을
+/// 그대로 앞에서부터 자른다. 반려동물이 있으면 [filterRecommendedProducts]
+/// 결과를 먼저 쓰고, 맞는 상품이 하나도 없으면(= 추천 결과가 빈 리스트)
+/// 빈 섹션을 보여주는 대신 판매 중 상품으로 채운다 — 어느 경우든 이
+/// 함수에 들어오는 [activeProducts] 자체가 이미 판매 중(active) 상품만
+/// 걸러진 목록이어야 한다(soldout·draft·hidden 제외는 호출부 책임).
+List<Product> selectHomeShopPreview({
+  required List<Product> activeProducts,
+  required List<Pet> pets,
+  int limit = 4,
+}) {
+  if (activeProducts.isEmpty) return const [];
+  if (pets.isEmpty) return activeProducts.take(limit).toList();
+
+  final recommended = filterRecommendedProducts(activeProducts, pets);
+  return (recommended.isNotEmpty ? recommended : activeProducts).take(limit).toList();
+}
