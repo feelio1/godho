@@ -9,5 +9,13 @@ service firebase.storage {
     match /pet_photos/{uid}/{fileName} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // "방향 개편" 지시서 H — 일기 사진. 10MB 미만만 허용(책 인쇄용
+    // 원본 품질을 유지하므로 펫 사진보다 여유를 둔다).
+    match /diary_photos/{uid}/{diaryId}/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow write: if request.auth != null && request.auth.uid == uid
+                   && request.resource.size < 10 * 1024 * 1024;
+    }
   }
 }

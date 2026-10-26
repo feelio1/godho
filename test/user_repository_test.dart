@@ -415,5 +415,39 @@ void main() {
 
       expect(await repository.userExists('uid-no-cart'), isFalse);
     });
+
+    test('일기(users/{uid}/diaries)도 함께 지운다("방향 개편" 지시서 G)', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(
+        AppUser(uid: 'uid-diary', loginType: LoginType.email, createdAt: now, updatedAt: now),
+      );
+      await firestore.collection('users').doc('uid-diary').collection('diaries').add({
+        'date': Timestamp.fromDate(now),
+        'petIds': ['p1'],
+        'createdAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      // 이 테스트 환경엔 FirebaseApp이 초기화돼 있지 않아 Storage 사진
+      // 삭제 쪽은 실패하지만(방어적으로 무시됨 — uploadPetPhoto와 같은
+      // 제약), Firestore 문서 삭제는 fake_cloud_firestore로 그대로
+      // 검증된다.
+      await repository.deleteAllUserData('uid-diary');
+
+      expect(await repository.userExists('uid-diary'), isFalse);
+      final diaryDocs = await firestore.collection('users').doc('uid-diary').collection('diaries').get();
+      expect(diaryDocs.docs, isEmpty);
+    });
+
+    test('일기가 없는 계정도 예외 없이 지워진다', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(
+        AppUser(uid: 'uid-no-diary', loginType: LoginType.email, createdAt: now, updatedAt: now),
+      );
+
+      await repository.deleteAllUserData('uid-no-diary');
+
+      expect(await repository.userExists('uid-no-diary'), isFalse);
+    });
   });
 }

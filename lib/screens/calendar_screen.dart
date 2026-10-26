@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../diary/diary_calendar.dart';
+import '../diary/models/diary.dart';
+import '../diary/providers/diary_providers.dart';
+import '../diary/screens/diary_detail_screen.dart';
 import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
@@ -82,11 +86,18 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
     // 자동 반영된다("진료기록·예약 Firestore 저장" 지시서 B-2).
     final records = ref.watch(effectiveRecordsForPetProvider(widget.pet.id)).value ?? const [];
     final appointments = ref.watch(effectiveAppointmentsForPetProvider(widget.pet.id)).value ?? const [];
+    // 일기는 로그인 전용이라 게스트/로컬 반려동물은 항상 빈 목록이다
+    // (diariesForPetProvider가 알아서 가린다, "방향 개편" 지시서 C) —
+    // 기존 예약·기록 로직은 전혀 건드리지 않고 마커·목록만 더한다
+    // (지시서 E).
+    final diaries = ref.watch(diariesForPetProvider(widget.pet.id)).value ?? const [];
     final recordsByDate = groupRecordsByDate(records);
     final appointmentsByDate = groupAppointmentsByDate(appointments);
+    final diariesByDate = groupDiariesByDate(diaries);
 
     final selectedRecords = recordsByDate[_selectedDay] ?? const [];
     final selectedAppointments = appointmentsByDate[_selectedDay] ?? const [];
+    final selectedDiaries = diariesByDate[_selectedDay] ?? const [];
     // 과거·오늘은 진료기록, 미래만 예약 — 폼의 날짜 기반 자동 전환과 같은
     // 기준("진료기록·예약 통합 입력" 지시서 2, 5).
     final selectedIsFuture = isFutureDay(_selectedDay);
@@ -102,7 +113,7 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
           selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
           eventLoader: (day) {
             final key = dateOnly(day);
-            return [...?recordsByDate[key], ...?appointmentsByDate[key]];
+            return [...?recordsByDate[key], ...?appointmentsByDate[key], ...?diariesByDate[key]];
           },
           onDaySelected: (selected, focused) {
             setState(() {
@@ -128,21 +139,25 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
             selectedDecoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
             selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
           ),
-          // 진료기록(회색 점)과 예약(블루 점)을 색으로 구분한다 — 둘 다
-          // 있는 날은 점 두 개(지시서 2 "과거/미래를 색으로 구분").
+          // 진료기록(회색 점)·예약(블루 점)·일기(크림/앰버 점)을 색으로
+          // 구분한다 — 여러 종류가 있는 날은 점 여러 개(지시서 2 "과거/
+          // 미래를 색으로 구분", "방향 개편" 지시서 E에서 일기 점 추가).
           calendarBuilders: CalendarBuilders<Object>(
             markerBuilder: (context, day, events) {
               if (events.isEmpty) return null;
               final hasRecord = events.any((e) => e is MedicalRecord);
               final hasAppointment = events.any((e) => e is Appointment);
+              final hasDiary = events.any((e) => e is Diary);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 3),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (hasRecord) const _MarkerDot(color: AppColors.neutral),
-                    if (hasRecord && hasAppointment) const SizedBox(width: 3),
+                    if (hasRecord && (hasAppointment || hasDiary)) const SizedBox(width: 3),
                     if (hasAppointment) const _MarkerDot(color: AppColors.primary),
+                    if (hasAppointment && hasDiary) const SizedBox(width: 3),
+                    if (hasDiary) const _MarkerDot(color: AppColors.diaryAccent),
                   ],
                 ),
               );
@@ -157,6 +172,8 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
               _LegendDot(color: AppColors.neutral, label: '진료기록'),
               SizedBox(width: 16),
               _LegendDot(color: AppColors.primary, label: '예약'),
+              SizedBox(width: 16),
+              _LegendDot(color: AppColors.diaryAccent, label: '일기'),
             ],
           ),
         ),
@@ -186,7 +203,7 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
           ),
         ),
         Expanded(
-          child: (selectedRecords.isEmpty && selectedAppointments.isEmpty)
+          child: (selectedRecords.isEmpty && selectedAppointments.isEmpty && selectedDiaries.isEmpty)
               ? Center(
                   child: Text(
                     selectedIsFuture ? '이 날짜엔 예약이 없어요' : '이 날짜엔 기록이 없어요',
@@ -206,6 +223,12 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
                       (a) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: _DayAppointmentTile(appointment: a, petId: widget.pet.id),
+                      ),
+                    ),
+                    ...selectedDiaries.map(
+                      (d) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _DayDiaryTile(diary: d),
                       ),
                     ),
                   ],
@@ -401,6 +424,53 @@ class _DayAppointmentTile extends StatelessWidget {
                   style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 일기 목록 카드와 같은 정보 — 탭하면 일기 상세로 이어진다("방향 개편"
+/// 지시서 E).
+class _DayDiaryTile extends StatelessWidget {
+  final Diary diary;
+
+  const _DayDiaryTile({required this.diary});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final preview = diary.text.trim();
+    return Card(
+      margin: EdgeInsets.zero,
+      color: AppColors.warmBackground,
+      elevation: 0,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.edit_note, size: 18, color: AppColors.diaryAccent),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('일기', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    if (preview.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: textTheme.bodyMedium),
+                    ],
+                  ],
+                ),
+              ),
             ],
           ),
         ),

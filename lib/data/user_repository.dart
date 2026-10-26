@@ -174,16 +174,41 @@ class UserRepository {
         .map((snap) => snap.docs.map((doc) => Appointment.fromFirestore(petId, doc.id, doc.data())).toList());
   }
 
-  // --- 회원 탈퇴 ("회원 탈퇴 구현" 지시서 E, "쇼핑 기초" 지시서 3) ---
+  // --- 회원 탈퇴 ("회원 탈퇴 구현" 지시서 E, "쇼핑 기초" 지시서 3,
+  // "방향 개편" 지시서 G) ---
 
   CollectionReference<Map<String, dynamic>> _cart(String uid) => _users.doc(uid).collection('cart');
 
+  CollectionReference<Map<String, dynamic>> _diaries(String uid) => _users.doc(uid).collection('diaries');
+
+  /// 일기에 첨부된 Storage 사진을 전부 지운다 — 일기 문서마다 따로 도는
+  /// 대신 `diary_photos/{uid}` 폴더 전체를 한 번에 재귀 조회해 지운다
+  /// (`DiaryRepository.deleteDiary`가 일기 1건 지울 때 쓰는 것과 같은
+  /// `listAll` 방식, 범위만 계정 전체로 넓힌 것). 폴더가 애초에 없거나
+  /// 일부 삭제가 실패해도 무시하고 계속 진행한다 — 탈퇴 자체는 막지
+  /// 않는다.
+  Future<void> _deleteAllDiaryPhotos(String uid) async {
+    try {
+      final listed = await FirebaseStorage.instance.ref('diary_photos/$uid').listAll();
+      for (final item in listed.items) {
+        try {
+          await item.delete();
+        } catch (e) {
+          _log('일기 사진 삭제 실패(무시하고 계속): $e');
+        }
+      }
+    } catch (e) {
+      _log('일기 사진 폴더 조회 실패(애초에 없었을 수 있음, 무시): $e');
+    }
+  }
+
   /// [uid]의 계정 데이터를 전부 지운다 — 반려동물마다 진료기록·예약
   /// 서브컬렉션을 먼저 지운 뒤(부모 문서를 지워도 서브컬렉션은 자동으로
-  /// 지워지지 않는다) 반려동물 문서(+사진)를 지우고, 장바구니도 지운 뒤
-  /// 마지막으로 `users/{uid}` 문서 자체를 지운다. 호출부(설정 화면)가
-  /// Firebase Auth 계정 삭제까지 이어서 처리한다. 게스트(기기 로컬)
-  /// 데이터는 이 메서드가 전혀 알지 못하므로 건드리지 않는다.
+  /// 지워지지 않는다) 반려동물 문서(+사진)를 지우고, 장바구니·일기(사진
+  /// 먼저, 그다음 문서 — 지시서 G)도 지운 뒤 마지막으로 `users/{uid}`
+  /// 문서 자체를 지운다. 호출부(설정 화면)가 Firebase Auth 계정 삭제까지
+  /// 이어서 처리한다. 게스트(기기 로컬) 데이터는 이 메서드가 전혀
+  /// 알지 못하므로 건드리지 않는다.
   ///
   /// `orders`는 지우지 않는다 — 전자상거래법상 거래기록 보관 의무가 있어
   /// 탈퇴 후 처리 방식(비식별화 등)은 나중에 방침·약관과 함께 확정한다.
@@ -213,6 +238,18 @@ class UserRepository {
         cartBatch.delete(doc.reference);
       }
       await cartBatch.commit();
+    }
+
+    // 사진(Storage) 먼저, 그다음 일기 문서 — DiaryRepository.deleteDiary와
+    // 같은 순서.
+    await _deleteAllDiaryPhotos(uid);
+    final diaryDocs = await _diaries(uid).get();
+    if (diaryDocs.docs.isNotEmpty) {
+      final diaryBatch = _firestore.batch();
+      for (final doc in diaryDocs.docs) {
+        diaryBatch.delete(doc.reference);
+      }
+      await diaryBatch.commit();
     }
 
     await _users.doc(uid).delete();

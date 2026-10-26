@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../ads/global_banner_ad.dart';
+import '../diary/screens/today_diary_row.dart';
 import '../models/region_filter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
@@ -93,10 +94,10 @@ class _HomeBody extends ConsumerWidget {
         const SizedBox(height: 14),
         const HomeGreetingBanner(),
         const SizedBox(height: AppSpacing.section),
-        // 우리 아이 영역 — 로그인+반려동물이 있을 때만 보인다(OurPetCard가
-        // 스스로 가린다). 오늘의 일기 한 줄은 자리만(연결은 "방향 개편"
-        // 지시서 F, 커밋③).
+        // 우리 아이 영역 — 로그인+반려동물이 있을 때만 보인다(OurPetCard·
+        // TodayDiaryRow가 각자 스스로 가린다, "방향 개편" 지시서 F).
         const OurPetCard(),
+        const TodayDiaryRow(),
         const SizedBox(height: AppSpacing.section),
         // 병원 영역.
         const Text(

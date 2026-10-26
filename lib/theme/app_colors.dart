@@ -83,6 +83,12 @@ class AppColors {
   /// 담당하는 좁은 자리에만 쓴다. 병원 데이터 카드는 계속 흰 배경
   /// ([surfaceLight])을 쓴다 — 신뢰가 중요한 영역에 감성 톤을 섞지 않는다.
   static const warmBackground = Color(0xFFFFF8EC);
+
+  /// 일기 전용 강조색("방향 개편" 지시서 E) — 캘린더에서 진료기록(회색)·
+  /// 예약(네이비)과 구분되는 세 번째 점/배지 색. 평가·경고 의미가 없는
+  /// 순수 구분색이라 [warmBackground]와 같은 "온기" 계열의 호박색을
+  /// 쓴다 — 빨강(시스템 오류 전용)과는 전혀 다른 계열.
+  static const diaryAccent = Color(0xFFC98A3E);
   /// 폐업 병원 카드 배경 — [backgroundLight]와 같은 톤이라 카드가 페이지
   /// 배경 위에서 옅게 가라앉아 보이되 완전히 묻히지는 않는다.
   static const closedCardBg = Color(0xFFF5F6F8);
