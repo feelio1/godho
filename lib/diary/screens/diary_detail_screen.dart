@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
 import '../../utils/network_error.dart';
 import '../../widgets/inline_error_message.dart';
+import '../diary_photo_display.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_form_screen.dart';
@@ -167,12 +168,27 @@ class _PhotoPagerState extends State<_PhotoPager> {
   void initState() {
     super.initState();
     _controller = PageController();
+    // 상세에 들어오자마자 첫 장·다음 장 원본을 미리 받아 둔다("일기
+    // 수정" 지시서 2-2) — 레이아웃이 끝난 뒤라야 context로 안전하게
+    // precache할 수 있다.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _precacheAround(0));
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _precacheAround(int index) {
+    if (!mounted) return;
+    for (final i in diaryPhotoPrecacheIndices(index: index, total: widget.photos.length)) {
+      precacheImage(
+        CachedNetworkImageProvider(widget.photos[i].path),
+        context,
+        onError: (exception, stackTrace) {},
+      );
+    }
   }
 
   void _openFullScreen(int index) {
@@ -183,6 +199,11 @@ class _PhotoPagerState extends State<_PhotoPager> {
 
   @override
   Widget build(BuildContext context) {
+    // 실제로 보이는 너비(기기 배율 포함) 기준으로만 디코딩한다 — 목록
+    // 썸네일과 같은 절약("일기 수정" 지시서 2-3). 전체화면만 이 한도
+    // 없이 원본 그대로 디코딩한다.
+    final memCacheWidth = (MediaQuery.of(context).size.width * MediaQuery.of(context).devicePixelRatio).round();
+
     return Column(
       children: [
         ClipRRect(
@@ -192,14 +213,18 @@ class _PhotoPagerState extends State<_PhotoPager> {
             child: PageView.builder(
               controller: _controller,
               itemCount: widget.photos.length,
-              onPageChanged: (i) => setState(() => _page = i),
+              onPageChanged: (i) {
+                setState(() => _page = i);
+                _precacheAround(i);
+              },
               itemBuilder: (context, i) => GestureDetector(
                 onTap: () => _openFullScreen(i),
-                child: CachedNetworkImage(
-                  imageUrl: widget.photos[i].path,
+                child: DiaryPhotoFadeImage(
+                  mainUrl: widget.photos[i].path,
+                  thumbUrl: widget.photos[i].thumbPath,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  errorWidget: (context, url, error) => Container(color: AppColors.surfaceMutedLight),
+                  memCacheWidth: memCacheWidth,
                 ),
               ),
             ),
@@ -228,11 +253,42 @@ class _PhotoPagerState extends State<_PhotoPager> {
   }
 }
 
-class _FullScreenPhotoViewer extends StatelessWidget {
+class _FullScreenPhotoViewer extends StatefulWidget {
   final List<DiaryPhoto> photos;
   final int initialIndex;
 
   const _FullScreenPhotoViewer({required this.photos, required this.initialIndex});
+
+  @override
+  State<_FullScreenPhotoViewer> createState() => _FullScreenPhotoViewerState();
+}
+
+class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
+  late final PageController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(initialPage: widget.initialIndex);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _precacheAround(widget.initialIndex));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _precacheAround(int index) {
+    if (!mounted) return;
+    for (final i in diaryPhotoPrecacheIndices(index: index, total: widget.photos.length)) {
+      precacheImage(
+        CachedNetworkImageProvider(widget.photos[i].path),
+        context,
+        onError: (exception, stackTrace) {},
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -240,14 +296,59 @@ class _FullScreenPhotoViewer extends StatelessWidget {
       backgroundColor: Colors.black,
       appBar: AppBar(backgroundColor: Colors.black, iconTheme: const IconThemeData(color: Colors.white)),
       body: PageView.builder(
-        controller: PageController(initialPage: initialIndex),
-        itemCount: photos.length,
+        controller: _controller,
+        itemCount: widget.photos.length,
+        onPageChanged: _precacheAround,
         itemBuilder: (context, i) => InteractiveViewer(
           child: Center(
-            child: CachedNetworkImage(imageUrl: photos[i].path, fit: BoxFit.contain),
+            // 전체화면은 원본 해상도 그대로 디코딩한다(memCacheWidth 없음,
+            // 확대해서 볼 수 있어야 하므로 — "일기 수정" 지시서 2-3).
+            child: DiaryPhotoFadeImage(
+              mainUrl: widget.photos[i].path,
+              thumbUrl: widget.photos[i].thumbPath,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 썸네일을 먼저 보여주고(목록에서 이미 캐시돼 있어 즉시 뜬다), 원본이
+/// 준비되면 짧은 fade로 바꾼다("일기 수정" 지시서 2-1) — `thumbUrl`이
+/// 없는(썸네일 없이 올려둔 예전 일기) 사진은 자리표시 없이 그냥 원본만
+/// 기다린다(기존과 동일). [memCacheWidth]를 주면 그 너비로만 디코딩해
+/// 메모리를 아낀다(작은 영역에 큰 원본을 그대로 띄우지 않음).
+class DiaryPhotoFadeImage extends StatelessWidget {
+  final String mainUrl;
+  final String? thumbUrl;
+  final BoxFit fit;
+  final double? width;
+  final int? memCacheWidth;
+
+  const DiaryPhotoFadeImage({
+    super.key,
+    required this.mainUrl,
+    required this.thumbUrl,
+    this.fit = BoxFit.cover,
+    this.width,
+    this.memCacheWidth,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = thumbUrl;
+    return CachedNetworkImage(
+      imageUrl: mainUrl,
+      fit: fit,
+      width: width,
+      memCacheWidth: memCacheWidth,
+      fadeInDuration: const Duration(milliseconds: 180),
+      placeholder: thumb == null
+          ? null
+          : (context, url) => CachedNetworkImage(imageUrl: thumb, fit: fit, width: width),
+      errorWidget: (context, url, error) => Container(color: AppColors.surfaceMutedLight),
     );
   }
 }

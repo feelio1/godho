@@ -215,6 +215,9 @@ class _DiaryCard extends StatelessWidget {
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,
+                      // 보이는 크기(64·기기 배율)만큼만 디코딩한다 —
+                      // 상세 PageView와 같은 절약("일기 수정" 지시서 2-3).
+                      memCacheWidth: (64 * MediaQuery.of(context).devicePixelRatio).round(),
                       errorWidget: (context, url, error) => Container(
                         width: 64,
                         height: 64,

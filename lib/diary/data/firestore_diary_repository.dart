@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
 import '../../utils/concurrency.dart';
+import '../diary_photo_cache.dart';
 import '../diary_photo_processor.dart';
 import '../models/diary.dart';
 import 'diary_repository.dart';
@@ -13,14 +14,21 @@ String _newPhotoId() => '${DateTime.now().microsecondsSinceEpoch}_${Random().nex
 
 /// [DiaryRepository]의 Firestore + Storage 구현 — 생성자 주입으로
 /// [FirebaseFirestore] 인스턴스를 바꿔 끼울 수 있다(`fake_cloud_firestore`
-/// 등), `UserRepository`와 같은 관례.
+/// 등), `UserRepository`와 같은 관례. [cacheWriter]도 같은 이유로
+/// 바꿔 끼울 수 있게 뺐다(테스트에서 실제 디스크 캐시 없이 호출만
+/// 검증, "일기 수정" 지시서 2-4).
 class FirestoreDiaryRepository implements DiaryRepository {
-  FirestoreDiaryRepository({FirebaseFirestore? firestore, FirebaseStorage? storage})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  FirestoreDiaryRepository({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+    DiaryPhotoCacheWriter? cacheWriter,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance,
+        _cacheWriter = cacheWriter ?? cacheDiaryPhotoBytesDefault;
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final DiaryPhotoCacheWriter _cacheWriter;
 
   /// 사진 한 장 안에서 원본·썸네일을 동시에 올린다("일기 수정" 지시서
   /// 1-4) — 사진 여러 장 사이의 동시 개수 제한은 [mapWithConcurrency]가
@@ -109,6 +117,14 @@ class FirestoreDiaryRepository implements DiaryRepository {
       if (kDebugMode) {
         debugPrint('[DiaryPhotoTiming] 업로드 #$index ${stopwatch.elapsedMilliseconds}ms');
       }
+      // 방금 올린 바이트를 그대로 디스크 캐시에 넣어 둔다 — 저장 직후
+      // 목록·상세가 같은 URL을 다시 받아오지 않고 바로 보여준다("일기
+      // 수정" 지시서 2-4). 실패해도(캐시 주입은 편의 기능) 저장
+      // 자체에는 영향 없다.
+      await cacheUploadedDiaryPhotos(
+        [(url: urls[0], bytes: p.mainBytes), (url: urls[1], bytes: p.thumbBytes)],
+        _cacheWriter,
+      );
       return DiaryPhoto(path: urls[0], thumbPath: urls[1], width: p.width, height: p.height);
     }
 
