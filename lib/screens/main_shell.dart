@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../data/app_settings.dart';
 import '../data/cloud_migration_service.dart';
 import '../data/effective_appointment_actions.dart';
 import '../data/hospital_repository.dart' show SortOption;
@@ -126,6 +127,9 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     // payload가 없어 이 콜백에 영향을 주지 않는다.
     NotificationService.instance.onNotificationTapped = _handleNotificationTap;
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkLaunchNotification());
+    // 앱을 시작할 때 일기 알림 14일 창을 다시 채운다("일기 보완" 지시서
+    // 2) — 꺼져 있으면 아무 일도 하지 않는다.
+    unawaited(_refillDiaryReminderIfEnabled());
   }
 
   @override
@@ -166,7 +170,17 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       if (shouldResetFollowUpSession(pausedAt: pausedAt, resumedAt: DateTime.now())) {
         _followUpShownThisSession = false;
       }
+      // 포그라운드로 돌아올 때도 14일 창을 다시 채운다("일기 보완"
+      // 지시서 2: "앱 시작/복귀 시 다시 채움").
+      unawaited(_refillDiaryReminderIfEnabled());
     }
+  }
+
+  Future<void> _refillDiaryReminderIfEnabled() async {
+    const settings = AppSettings();
+    if (!await settings.diaryReminderEnabled()) return;
+    final time = await settings.diaryReminderTime();
+    await NotificationService.instance.refillDiaryReminderWindow(hour: time.hour, minute: time.minute);
   }
 
   /// 뒤로가기 처리(스프린트 13 지시서 3): 탭 화면 위에 더 push된 화면이

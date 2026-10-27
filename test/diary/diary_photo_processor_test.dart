@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
@@ -14,6 +16,8 @@ Uint8List _jpegOf(int width, int height, {String? dateTimeOriginal}) {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('processDiaryPhoto — 원본·썸네일 2벌("일기 활성화" 지시서 A)', () {
     test('큰 사진은 각각 긴 변 한도로 줄어든다', () {
       final jpeg = _jpegOf(4000, 2000);
@@ -108,6 +112,82 @@ void main() {
     test('오늘 날짜 사진은 그대로 후보가 된다', () {
       final suggested = suggestDiaryDateFromCaptureDates([today], today: today);
       expect(suggested, today);
+    });
+  });
+
+  group('compute(processDiaryPhoto) — isolate 경유 처리도 결과가 같다("일기 보완" 지시서 1)', () {
+    test('메인에서 바로 처리한 것과 바이트가 완전히 같다', () async {
+      final jpeg = _jpegOf(1600, 900, dateTimeOriginal: '2024:05:01 10:00:00');
+
+      final direct = processDiaryPhoto(jpeg);
+      final viaIsolate = await compute(processDiaryPhoto, jpeg);
+
+      expect(viaIsolate, isNotNull);
+      expect(viaIsolate!.mainBytes, direct!.mainBytes);
+      expect(viaIsolate.thumbBytes, direct.thumbBytes);
+      expect(viaIsolate.width, direct.width);
+      expect(viaIsolate.height, direct.height);
+    });
+
+    test('디코딩할 수 없는 바이트는 isolate에서도 null이다', () async {
+      final viaIsolate = await compute(processDiaryPhoto, Uint8List.fromList([1, 2, 3]));
+      expect(viaIsolate, isNull);
+    });
+  });
+
+  group('processDiaryPhotosSequentially — 한 장씩 순차 처리 + 진행 표시("일기 보완" 지시서 1)', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('diary_photo_test_');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    Future<File> writeJpeg(String name, Uint8List bytes) async {
+      final file = File('${tempDir.path}/$name');
+      await file.writeAsBytes(bytes);
+      return file;
+    }
+
+    test('유효한 사진은 처리되고, 깨진 사진은 그 자리만 null이다', () async {
+      final good1 = await writeJpeg('a.jpg', _jpegOf(200, 100));
+      final broken = await writeJpeg('b.jpg', Uint8List.fromList([1, 2, 3]));
+      final good2 = await writeJpeg('c.jpg', _jpegOf(100, 200));
+
+      final results = await processDiaryPhotosSequentially([good1, broken, good2]);
+
+      expect(results, hasLength(3));
+      expect(results[0], isNotNull);
+      expect(results[1], isNull);
+      expect(results[2], isNotNull);
+      expect(results[0]!.width, 200);
+      expect(results[2]!.height, 200);
+    });
+
+    test('진행 콜백이 1부터 전체 장수까지 순서대로 불린다', () async {
+      final files = await Future.wait([
+        writeJpeg('1.jpg', _jpegOf(50, 50)),
+        writeJpeg('2.jpg', _jpegOf(50, 50)),
+        writeJpeg('3.jpg', _jpegOf(50, 50)),
+      ]);
+
+      final calls = <(int, int)>[];
+      await processDiaryPhotosSequentially(files, onProgress: (index, total) => calls.add((index, total)));
+
+      expect(calls, [(1, 3), (2, 3), (3, 3)]);
+    });
+
+    test('빈 목록이면 아무것도 처리하지 않는다', () async {
+      final calls = <(int, int)>[];
+      final results = await processDiaryPhotosSequentially(
+        const [],
+        onProgress: (index, total) => calls.add((index, total)),
+      );
+      expect(results, isEmpty);
+      expect(calls, isEmpty);
     });
   });
 }

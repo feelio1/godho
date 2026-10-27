@@ -5,6 +5,8 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../data/app_settings.dart';
 import '../models/appointment.dart';
+import '../utils/appointment_calendar.dart' show dateOnly;
+import 'diary_reminder_schedule.dart';
 
 /// 진료 예약 로컬 알림(스프린트 9 지시서 3, 스프린트 12에서 정확한 시각
 /// 알림으로 보강, 스프린트 15에서 실기기 미작동 원인 규명·수정). 서버
@@ -57,10 +59,6 @@ class NotificationService {
     importance: Importance.defaultImportance,
     priority: Priority.defaultPriority,
   );
-
-  /// 알림 하나뿐이라(매일 반복) 고정 id 하나만 쓴다 — 예약 알림 id 범위
-  /// (해시 기반)·테스트 알림 id와 겹치지 않게 떨어뜨려 둔다.
-  static const _diaryReminderId = 777777;
 
   /// 알림을 탭했을 때의 구분값 — 예약 알림은 payload를 쓰지 않으므로
   /// (영향 없음), 일기 알림만 이 값으로 식별한다.
@@ -253,59 +251,103 @@ class NotificationService {
     }
   }
 
-  /// 매일 [hour]:[minute]에 일기 알림을 켠다 — 사용자 동의 시에만
-  /// 호출된다("일기 활성화" 지시서 K). 예약 알림과 다른 채널이고, 매일
-  /// 반복([DateTimeComponents.time])이라 한 번만 걸어두면 된다.
-  ///
-  /// 알려진 한계: 그날 이미 일기를 썼으면 그날 알림을 건너뛰는 것까지는
-  /// 구현하지 못했다 — `flutter_local_notifications`의 반복 알람은 특정
-  /// 날짜 하나만 건너뛸 수단이 없고(반복 자체를 취소/재예약해야 하는데,
-  /// 그러면 다음 날짜까지 다시 계산해야 해 어떤 시점에 앱이 꺼져 있으면
-  /// 깨진다), 안정적으로 구현하려면 네이티브 쪽 별도 작업이 필요해 이번
-  /// 범위를 넘어선다.
-  Future<void> scheduleDailyDiaryReminder({required int hour, required int minute}) async {
-    await cancelDiaryReminder();
+  /// 오늘부터 14일치 1회성 일기 알림을 다시 채운다("일기 보완" 지시서
+  /// 2) — 사용자 동의 시에만 호출된다. 앱을 시작하거나 포그라운드로
+  /// 돌아올 때, 그리고 처음 켤 때 부른다. 예약 알림과 다른 채널이고,
+  /// "매일 반복" 알람 대신 날짜마다 별도 id로 1회성 알림을 건다 — 그래야
+  /// [cancelTodayDiaryReminder]로 "오늘만" 건너뛸 수 있다. 이미 예약된
+  /// 날짜는 그대로 두고, 지난 날짜는 정리하고, 창에 새로 들어온 날짜만
+  /// 추가한다 — 오늘 일기를 써서 막 취소한 날은 되살리지 않는다.
+  Future<void> refillDiaryReminderWindow({required int hour, required int minute}) async {
     await _ensureInitialized();
     if (!_initialized) {
-      _log('초기화가 안 돼 있어 일기 알림을 스케줄하지 않음');
+      _log('초기화가 안 돼 있어 일기 알림 창을 채우지 않음');
       return;
     }
-    final scheduleMode = await _bestAvailableScheduleMode();
-    final fireAt = _nextInstanceOfTime(hour, minute);
-    try {
-      await _plugin.zonedSchedule(
-        id: _diaryReminderId,
-        scheduledDate: tz.TZDateTime.from(fireAt, tz.local),
-        title: '일기 알림',
-        body: '오늘 하루를 일기로 남겨볼까요?',
-        notificationDetails: const NotificationDetails(android: _diaryReminderChannel),
-        androidScheduleMode: scheduleMode,
-        matchDateTimeComponents: DateTimeComponents.time,
-        payload: diaryReminderPayload,
-      );
-      _log('일기 알림 매일 $hour:$minute 스케줄 완료');
-    } catch (e, st) {
-      _log('일기 알림 스케줄 실패: $e\n$st');
+    const settings = AppSettings();
+    final today = dateOnly(DateTime.now());
+    final scheduled = await settings.diaryReminderScheduledDates();
+
+    final stale = diaryReminderStaleDates(scheduled, today: today);
+    for (final date in stale) {
+      try {
+        await _plugin.cancel(id: diaryReminderNotificationId(date));
+      } catch (e) {
+        _log('지난 일기 알림 정리 중 예외(무시): $e');
+      }
     }
+    final remaining = scheduled.where((d) => !stale.contains(d)).toList();
+
+    final skipped = await settings.diaryReminderSkippedDate();
+    final windowDates = diaryReminderWindowDates(today: today);
+    final toSchedule = diaryReminderDatesToSchedule(
+      windowDates: windowDates,
+      alreadyScheduledDates: remaining.toSet(),
+      skippedDate: skipped,
+    );
+
+    final scheduleMode = await _bestAvailableScheduleMode();
+    for (final date in toSchedule) {
+      final fireAt = DateTime(date.year, date.month, date.day, hour, minute);
+      // 오늘 날짜인데 그 시각이 이미 지났으면 이번엔 건너뛴다 — 다음
+      // 재채움 때는 창에서도 빠지므로 "밀린 알림"이 쌓이지 않는다.
+      if (fireAt.isBefore(DateTime.now())) continue;
+      try {
+        await _plugin.zonedSchedule(
+          id: diaryReminderNotificationId(date),
+          scheduledDate: tz.TZDateTime.from(fireAt, tz.local),
+          title: '일기 알림',
+          body: '오늘 하루를 일기로 남겨볼까요?',
+          notificationDetails: const NotificationDetails(android: _diaryReminderChannel),
+          androidScheduleMode: scheduleMode,
+          payload: diaryReminderPayload,
+        );
+        remaining.add(date);
+        _log('일기 알림 $date 예약 완료 ($hour:$minute)');
+      } catch (e, st) {
+        _log('일기 알림 $date 예약 실패: $e\n$st');
+      }
+    }
+
+    await settings.setDiaryReminderScheduledDates(remaining);
   }
 
-  Future<void> cancelDiaryReminder() async {
+  /// 오늘 일기를 저장하면 오늘 알림만 취소한다("일기 보완" 지시서 2) —
+  /// 다른 날짜의 예약은 그대로 둔다. 오늘이 예약돼 있지 않았으면(알림이
+  /// 꺼져 있었거나 이미 지나 건너뛰었던 경우) 조용히 아무 일도 하지
+  /// 않는다.
+  Future<void> cancelTodayDiaryReminder() async {
     await _ensureInitialized();
     if (!_initialized) return;
+    const settings = AppSettings();
+    final today = dateOnly(DateTime.now());
+    final scheduled = await settings.diaryReminderScheduledDates();
+    if (!scheduled.contains(today)) return;
     try {
-      await _plugin.cancel(id: _diaryReminderId);
+      await _plugin.cancel(id: diaryReminderNotificationId(today));
     } catch (e) {
-      _log('일기 알림 취소 중 예외(무시): $e');
+      _log('오늘 일기 알림 취소 중 예외(무시): $e');
     }
+    await settings.setDiaryReminderScheduledDates(scheduled.where((d) => d != today).toList());
+    await settings.setDiaryReminderSkippedDate(today);
   }
 
-  DateTime _nextInstanceOfTime(int hour, int minute) {
-    final now = DateTime.now();
-    var scheduled = DateTime(now.year, now.month, now.day, hour, minute);
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+  /// 알림 시간 변경·끄기 시 쓴다 — 지금까지 예약된 전부를 취소한다.
+  /// 끄는 경우엔 이걸로 끝이고, 시간 변경이면 호출부가 바로 이어서
+  /// [refillDiaryReminderWindow]를 새 시간으로 불러 다시 채운다.
+  Future<void> cancelAllDiaryReminders() async {
+    await _ensureInitialized();
+    if (!_initialized) return;
+    const settings = AppSettings();
+    final scheduled = await settings.diaryReminderScheduledDates();
+    for (final date in scheduled) {
+      try {
+        await _plugin.cancel(id: diaryReminderNotificationId(date));
+      } catch (e) {
+        _log('일기 알림 취소 중 예외(무시): $e');
+      }
     }
-    return scheduled;
+    await settings.setDiaryReminderScheduledDates(const []);
   }
 
   static String _reminderBody(Appointment appointment) {

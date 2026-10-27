@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
 
 import '../utils/appointment_calendar.dart' show dateOnly;
@@ -47,6 +49,29 @@ ProcessedDiaryPhoto? processDiaryPhoto(Uint8List bytes) {
     width: main.width,
     height: main.height,
   );
+}
+
+/// 한 장씩 부를 때마다 부른다(1-based [index], [total]은 전체 장수) —
+/// 저장 화면이 "사진 준비 중 (n/m)"을 보여주는 데 쓴다.
+typedef DiaryPhotoProgressListener = void Function(int index, int total);
+
+/// [files]를 한 장씩 순차로(동시에 여러 장을 메모리에 올리지 않도록)
+/// 처리한다 — 무거운 디코딩·리사이즈·인코딩([processDiaryPhoto])은
+/// [compute]로 메인 isolate 밖에서 돌려 화면이 멈추지 않게 한다("일기
+/// 보완" 지시서 1). 디코딩에 실패한 자리는 결과 목록에 null로 남는다
+/// (예외를 던지지 않음) — 호출부(저장소)가 그 사진만 빼고 계속 올릴 수
+/// 있게 한다.
+Future<List<ProcessedDiaryPhoto?>> processDiaryPhotosSequentially(
+  List<File> files, {
+  DiaryPhotoProgressListener? onProgress,
+}) async {
+  final results = <ProcessedDiaryPhoto?>[];
+  for (var i = 0; i < files.length; i++) {
+    onProgress?.call(i + 1, files.length);
+    final bytes = await files[i].readAsBytes();
+    results.add(await compute(processDiaryPhoto, bytes));
+  }
+  return results;
 }
 
 /// 긴 변을 [maxLongSide] 이하로 맞추고(원본이 더 작으면 그대로 둔다) EXIF를

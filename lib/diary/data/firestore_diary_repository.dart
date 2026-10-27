@@ -68,13 +68,26 @@ class FirestoreDiaryRepository implements DiaryRepository {
   /// [kDiaryPhotoThumbLongSide]) 2벌을 만들어 함께 올린다("일기 활성화"
   /// 지시서 A) — 두 벌 모두 EXIF(위치 등)를 지운 상태로 인코딩한다.
   /// 가로·세로는 실제로 처리한(추정하지 않은) 원본 쪽 값을 쓴다.
-  Future<List<DiaryPhoto>> _uploadPhotos(String uid, String diaryId, List<File> files) async {
+  ///
+  /// 디코딩·리사이즈·인코딩([processDiaryPhotosSequentially]이 맡는다 —
+  /// 한 장씩 순차로, 메인 isolate 밖에서, "일기 보완" 지시서 1)이 끝난
+  /// 결과만 올린다. 디코딩에 실패한 사진(깨진 파일 등)은 그 사진만
+  /// 조용히 빼고 계속 올린다 — 업로드 자체(네트워크)가 실패하면 그대로
+  /// 예외가 올라가 저장을 멈춘다.
+  Future<List<DiaryPhoto>> _uploadPhotos(
+    String uid,
+    String diaryId,
+    List<File> files, {
+    DiaryPhotoProgressCallback? onPhotoProgress,
+    void Function()? onPhotoDecodeFailed,
+  }) async {
+    final processedList = await processDiaryPhotosSequentially(files, onProgress: onPhotoProgress);
+
     final photos = <DiaryPhoto>[];
-    for (final file in files) {
-      final bytes = await file.readAsBytes();
-      final processed = processDiaryPhoto(bytes);
+    for (final processed in processedList) {
       if (processed == null) {
-        throw const FormatException('이미지를 처리할 수 없습니다.');
+        onPhotoDecodeFailed?.call();
+        continue;
       }
       final photoId = _newPhotoId();
       final ref = _photoRef(uid, diaryId, photoId);
@@ -90,11 +103,23 @@ class FirestoreDiaryRepository implements DiaryRepository {
   }
 
   @override
-  Future<String> createDiary(String uid, Diary diary, List<File> photoFiles) async {
+  Future<String> createDiary(
+    String uid,
+    Diary diary,
+    List<File> photoFiles, {
+    DiaryPhotoProgressCallback? onPhotoProgress,
+    void Function()? onPhotoDecodeFailed,
+  }) async {
     final docRef = _diaries(uid).doc();
     // 사진 업로드가 하나라도 실패하면 여기서 예외가 던져지고, 문서는
     // 아직 만들어지지 않은 채로 끝난다("업로드 실패 시 일기 저장 안 함").
-    final photos = await _uploadPhotos(uid, docRef.id, photoFiles);
+    final photos = await _uploadPhotos(
+      uid,
+      docRef.id,
+      photoFiles,
+      onPhotoProgress: onPhotoProgress,
+      onPhotoDecodeFailed: onPhotoDecodeFailed,
+    );
     await docRef.set(diary.copyWith(photos: photos).toFirestore());
     return docRef.id;
   }
@@ -105,10 +130,18 @@ class FirestoreDiaryRepository implements DiaryRepository {
     Diary diary, {
     List<File> newPhotoFiles = const [],
     List<DiaryPhoto> removedPhotos = const [],
+    DiaryPhotoProgressCallback? onPhotoProgress,
+    void Function()? onPhotoDecodeFailed,
   }) async {
     // 새 사진 업로드가 실패하면 여기서 예외가 올라가고, 기존 문서·사진은
     // 전혀 건드리지 않은 채로 끝난다(부분 저장 없음).
-    final newPhotos = await _uploadPhotos(uid, diary.id, newPhotoFiles);
+    final newPhotos = await _uploadPhotos(
+      uid,
+      diary.id,
+      newPhotoFiles,
+      onPhotoProgress: onPhotoProgress,
+      onPhotoDecodeFailed: onPhotoDecodeFailed,
+    );
     final removedPaths = removedPhotos.map((p) => p.path).toSet();
     final keptPhotos = diary.photos.where((p) => !removedPaths.contains(p.path)).toList();
     final toSave = diary.copyWith(photos: [...keptPhotos, ...newPhotos]);

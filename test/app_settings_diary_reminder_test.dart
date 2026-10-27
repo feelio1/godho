@@ -50,4 +50,33 @@ void main() {
     expect(await settings.notificationsEnabled(), isFalse);
     expect(await settings.diaryReminderEnabled(), isTrue);
   });
+
+  group('14일 창 상태 저장("일기 보완" 지시서 2)', () {
+    test('예약된 날짜가 없으면 빈 목록이다', () async {
+      SharedPreferences.setMockInitialValues({});
+      expect(await settings.diaryReminderScheduledDates(), isEmpty);
+    });
+
+    test('예약된 날짜 목록을 그대로 저장·복원한다', () async {
+      SharedPreferences.setMockInitialValues({});
+      final dates = [DateTime(2026, 5, 1), DateTime(2026, 5, 2), DateTime(2026, 5, 3)];
+      await settings.setDiaryReminderScheduledDates(dates);
+
+      expect(await settings.diaryReminderScheduledDates(), dates);
+    });
+
+    test('건너뛴 날짜가 없으면 null이다', () async {
+      SharedPreferences.setMockInitialValues({});
+      expect(await settings.diaryReminderSkippedDate(), isNull);
+    });
+
+    test('건너뛴 날짜를 저장·복원하고, null로 지울 수 있다', () async {
+      SharedPreferences.setMockInitialValues({});
+      await settings.setDiaryReminderSkippedDate(DateTime(2026, 5, 1));
+      expect(await settings.diaryReminderSkippedDate(), DateTime(2026, 5, 1));
+
+      await settings.setDiaryReminderSkippedDate(null);
+      expect(await settings.diaryReminderSkippedDate(), isNull);
+    });
+  });
 }

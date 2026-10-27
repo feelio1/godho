@@ -78,4 +78,45 @@ class AppSettings {
     await prefs.setInt(_diarySaveCountKey, next);
     return next;
   }
+
+  // --- 일기 알림 — 14일 창("일기 보완" 지시서 2) ---
+  // "매일 반복" 알람 하나가 아니라 날짜별 1회성 알림을 여러 개 두므로,
+  // 지금 실제로 예약돼 있는 날짜들을 기기에 따로 기억해 둬야 재채움·
+  // 취소 로직이 플러그인의 pending 목록을 뒤지지 않고도 동작한다.
+
+  static const _diaryReminderScheduledDatesKey = 'settings_diary_reminder_scheduled_dates_v1';
+  static const _diaryReminderSkippedDateKey = 'settings_diary_reminder_skipped_date_v1';
+
+  /// 지금 예약돼 있다고 기억해 둔 날짜들(시각 제외) — 순서는 의미 없다.
+  Future<List<DateTime>> diaryReminderScheduledDates() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getStringList(_diaryReminderScheduledDatesKey) ?? const [];
+    return raw.map(DateTime.tryParse).whereType<DateTime>().toList();
+  }
+
+  Future<void> setDiaryReminderScheduledDates(List<DateTime> dates) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _diaryReminderScheduledDatesKey,
+      dates.map((d) => d.toIso8601String()).toList(),
+    );
+  }
+
+  /// 오늘 일기를 써서 막 취소한 날짜(보통 오늘) — 같은 날 창을 다시
+  /// 채워도 되살리지 않는 데 쓴다. 날이 지나 창 밖으로 벗어나면 그냥
+  /// 무시되므로 따로 지울 필요는 없지만, [clear]로 지울 수도 있다.
+  Future<DateTime?> diaryReminderSkippedDate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_diaryReminderSkippedDateKey);
+    return raw == null ? null : DateTime.tryParse(raw);
+  }
+
+  Future<void> setDiaryReminderSkippedDate(DateTime? date) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (date == null) {
+      await prefs.remove(_diaryReminderSkippedDateKey);
+    } else {
+      await prefs.setString(_diaryReminderSkippedDateKey, date.toIso8601String());
+    }
+  }
 }

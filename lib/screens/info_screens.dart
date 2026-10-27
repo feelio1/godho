@@ -61,20 +61,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
   }
 
-  /// "일기 알림" 토글("일기 활성화" 지시서 K) — 예약 알림과 완전히 별개
-  /// 설정·채널이다. 켤 때 시간을 고르지 않았으면(설정 화면에서 바로 켤
-  /// 때) 지금 표시 중인 시간으로 바로 예약한다.
+  /// "일기 알림" 토글("일기 활성화" 지시서 K, "일기 보완" 지시서 2) —
+  /// 예약 알림과 완전히 별개 설정·채널이다. 켤 때는 14일 창을 채우고,
+  /// 끌 때는 전부 취소한다.
   Future<void> _setDiaryReminderEnabled(bool value) async {
     setState(() => _diaryReminderEnabled = value);
     final settings = const AppSettings();
     await settings.setDiaryReminderEnabled(value);
     if (value) {
-      await NotificationService.instance.scheduleDailyDiaryReminder(
+      await NotificationService.instance.refillDiaryReminderWindow(
         hour: _diaryReminderTime.hour,
         minute: _diaryReminderTime.minute,
       );
     } else {
-      await NotificationService.instance.cancelDiaryReminder();
+      await NotificationService.instance.cancelAllDiaryReminders();
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -82,13 +82,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// 시간을 바꾸면 이미 예약된 14일치를 전부 취소하고 새 시간으로 다시
+  /// 채운다("일기 보완" 지시서 2: "시간 변경 시 전부 재예약").
   Future<void> _pickDiaryReminderTime() async {
     final picked = await showTimePicker(context: context, initialTime: _diaryReminderTime);
     if (picked == null || !mounted) return;
     setState(() => _diaryReminderTime = picked);
     await const AppSettings().setDiaryReminderTime(hour: picked.hour, minute: picked.minute);
     if (_diaryReminderEnabled == true) {
-      await NotificationService.instance.scheduleDailyDiaryReminder(hour: picked.hour, minute: picked.minute);
+      await NotificationService.instance.cancelAllDiaryReminders();
+      await NotificationService.instance.refillDiaryReminderWindow(hour: picked.hour, minute: picked.minute);
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -78,6 +79,12 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   late final List<_PhotoItem> _photoItems;
   bool _dirty = false;
   bool _saving = false;
+
+  /// 저장 중 "사진 준비 중 (n/m)" 표시용 — 사진이 없거나 전부 처리를
+  /// 끝내면 null로 돌아가 평소 "저장 중" 표시로 바뀐다("일기 보완"
+  /// 지시서 1).
+  int? _photoProgressCurrent;
+  int? _photoProgressTotal;
 
   /// 사용자가 날짜를 직접 바꾼 뒤엔 사진 촬영일로 자동 바꾸지 않는다
   /// ("일기 활성화" 지시서 C). 수정 화면(기존 일기)은 이미 정해둔 날짜가
@@ -254,10 +261,14 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   /// 아예 시도하지 않는다.
   Future<void> _applyExifDateSuggestion(List<File> files) async {
     if (!_dateAutoSuggestAllowed) return;
+    // EXIF 읽기도 디코딩을 거칠 수 있어(JPEG가 아니면 전체 디코딩으로
+    // 대체, diary_photo_processor.dart 참고) 메인 isolate 밖에서
+    // 돌린다("일기 보완" 지시서 1) — 한 장씩 순차로, 화면이 멈추지
+    // 않게.
     final captureDates = <DateTime?>[];
     for (final file in files) {
       try {
-        captureDates.add(readDiaryPhotoCaptureDate(await file.readAsBytes()));
+        captureDates.add(await compute(readDiaryPhotoCaptureDate, await file.readAsBytes()));
       } catch (_) {
         captureDates.add(null);
       }
@@ -342,17 +353,55 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       updatedAt: now,
     );
 
+    var decodeFailures = 0;
+    void onPhotoProgress(int index, int total) {
+      if (!mounted) return;
+      setState(() {
+        _photoProgressCurrent = index;
+        _photoProgressTotal = total;
+      });
+    }
+    void onPhotoDecodeFailed() => decodeFailures++;
+
     try {
       final repo = ref.read(diaryRepositoryProvider);
       if (existing == null) {
-        await repo.createDiary(uid, diaryToSave, newFiles);
+        await repo.createDiary(
+          uid,
+          diaryToSave,
+          newFiles,
+          onPhotoProgress: onPhotoProgress,
+          onPhotoDecodeFailed: onPhotoDecodeFailed,
+        );
       } else {
-        await repo.updateDiary(uid, diaryToSave, newPhotoFiles: newFiles, removedPhotos: removedPhotos);
+        await repo.updateDiary(
+          uid,
+          diaryToSave,
+          newPhotoFiles: newFiles,
+          removedPhotos: removedPhotos,
+          onPhotoProgress: onPhotoProgress,
+          onPhotoDecodeFailed: onPhotoDecodeFailed,
+        );
       }
       ref.invalidate(diariesPageProvider);
       ref.invalidate(recentDiariesForTagOrderProvider);
       if (existing != null) ref.invalidate(diaryProvider(existing.id));
       await _draftStore.clear();
+      // 오늘 일기를 저장하면 오늘 알림만 취소한다("일기 보완" 지시서 2) —
+      // 알림이 꺼져 있거나 오늘이 예약돼 있지 않으면 조용히 아무 일도
+      // 하지 않는다.
+      if (dateOnly(diaryToSave.date) == dateOnly(DateTime.now())) {
+        await NotificationService.instance.cancelTodayDiaryReminder();
+      }
+      // 디코딩에 실패해 빠진 사진이 있으면, 화면을 닫기 전에 잠깐
+      // 보여준다 — 그냥 바로 닫으면 안내가 뜰 새 없이 사라진다
+      // ("일기 보완" 지시서 1: "그 사진만 제외하고 안내").
+      if (decodeFailures > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('사진 $decodeFailures장을 처리하지 못해 제외했어요.')),
+        );
+        await Future.delayed(const Duration(milliseconds: 1200));
+      }
       if (existing == null) await _maybeShowDiaryReminderPrompt();
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -362,7 +411,13 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _photoProgressCurrent = null;
+          _photoProgressTotal = null;
+        });
+      }
     }
   }
 
@@ -436,7 +491,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     if (picked == null) return;
     await settings.setDiaryReminderEnabled(true);
     await settings.setDiaryReminderTime(hour: picked.hour, minute: picked.minute);
-    await NotificationService.instance.scheduleDailyDiaryReminder(hour: picked.hour, minute: picked.minute);
+    await NotificationService.instance.refillDiaryReminderWindow(hour: picked.hour, minute: picked.minute);
   }
 
   @override
@@ -592,15 +647,41 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('저장'),
+                  child: _saving ? _SavingIndicator(current: _photoProgressCurrent, total: _photoProgressTotal) : const Text('저장'),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 저장 버튼 안의 진행 표시 — 처리 중인 사진이 있으면 "사진 준비 중
+/// (n/m)"을, 없으면(또는 끝났으면) 평소 스피너를 보여준다("일기 보완"
+/// 지시서 1).
+class _SavingIndicator extends StatelessWidget {
+  final int? current;
+  final int? total;
+
+  const _SavingIndicator({required this.current, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final spinner = const SizedBox(
+      width: 20,
+      height: 20,
+      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+    );
+    if (current == null || total == null) return spinner;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        spinner,
+        const SizedBox(width: 10),
+        Text('사진 준비 중 ($current/$total)', style: const TextStyle(color: Colors.white)),
+      ],
     );
   }
 }
@@ -723,7 +804,10 @@ class _PhotoThumb extends StatelessWidget {
                   fit: BoxFit.cover,
                   errorWidget: (context, url, error) => Container(width: 80, height: 80, color: AppColors.surfaceMutedLight),
                 )
-              : Image.file(newFile!, width: 80, height: 80, fit: BoxFit.cover),
+              // 원본 바이트를 그대로 디코딩하면(최대 수천만 화소) 80x80
+              // 썸네일 하나에도 메모리가 크게 든다 — cacheWidth로 디코딩
+              // 자체를 줄인다("일기 보완" 지시서 1).
+              : Image.file(newFile!, width: 80, height: 80, fit: BoxFit.cover, cacheWidth: 160),
         ),
         Positioned(
           right: 2,

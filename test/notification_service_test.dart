@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:petcliniccheck/notifications/notification_service.dart';
 
@@ -24,16 +25,24 @@ void main() {
     );
   });
 
-  group('NotificationService — 일기 알림("일기 활성화" 지시서 K, 예약 알림과 별도 채널)', () {
-    test('scheduleDailyDiaryReminder는 플랫폼 채널이 없어도 예외를 던지지 않는다', () async {
+  group('NotificationService — 일기 알림(14일 창, "일기 보완" 지시서 2, 예약 알림과 별도 채널)', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
+    test('refillDiaryReminderWindow은 플랫폼 채널이 없어도 예외를 던지지 않는다', () async {
       await expectLater(
-        NotificationService.instance.scheduleDailyDiaryReminder(hour: 21, minute: 0),
+        NotificationService.instance.refillDiaryReminderWindow(hour: 21, minute: 0),
         completes,
       );
     });
 
-    test('cancelDiaryReminder는 플랫폼 채널이 없어도 예외를 던지지 않는다', () async {
-      await expectLater(NotificationService.instance.cancelDiaryReminder(), completes);
+    test('cancelTodayDiaryReminder는 플랫폼 채널이 없어도 예외를 던지지 않는다', () async {
+      await expectLater(NotificationService.instance.cancelTodayDiaryReminder(), completes);
+    });
+
+    test('cancelAllDiaryReminders는 플랫폼 채널이 없어도 예외를 던지지 않는다', () async {
+      await expectLater(NotificationService.instance.cancelAllDiaryReminders(), completes);
     });
 
     test('initializeForAppStart은 플랫폼 채널이 없어도 예외를 던지지 않는다', () async {
