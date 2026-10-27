@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../data/diary_repository.dart';
 import '../data/firestore_diary_repository.dart';
+import '../diary_calendar.dart' show onThisDayCandidates;
 import '../models/diary.dart';
 
 final diaryRepositoryProvider = Provider<DiaryRepository>((ref) => FirestoreDiaryRepository());
@@ -50,4 +51,23 @@ final recentDiariesForTagOrderProvider = FutureProvider.autoDispose<List<Diary>>
   if (uid == null) return const [];
   final page = await ref.watch(diaryRepositoryProvider).fetchDiaries(uid, limit: 50);
   return page.diaries;
+});
+
+/// 홈 "그날의 기록" 카드용 — 1년 전 오늘 일기가 있으면 그것, 없으면 한
+/// 달 전 오늘, 둘 다 없으면 null("일기 활성화" 지시서 I). 반려동물과
+/// 무관하게(계정 전체) 먼저 걸리는 한 편만 쓴다.
+final onThisDayDiaryProvider = FutureProvider.autoDispose<Diary?>((ref) async {
+  final uid = ref.watch(authStateProvider).value?.uid;
+  if (uid == null) return null;
+  final repo = ref.watch(diaryRepositoryProvider);
+
+  for (final day in onThisDayCandidates(DateTime.now())) {
+    final monthDiaries = await repo.fetchDiariesForMonth(uid, DateTime(day.year, day.month, 1));
+    for (final diary in monthDiaries) {
+      if (diary.date.year == day.year && diary.date.month == day.month && diary.date.day == day.day) {
+        return diary;
+      }
+    }
+  }
+  return null;
 });

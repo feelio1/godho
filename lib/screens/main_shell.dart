@@ -19,6 +19,8 @@ import '../providers/followup_appointment_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/pet_provider.dart';
+import '../diary/screens/diary_form_screen.dart';
+import '../notifications/notification_service.dart';
 import '../providers/region_auto_detect.dart';
 import '../providers/search_provider.dart';
 import '../theme/app_dimens.dart';
@@ -118,12 +120,34 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     // pendingFollowUpProvider의 ref.listen이 데이터가 들어온 뒤 다시
     // 알려주므로, 여기서는 이미 로딩이 끝나 있는 경우(드묾)만 바로 확인.
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowFollowUpSheet());
+    // 일기 알림 탭 처리("일기 활성화" 지시서 K) — 앱이 떠 있는 동안
+    // 탭한 경우는 이 콜백으로, 완전히 종료된 상태에서 탭해 새로 켜진
+    // 경우는 아래 launch-detail 확인으로 각각 받는다. 예약 알림은
+    // payload가 없어 이 콜백에 영향을 주지 않는다.
+    NotificationService.instance.onNotificationTapped = _handleNotificationTap;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkLaunchNotification());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (identical(NotificationService.instance.onNotificationTapped, _handleNotificationTap)) {
+      NotificationService.instance.onNotificationTapped = null;
+    }
     super.dispose();
+  }
+
+  Future<void> _checkLaunchNotification() async {
+    final payload = await NotificationService.instance.consumeLaunchNotificationPayload();
+    if (payload != null) _handleNotificationTap(payload);
+  }
+
+  /// 알림 탭 → 우리 아이 탭 일기 작성("일기 활성화" 지시서 K). 지금은
+  /// 일기 알림만 payload를 쓰므로 다른 값은 조용히 무시한다.
+  void _handleNotificationTap(String payload) {
+    if (payload != NotificationService.diaryReminderPayload || !mounted) return;
+    ref.read(selectedTabProvider.notifier).state = AppTab.pet.index;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiaryFormScreen()));
   }
 
   @override

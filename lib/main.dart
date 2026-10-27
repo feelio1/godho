@@ -9,6 +9,7 @@ import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 import 'ads/app_open_ad_gate.dart';
 import 'config/kakao_map_config.dart';
+import 'notifications/notification_service.dart';
 import 'screens/main_shell.dart';
 import 'screens/onboarding_gate.dart';
 import 'theme/app_theme.dart';
@@ -62,6 +63,18 @@ Future<void> main() async {
   // 대체되므로(admob_config.dart 참고), 키 미설정 상태에서도 안전하게
   // 빌드·실행되고 테스트 광고가 정상적으로 표시된다.
   await MobileAds.instance.initialize();
+
+  // 예약 알림 쪽은 계속 필요할 때만 지연 초기화하지만(바뀌는 것 없음),
+  // 일기 알림을 탭해 앱이 완전히 종료된 상태에서 새로 켜졌는지(아래
+  // MainShell에서 확인) 알아내려면 그 확인보다 먼저 플러그인이 초기화돼
+  // 있어야 한다("일기 활성화" 지시서 K). 다른 네이티브 SDK와 같은 방어
+  // 패턴으로, 실패해도 알림 기능만 영향받고 앱은 정상 동작한다.
+  try {
+    await NotificationService.instance.initializeForAppStart();
+    debugPrint('[NotificationService] 초기화 성공');
+  } catch (e) {
+    debugPrint('[NotificationService] 초기화 실패(알림 기능만 영향, 나머지는 정상 동작): $e');
+  }
 
   runApp(const ProviderScope(child: PetClinicCheckApp()));
 }

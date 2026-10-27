@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../data/app_settings.dart';
 import '../../models/pet.dart';
+import '../../notifications/notification_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/effective_pets_provider.dart';
 import '../../theme/app_colors.dart';
@@ -351,6 +353,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       ref.invalidate(recentDiariesForTagOrderProvider);
       if (existing != null) ref.invalidate(diaryProvider(existing.id));
       await _draftStore.clear();
+      if (existing == null) await _maybeShowDiaryReminderPrompt();
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -368,6 +371,72 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       if (_selectedPetIds.contains(pet.id)) return pet.name;
     }
     return pets.isNotEmpty ? pets.first.name : '반려동물';
+  }
+
+  /// 일기를 3번째 저장한 직후 한 번만 알림 동의를 묻는다("일기 활성화"
+  /// 지시서 K) — 수락/거절 상관없이 한 번 묻고 나면 다시 묻지 않는다.
+  /// 기본값은 꺼짐이라 아무것도 하지 않으면 알림은 울리지 않는다.
+  Future<void> _maybeShowDiaryReminderPrompt() async {
+    const settings = AppSettings();
+    final count = await settings.incrementDiarySaveCount();
+    if (count != 3 || await settings.diaryReminderPromptShown()) return;
+    await settings.setDiaryReminderPromptShown();
+    if (!mounted) return;
+
+    final wantsToTurnOn = await showModalBottomSheet<bool>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.page),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('매일 이 시간에 일기 알림을 받을까요?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              const Text(
+                '정한 시간에 오늘 하루를 일기로 남겨보도록 알려드려요. 언제든 내 정보 > 설정에서 끌 수 있어요.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(false),
+                      child: const Text('괜찮아요'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(true),
+                      child: const Text('시간 정하고 켜기'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (wantsToTurnOn != true || !mounted) return;
+
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(
+        hour: AppSettings.diaryReminderDefaultHour,
+        minute: AppSettings.diaryReminderDefaultMinute,
+      ),
+    );
+    if (picked == null) return;
+    await settings.setDiaryReminderEnabled(true);
+    await settings.setDiaryReminderTime(hour: picked.hour, minute: picked.minute);
+    await NotificationService.instance.scheduleDailyDiaryReminder(hour: picked.hour, minute: picked.minute);
   }
 
   @override

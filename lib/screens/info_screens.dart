@@ -33,17 +33,63 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool? _notificationsEnabled;
   LocationPermission? _locationPermission;
 
+  bool? _diaryReminderEnabled;
+  TimeOfDay _diaryReminderTime = const TimeOfDay(hour: AppSettings.diaryReminderDefaultHour, minute: AppSettings.diaryReminderDefaultMinute);
+
   @override
   void initState() {
     super.initState();
     _loadNotificationSetting();
     _loadLocationPermission();
+    _loadDiaryReminderSetting();
   }
 
   Future<void> _loadNotificationSetting() async {
     final enabled = await const AppSettings().notificationsEnabled();
     if (!mounted) return;
     setState(() => _notificationsEnabled = enabled);
+  }
+
+  Future<void> _loadDiaryReminderSetting() async {
+    final settings = const AppSettings();
+    final enabled = await settings.diaryReminderEnabled();
+    final time = await settings.diaryReminderTime();
+    if (!mounted) return;
+    setState(() {
+      _diaryReminderEnabled = enabled;
+      _diaryReminderTime = TimeOfDay(hour: time.hour, minute: time.minute);
+    });
+  }
+
+  /// "일기 알림" 토글("일기 활성화" 지시서 K) — 예약 알림과 완전히 별개
+  /// 설정·채널이다. 켤 때 시간을 고르지 않았으면(설정 화면에서 바로 켤
+  /// 때) 지금 표시 중인 시간으로 바로 예약한다.
+  Future<void> _setDiaryReminderEnabled(bool value) async {
+    setState(() => _diaryReminderEnabled = value);
+    final settings = const AppSettings();
+    await settings.setDiaryReminderEnabled(value);
+    if (value) {
+      await NotificationService.instance.scheduleDailyDiaryReminder(
+        hour: _diaryReminderTime.hour,
+        minute: _diaryReminderTime.minute,
+      );
+    } else {
+      await NotificationService.instance.cancelDiaryReminder();
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value ? '일기 알림을 켰습니다.' : '일기 알림을 껐습니다.')),
+    );
+  }
+
+  Future<void> _pickDiaryReminderTime() async {
+    final picked = await showTimePicker(context: context, initialTime: _diaryReminderTime);
+    if (picked == null || !mounted) return;
+    setState(() => _diaryReminderTime = picked);
+    await const AppSettings().setDiaryReminderTime(hour: picked.hour, minute: picked.minute);
+    if (_diaryReminderEnabled == true) {
+      await NotificationService.instance.scheduleDailyDiaryReminder(hour: picked.hour, minute: picked.minute);
+    }
   }
 
   /// 읽기 전용 상태 확인 — 권한 다이얼로그를 띄우지 않는다(CLAUDE.md:
@@ -323,6 +369,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: const Icon(Icons.bolt_outlined),
                   label: const Text('즉시 테스트 알림 보내기'),
                 ),
+              ),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('일기 알림'),
+                subtitle: const Text('정한 시간에 오늘 하루를 일기로 남겨보도록 알려드립니다. 기본은 꺼져 있습니다.'),
+                value: _diaryReminderEnabled ?? false,
+                onChanged: _diaryReminderEnabled == null ? null : _setDiaryReminderEnabled,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('알림 시간'),
+                subtitle: Text(_diaryReminderTime.format(context)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _pickDiaryReminderTime,
               ),
             ],
           ),

@@ -9,6 +9,7 @@ import '../../theme/app_dimens.dart';
 import '../../widgets/inline_error_message.dart';
 import '../../widgets/mascot_image.dart';
 import '../../widgets/mascot_message.dart';
+import '../diary_calendar.dart' show diaryRecordedDays;
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_detail_screen.dart';
@@ -57,6 +58,7 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
             ],
           ),
         ),
+        const _MonthlyDiaryTracker(),
         Padding(
           padding: const EdgeInsets.fromLTRB(AppSpacing.page, 8, AppSpacing.page, 6),
           child: Row(
@@ -125,6 +127,53 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// "이번 달 ○일 기록했어요" + 날짜 점줄("일기 활성화" 지시서 J) — 기록한
+/// 날만 채운 점으로 보여준다. 연속·끊김 표시는 없다(CLAUDE.md: "연속
+/// ○일" 같은 압박형 장치 금지).
+class _MonthlyDiaryTracker extends ConsumerWidget {
+  const _MonthlyDiaryTracker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final now = DateTime.now();
+    final month = DateTime(now.year, now.month, 1);
+    final diaries = ref.watch(diariesForMonthProvider(month)).value ?? const <Diary>[];
+    final recordedDays = diaryRecordedDays(diaries);
+    final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '이번 달 ${recordedDays.length}일 기록했어요',
+            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (var day = 1; day <= daysInMonth; day++)
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: recordedDays.contains(DateTime(now.year, now.month, day))
+                        ? AppColors.diaryAccent
+                        : AppColors.borderInput,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

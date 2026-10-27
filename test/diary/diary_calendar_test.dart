@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:petcliniccheck/diary/diary_calendar.dart';
 import 'package:petcliniccheck/diary/models/diary.dart';
+import 'package:petcliniccheck/utils/appointment_calendar.dart' show dateOnly;
 
 Diary _diary(String id, DateTime date) => Diary(
       id: id,
@@ -42,6 +43,34 @@ void main() {
 
     test('빈 목록은 빈 맵이다', () {
       expect(groupDiariesByDate(const []), isEmpty);
+    });
+  });
+
+  group('onThisDayCandidates — "그날의 기록" 카드가 찾아볼 날짜("일기 활성화" 지시서 I)', () {
+    test('1년 전 오늘이 먼저, 한 달 전 오늘이 그다음이다', () {
+      final candidates = onThisDayCandidates(DateTime(2026, 5, 15));
+      expect(candidates, [DateTime(2025, 5, 15), DateTime(2026, 4, 15)]);
+    });
+
+    test('1월이면 한 달 전은 전년도 12월로 넘어간다', () {
+      final candidates = onThisDayCandidates(DateTime(2026, 1, 10));
+      expect(candidates[1], DateTime(2025, 12, 10));
+    });
+  });
+
+  group('diaryRecordedDays — "이달의 기록" 집계("일기 활성화" 지시서 J)', () {
+    test('같은 날 여러 편이어도 하루로 센다', () {
+      final a = _diary('d1', DateTime(2026, 5, 1, 8));
+      final b = _diary('d2', DateTime(2026, 5, 1, 21));
+      final c = _diary('d3', DateTime(2026, 5, 3));
+
+      final days = diaryRecordedDays([a, b, c]);
+
+      expect(days, {dateOnly(DateTime(2026, 5, 1)), dateOnly(DateTime(2026, 5, 3))});
+    });
+
+    test('빈 목록은 빈 집합이다', () {
+      expect(diaryRecordedDays(const []), isEmpty);
     });
   });
 }

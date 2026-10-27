@@ -48,6 +48,28 @@ class NotificationService {
     priority: Priority.high,
   );
 
+  /// 일기 알림 전용 채널 — 예약 알림과 완전히 별개다("일기 활성화"
+  /// 지시서 K: "기존 예약 알림 채널 변경 금지").
+  static const _diaryReminderChannel = AndroidNotificationDetails(
+    'diary_reminders',
+    '일기 알림',
+    channelDescription: '정한 시간에 하루를 일기로 남겨보도록 알려드립니다.',
+    importance: Importance.defaultImportance,
+    priority: Priority.defaultPriority,
+  );
+
+  /// 알림 하나뿐이라(매일 반복) 고정 id 하나만 쓴다 — 예약 알림 id 범위
+  /// (해시 기반)·테스트 알림 id와 겹치지 않게 떨어뜨려 둔다.
+  static const _diaryReminderId = 777777;
+
+  /// 알림을 탭했을 때의 구분값 — 예약 알림은 payload를 쓰지 않으므로
+  /// (영향 없음), 일기 알림만 이 값으로 식별한다.
+  static const diaryReminderPayload = 'diary_reminder';
+
+  /// 알림을 탭했을 때 실행할 동작 — 앱(위젯 트리 쪽)이 등록한다. 현재는
+  /// 일기 알림 탭 시 우리 아이 탭 일기 작성으로 이동하는 데만 쓴다.
+  void Function(String payload)? onNotificationTapped;
+
   Future<void> _ensureInitialized() async {
     if (_initialized) return;
     try {
@@ -57,7 +79,10 @@ class NotificationService {
       tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
       const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
       const settings = InitializationSettings(android: androidSettings);
-      final ok = await _plugin.initialize(settings: settings);
+      final ok = await _plugin.initialize(
+        settings: settings,
+        onDidReceiveNotificationResponse: _onNotificationResponse,
+      );
       _initialized = true;
       _log('초기화 완료 (initialize() 반환값: $ok)');
     } catch (e, st) {
@@ -65,6 +90,37 @@ class NotificationService {
       _initialized = false;
       _log('초기화 실패: $e\n$st');
     }
+  }
+
+  /// 앱이 이미 떠 있는 상태(포그라운드·백그라운드)에서 알림을 탭하면
+  /// 플러그인이 바로 이걸 부른다.
+  void _onNotificationResponse(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null) return;
+    _log('알림 탭됨 (payload: $payload)');
+    onNotificationTapped?.call(payload);
+  }
+
+  /// `main()`에서 앱을 시작할 때 한 번 불러 미리 초기화해 둔다 — 알림을
+  /// 탭해 앱이 완전히 새로 켜진 경우까지 [consumeLaunchNotificationPayload]
+  /// 로 알아낼 수 있으려면, 그 확인 전에 플러그인이 초기화돼 있어야
+  /// 한다. 예약 알림 쪽은 계속 필요할 때만 지연 초기화하므로(바뀌는 것
+  /// 없음), 이 호출이 그보다 먼저 끝나 있어도 동작은 같다 — 다른
+  /// 네이티브 SDK(Firebase 등)처럼 실패해도 앱을 막지 않는다.
+  Future<void> initializeForAppStart() => _ensureInitialized();
+
+  /// 알림을 탭해 앱이 완전히 종료된 상태에서 새로 켜졌는지 확인한다.
+  /// 일기 알림이었으면 그 payload를, 아니면 null을 돌려준다.
+  Future<String?> consumeLaunchNotificationPayload() async {
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details?.didNotificationLaunchApp == true) {
+        return details?.notificationResponse?.payload;
+      }
+    } catch (e) {
+      _log('알림으로 시작됐는지 확인 실패(무시): $e');
+    }
+    return null;
   }
 
   AndroidFlutterLocalNotificationsPlugin? get _android =>
@@ -195,6 +251,61 @@ class NotificationService {
     } catch (e) {
       _log('모든 알림 취소 중 예외(무시): $e');
     }
+  }
+
+  /// 매일 [hour]:[minute]에 일기 알림을 켠다 — 사용자 동의 시에만
+  /// 호출된다("일기 활성화" 지시서 K). 예약 알림과 다른 채널이고, 매일
+  /// 반복([DateTimeComponents.time])이라 한 번만 걸어두면 된다.
+  ///
+  /// 알려진 한계: 그날 이미 일기를 썼으면 그날 알림을 건너뛰는 것까지는
+  /// 구현하지 못했다 — `flutter_local_notifications`의 반복 알람은 특정
+  /// 날짜 하나만 건너뛸 수단이 없고(반복 자체를 취소/재예약해야 하는데,
+  /// 그러면 다음 날짜까지 다시 계산해야 해 어떤 시점에 앱이 꺼져 있으면
+  /// 깨진다), 안정적으로 구현하려면 네이티브 쪽 별도 작업이 필요해 이번
+  /// 범위를 넘어선다.
+  Future<void> scheduleDailyDiaryReminder({required int hour, required int minute}) async {
+    await cancelDiaryReminder();
+    await _ensureInitialized();
+    if (!_initialized) {
+      _log('초기화가 안 돼 있어 일기 알림을 스케줄하지 않음');
+      return;
+    }
+    final scheduleMode = await _bestAvailableScheduleMode();
+    final fireAt = _nextInstanceOfTime(hour, minute);
+    try {
+      await _plugin.zonedSchedule(
+        id: _diaryReminderId,
+        scheduledDate: tz.TZDateTime.from(fireAt, tz.local),
+        title: '일기 알림',
+        body: '오늘 하루를 일기로 남겨볼까요?',
+        notificationDetails: const NotificationDetails(android: _diaryReminderChannel),
+        androidScheduleMode: scheduleMode,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: diaryReminderPayload,
+      );
+      _log('일기 알림 매일 $hour:$minute 스케줄 완료');
+    } catch (e, st) {
+      _log('일기 알림 스케줄 실패: $e\n$st');
+    }
+  }
+
+  Future<void> cancelDiaryReminder() async {
+    await _ensureInitialized();
+    if (!_initialized) return;
+    try {
+      await _plugin.cancel(id: _diaryReminderId);
+    } catch (e) {
+      _log('일기 알림 취소 중 예외(무시): $e');
+    }
+  }
+
+  DateTime _nextInstanceOfTime(int hour, int minute) {
+    final now = DateTime.now();
+    var scheduled = DateTime(now.year, now.month, now.day, hour, minute);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
   }
 
   static String _reminderBody(Appointment appointment) {
