@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -15,6 +16,8 @@ import '../../utils/appointment_calendar.dart' show dateOnly, isFutureDay;
 import '../../utils/network_error.dart';
 import '../../widgets/date_picker_sheet.dart';
 import '../../widgets/form_field_label.dart';
+import '../diary_daily_question.dart';
+import '../diary_draft.dart';
 import '../diary_photo_processor.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
@@ -42,13 +45,23 @@ class _PhotoItem {
 /// 없으면 새 작성 — [defaultPetIds]는 새 작성일 때만 쓰는 기본 선택
 /// 반려동물(현재 "우리 아이" 탭에서 보고 있던 아이), [initialDate]는
 /// 기본 날짜(생략하면 오늘 — 홈 "오늘의 일기 쓰기"에서 넘어올 때 쓴다,
-/// "방향 개편" 지시서 F).
+/// "방향 개편" 지시서 F). [openGalleryOnStart]는 일기 세그먼트의 "+"
+/// 버튼에서만 켠다 — 화면이 뜨자마자 갤러리 다중 선택을 바로 연다
+/// ("일기 활성화" 지시서 D, 사진부터 시작). 임시저장(G)이 남아 있으면
+/// 그 선택을 먼저 묻고, "새로 쓰기"를 골랐을 때만 갤러리를 연다.
 class DiaryFormScreen extends ConsumerStatefulWidget {
   final Diary? existing;
   final List<String>? defaultPetIds;
   final DateTime? initialDate;
+  final bool openGalleryOnStart;
 
-  const DiaryFormScreen({super.key, this.existing, this.defaultPetIds, this.initialDate});
+  const DiaryFormScreen({
+    super.key,
+    this.existing,
+    this.defaultPetIds,
+    this.initialDate,
+    this.openGalleryOnStart = false,
+  });
 
   @override
   ConsumerState<DiaryFormScreen> createState() => _DiaryFormScreenState();
@@ -71,6 +84,11 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   bool _dateManuallySet = false;
   bool _showAutoDateNotice = false;
 
+  /// 새 일기 작성 중에만 자동 임시저장한다("일기 활성화" 지시서 G) —
+  /// 수정 화면은 이미 저장된 내용이 있어 대상이 아니다.
+  static const _draftStore = DiaryDraftStore();
+  Timer? _draftSaveTimer;
+
   @override
   void initState() {
     super.initState();
@@ -81,16 +99,90 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     _activities = {...(existing?.activities ?? const [])};
     _textController = TextEditingController(text: existing?.text ?? '');
     _photoItems = [for (final p in existing?.photos ?? const <DiaryPhoto>[]) _PhotoItem.existing(p)];
+    if (existing == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkDraftOnStart());
+    }
   }
 
   @override
   void dispose() {
+    _draftSaveTimer?.cancel();
     _textController.dispose();
     super.dispose();
   }
 
   void _markDirty() {
     if (!_dirty) setState(() => _dirty = true);
+    _scheduleDraftSave();
+  }
+
+  /// 화면이 뜬 직후(새 작성일 때만) 임시저장된 일기가 있는지 본다 — 있으면
+  /// "이어쓰기/새로 쓰기"를 먼저 묻고, 그 뒤(또는 임시본이 없을 때) 사진부터
+  /// 시작 요청([DiaryFormScreen.openGalleryOnStart])을 처리한다.
+  Future<void> _checkDraftOnStart() async {
+    final draft = await _draftStore.load();
+    if (!mounted) return;
+    if (draft == null) {
+      if (widget.openGalleryOnStart) await _pickFromGallery();
+      return;
+    }
+    final resume = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('작성 중이던 일기가 있어요'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('새로 쓰기')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('이어쓰기')),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (resume == true) {
+      _restoreDraft(draft);
+    } else {
+      await _draftStore.clear();
+      if (widget.openGalleryOnStart) await _pickFromGallery();
+    }
+  }
+
+  /// 로컬 파일이 사라졌으면(예: 임시 캐시 정리) 그 사진만 빼고 나머지를
+  /// 복원한다("일기 활성화" 지시서 G).
+  void _restoreDraft(DiaryDraft draft) {
+    setState(() {
+      _date = draft.date;
+      _selectedPetIds
+        ..clear()
+        ..addAll(draft.petIds);
+      _weather = draft.weather;
+      _activities
+        ..clear()
+        ..addAll(draft.activities);
+      _textController.text = draft.text;
+      _photoItems.addAll(
+        draft.photoPaths.where((p) => File(p).existsSync()).map((p) => _PhotoItem.newFile(File(p))),
+      );
+      _dirty = true;
+      _dateManuallySet = true;
+    });
+  }
+
+  void _scheduleDraftSave() {
+    if (widget.existing != null) return;
+    _draftSaveTimer?.cancel();
+    _draftSaveTimer = Timer(const Duration(milliseconds: 800), _saveDraftNow);
+  }
+
+  Future<void> _saveDraftNow() async {
+    if (!mounted) return;
+    await _draftStore.save(DiaryDraft(
+      date: _date,
+      petIds: _selectedPetIds.toList(),
+      weather: _weather,
+      activities: _activities.toList(),
+      text: _textController.text,
+      photoPaths: [for (final p in _photoItems) if (p.newFile != null) p.newFile!.path],
+    ));
   }
 
   Future<void> _pickDate() async {
@@ -256,7 +348,9 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
         await repo.updateDiary(uid, diaryToSave, newPhotoFiles: newFiles, removedPhotos: removedPhotos);
       }
       ref.invalidate(diariesPageProvider);
+      ref.invalidate(recentDiariesForTagOrderProvider);
       if (existing != null) ref.invalidate(diaryProvider(existing.id));
+      await _draftStore.clear();
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -269,9 +363,19 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     }
   }
 
+  String _questionPetName(List<Pet> pets) {
+    for (final pet in pets) {
+      if (_selectedPetIds.contains(pet.id)) return pet.name;
+    }
+    return pets.isNotEmpty ? pets.first.name : '반려동물';
+  }
+
   @override
   Widget build(BuildContext context) {
     final pets = ref.watch(effectivePetsProvider).value ?? const <Pet>[];
+    final recentDiaries = ref.watch(recentDiariesForTagOrderProvider).value ?? const <Diary>[];
+    final orderedActivities = sortActivitiesByRecentUsage(recentDiaries);
+    final dailyQuestion = diaryDailyQuestionFor(_date, _questionPetName(pets));
 
     return PopScope(
       canPop: !_dirty,
@@ -287,6 +391,14 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.page),
             children: [
+              Row(
+                children: [
+                  const Icon(Icons.lock_outline, size: 14, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  const Text('일기는 나만 볼 수 있어요', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.formField),
               const FormFieldLabel('날짜'),
               InkWell(
                 onTap: _pickDate,
@@ -370,9 +482,10 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: DiaryActivity.values
+                children: orderedActivities
                     .map((a) => FilterChip(
-                          label: Text(a.label),
+                          label: Text(a.label, style: const TextStyle(fontSize: 14)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           selected: _activities.contains(a),
                           onSelected: (selected) {
                             setState(() {
@@ -403,7 +516,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
                 maxLines: 8,
                 maxLength: kDiaryMaxTextLength,
                 onChanged: (_) => _markDirty(),
-                decoration: const InputDecoration(hintText: '오늘 하루 있었던 일을 남겨보세요'),
+                decoration: InputDecoration(hintText: dailyQuestion),
               ),
               const SizedBox(height: 28),
               SizedBox(

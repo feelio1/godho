@@ -44,6 +44,26 @@ enum DiaryActivity {
   }
 }
 
+/// 활동 태그 칩을 내가 자주 쓴 순서로 보여주기 위한 정렬("일기 활성화"
+/// 지시서 E) — [recentDiaries](호출부가 최근 50편을 건넨다)에서 많이
+/// 쓴 태그부터, 같은 횟수면 원래(선언) 순서를 그대로 유지한다. 기록이
+/// 없으면(또는 전부 0번) 기본 순서 그대로다.
+List<DiaryActivity> sortActivitiesByRecentUsage(List<Diary> recentDiaries) {
+  final counts = <DiaryActivity, int>{};
+  for (final diary in recentDiaries) {
+    for (final activity in diary.activities) {
+      counts[activity] = (counts[activity] ?? 0) + 1;
+    }
+  }
+  final sorted = [...DiaryActivity.values];
+  sorted.sort((a, b) {
+    final diff = (counts[b] ?? 0) - (counts[a] ?? 0);
+    if (diff != 0) return diff;
+    return DiaryActivity.values.indexOf(a) - DiaryActivity.values.indexOf(b);
+  });
+  return sorted;
+}
+
 /// 일기 사진 한 장 — `path`는 Firebase Storage 업로드 후 받은 다운로드
 /// URL이다(저장 경로 자체가 아니라 바로 띄울 수 있는 주소). 가로·세로
 /// 픽셀 크기를 함께 저장해 두면 나중에 책 인쇄 등에서 원본 비율로 배치할

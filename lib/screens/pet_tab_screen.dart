@@ -60,7 +60,9 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
     switch (view) {
       case PetTabView.diary:
         Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [selectedPet.id])),
+          MaterialPageRoute(
+            builder: (_) => DiaryFormScreen(defaultPetIds: [selectedPet.id], openGalleryOnStart: true),
+          ),
         );
         break;
       case PetTabView.calendar:

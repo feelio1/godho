@@ -124,6 +124,42 @@ void main() {
     });
   });
 
+  group('sortActivitiesByRecentUsage — 자주 쓴 태그부터("일기 활성화" 지시서 E)', () {
+    Diary withActivities(List<DiaryActivity> activities) => Diary(
+          id: 'd',
+          date: DateTime(2026, 1, 1),
+          petIds: const ['p1'],
+          activities: activities,
+          createdAt: DateTime(2026, 1, 1),
+          updatedAt: DateTime(2026, 1, 1),
+        );
+
+    test('기록이 없으면 원래(선언) 순서 그대로다', () {
+      expect(sortActivitiesByRecentUsage(const []), DiaryActivity.values);
+    });
+
+    test('많이 쓴 태그가 앞으로 온다', () {
+      final recent = [
+        withActivities([DiaryActivity.bath]),
+        withActivities([DiaryActivity.bath, DiaryActivity.walk]),
+        withActivities([DiaryActivity.bath]),
+      ];
+      final sorted = sortActivitiesByRecentUsage(recent);
+
+      expect(sorted.first, DiaryActivity.bath);
+      expect(sorted.indexOf(DiaryActivity.walk), lessThan(sorted.indexOf(DiaryActivity.hospital)));
+    });
+
+    test('쓴 횟수가 같으면 원래 순서를 유지한다(동률 안정성)', () {
+      final recent = [
+        withActivities([DiaryActivity.hospital, DiaryActivity.outing]),
+      ];
+      final sorted = sortActivitiesByRecentUsage(recent);
+      // hospital·outing 둘 다 1회로 동률 — 선언 순서(hospital이 outing보다 먼저)가 유지된다.
+      expect(sorted.indexOf(DiaryActivity.hospital), lessThan(sorted.indexOf(DiaryActivity.outing)));
+    });
+  });
+
   group('capPhotoAdditions — "방향 개편" 지시서 C(사진 최대 $kDiaryMaxPhotos장)', () {
     test('아직 여유가 있으면 더할 목록을 그대로 돌려준다', () {
       final result = capPhotoAdditions(2, ['a', 'b', 'c']);

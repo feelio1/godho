@@ -41,3 +41,13 @@ final diariesForMonthProvider = FutureProvider.autoDispose.family<List<Diary>, D
   if (uid == null) return Future.value(const <Diary>[]);
   return ref.watch(diaryRepositoryProvider).fetchDiariesForMonth(uid, month);
 });
+
+/// 활동 태그를 자주 쓴 순서로 보여주기 위한 최근 50편("일기 활성화"
+/// 지시서 E) — 목록 페이지네이션([diariesPageProvider], 20개)과는
+/// 별도의 가벼운 집계 전용 호출이다.
+final recentDiariesForTagOrderProvider = FutureProvider.autoDispose<List<Diary>>((ref) async {
+  final uid = ref.watch(authStateProvider).value?.uid;
+  if (uid == null) return const [];
+  final page = await ref.watch(diaryRepositoryProvider).fetchDiaries(uid, limit: 50);
+  return page.diaries;
+});

@@ -48,7 +48,17 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 6),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 0),
+          child: const Row(
+            children: [
+              Icon(Icons.lock_outline, size: 13, color: AppColors.textSecondary),
+              SizedBox(width: 4),
+              Text('일기는 나만 볼 수 있어요', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 8, AppSpacing.page, 6),
           child: Row(
             children: [
               if (widget.allPets.length > 1) ...[
