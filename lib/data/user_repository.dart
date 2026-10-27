@@ -58,6 +58,21 @@ class UserRepository {
     });
   }
 
+  // --- 일기 알림 동의 질문("일기 수정" 지시서 3-2) ---
+  // 기기 로컬(SharedPreferences) 대신 여기 저장해, 재설치·기기 변경
+  // 후에도 이미 물었던 사람에게 다시 묻지 않는다. 기존에 로컬에만 저장돼
+  // 있던 "이미 물음" 값은 호출부(DiaryFormScreen)가 하위호환으로 함께
+  // 확인한다 — 이 메서드는 원격 필드만 안다.
+
+  Future<bool> diaryReminderAsked(String uid) async {
+    final doc = await _users.doc(uid).get();
+    return doc.data()?['diaryReminderAskedAt'] != null;
+  }
+
+  Future<void> markDiaryReminderAsked(String uid) async {
+    await _users.doc(uid).update({'diaryReminderAskedAt': Timestamp.now()});
+  }
+
   CollectionReference<Map<String, dynamic>> _pets(String uid) => _users.doc(uid).collection('pets');
 
   /// 생성된 문서 id를 돌려준다 — 사진이 있으면 이 id로 저장 경로를 정하고

@@ -21,6 +21,7 @@ import '../../widgets/form_field_label.dart';
 import '../diary_daily_question.dart';
 import '../diary_draft.dart';
 import '../diary_photo_processor.dart';
+import '../diary_reminder_prompt.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_weather_icons.dart';
@@ -440,14 +441,29 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     return pets.isNotEmpty ? pets.first.name : '반려동물';
   }
 
-  /// 일기를 3번째 저장한 직후 한 번만 알림 동의를 묻는다("일기 활성화"
-  /// 지시서 K) — 수락/거절 상관없이 한 번 묻고 나면 다시 묻지 않는다.
-  /// 기본값은 꺼짐이라 아무것도 하지 않으면 알림은 울리지 않는다.
+  /// 실제 일기 수가 3편 이상이면("정확히 3"이 아니라) 아직 안 물었을 때
+  /// 한 번만 알림 동의를 묻는다("일기 수정" 지시서 3) — 수락/거절
+  /// 상관없이 한 번 묻고 나면 다시 묻지 않는다. "이미 물음"은
+  /// `users/{uid}`에 저장해 재설치·기기 변경 후에도 유지되고, 이 기능
+  /// 추가 전부터 있던 로컬 "이미 물음" 값도 하위호환으로 존중한다.
+  /// 알림이 이미 켜져 있으면 묻지 않는다. 기본값은 꺼짐이라 아무것도
+  /// 하지 않으면 알림은 울리지 않는다.
   Future<void> _maybeShowDiaryReminderPrompt() async {
+    final uid = ref.read(authStateProvider).value?.uid;
+    if (uid == null) return;
     const settings = AppSettings();
-    final count = await settings.incrementDiarySaveCount();
-    if (count != 3 || await settings.diaryReminderPromptShown()) return;
-    await settings.setDiaryReminderPromptShown();
+    final userRepo = ref.read(userRepositoryProvider);
+    final reminderEnabled = await settings.diaryReminderEnabled();
+    final alreadyAsked = await settings.diaryReminderPromptShown() || await userRepo.diaryReminderAsked(uid);
+    final diaryPage = await ref.read(diaryRepositoryProvider).fetchDiaries(uid, limit: 3);
+    if (!shouldPromptDiaryReminder(
+      diaryCount: diaryPage.diaries.length,
+      alreadyAsked: alreadyAsked,
+      reminderEnabled: reminderEnabled,
+    )) {
+      return;
+    }
+    await userRepo.markDiaryReminderAsked(uid);
     if (!mounted) return;
 
     final wantsToTurnOn = await showModalBottomSheet<bool>(
@@ -501,6 +517,19 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       ),
     );
     if (picked == null) return;
+
+    // 알림 권한이 없으면 여기서 요청한다 — 거부되면 "켜짐" 상태로
+    // 저장하지 않는다("일기 수정" 지시서 3-4).
+    final granted = await NotificationService.instance.requestPermission();
+    if (!granted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('설정에서 알림을 허용해주세요.')),
+        );
+      }
+      return;
+    }
+
     await settings.setDiaryReminderEnabled(true);
     await settings.setDiaryReminderTime(hour: picked.hour, minute: picked.minute);
     await NotificationService.instance.refillDiaryReminderWindow(hour: picked.hour, minute: picked.minute);

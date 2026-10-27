@@ -73,6 +73,21 @@ void main() {
     expect(updated.loginType, LoginType.apple);
   });
 
+  group('일기 알림 동의를 이미 물었는지(원격, "일기 수정" 지시서 3-2)', () {
+    test('아직 물은 적 없으면 false', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(AppUser(uid: 'uid-asked-1', loginType: LoginType.google, createdAt: now, updatedAt: now));
+      expect(await repository.diaryReminderAsked('uid-asked-1'), isFalse);
+    });
+
+    test('markDiaryReminderAsked 이후에는 true', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(AppUser(uid: 'uid-asked-2', loginType: LoginType.google, createdAt: now, updatedAt: now));
+      await repository.markDiaryReminderAsked('uid-asked-2');
+      expect(await repository.diaryReminderAsked('uid-asked-2'), isTrue);
+    });
+  });
+
   test('건너뛰기로 통계 동의를 취소하면 agreedStatsAt도 함께 비운다', () async {
     final now = DateTime(2026, 1, 1);
     await repository.createUser(AppUser(uid: 'uid-3', loginType: LoginType.google, createdAt: now, updatedAt: now));
