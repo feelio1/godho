@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -31,17 +30,25 @@ import 'diary_weather_icons.dart';
 /// 바꿀 수 있게 하나의 타입으로 묻는다. 두 인스턴스를 비교할 일이 없어
 /// `==`는 기본(식별자) 비교 그대로 쓴다 — [ReorderableListView]가 항목
 /// 식별에 쓰는 키가 바로 이 동일성이다.
+///
+/// 새로 고른 사진([newFile])은 만들어지는 즉시 압축을 시작해 둔다
+/// ([compressionFuture]) — 저장 버튼을 누르는 시점엔 대부분 끝나 있게
+/// 하려는 "미리 압축"이다("일기 수정" 지시서 1-3). 사진을 빼면 이
+/// `_PhotoItem` 자체를 더는 참조하지 않으므로 결과는 자연히 버려진다.
 class _PhotoItem {
   final DiaryPhoto? existing;
   final File? newFile;
+  final Future<ProcessedDiaryPhoto?>? compressionFuture;
 
   const _PhotoItem.existing(DiaryPhoto photo)
       : existing = photo,
-        newFile = null;
+        newFile = null,
+        compressionFuture = null;
 
-  const _PhotoItem.newFile(File file)
+  _PhotoItem.newFile(File file)
       : existing = null,
-        newFile = file;
+        newFile = file,
+        compressionFuture = processDiaryPhotoNative(file.path);
 }
 
 /// 일기 작성/수정 화면("방향 개편" 지시서 D). [existing]이 있으면 수정,
@@ -80,11 +87,12 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   bool _dirty = false;
   bool _saving = false;
 
-  /// 저장 중 "사진 준비 중 (n/m)" 표시용 — 사진이 없거나 전부 처리를
-  /// 끝내면 null로 돌아가 평소 "저장 중" 표시로 바뀐다("일기 보완"
-  /// 지시서 1).
-  int? _photoProgressCurrent;
-  int? _photoProgressTotal;
+  /// 저장 중 "사진 올리는 중 (완료 n/m)" 표시용 — 사진이 없거나(또는
+  /// 아직 업로드를 시작하기 전) null이면 평소 "저장 중" 표시로 보인다
+  /// ("일기 수정" 지시서 1-4). 압축은 사진을 고를 때 이미 끝내두므로,
+  /// 여기서 보여주는 진행은 업로드(네트워크)만 가리킨다.
+  int? _photoUploadCompleted;
+  int? _photoUploadTotal;
 
   /// 사용자가 날짜를 직접 바꾼 뒤엔 사진 촬영일로 자동 바꾸지 않는다
   /// ("일기 활성화" 지시서 C). 수정 화면(기존 일기)은 이미 정해둔 날짜가
@@ -261,17 +269,11 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   /// 아예 시도하지 않는다.
   Future<void> _applyExifDateSuggestion(List<File> files) async {
     if (!_dateAutoSuggestAllowed) return;
-    // EXIF 읽기도 디코딩을 거칠 수 있어(JPEG가 아니면 전체 디코딩으로
-    // 대체, diary_photo_processor.dart 참고) 메인 isolate 밖에서
-    // 돌린다("일기 보완" 지시서 1) — 한 장씩 순차로, 화면이 멈추지
-    // 않게.
+    // 파일 앞부분만 읽어 EXIF를 찾으므로("일기 수정" 지시서 1-2) 메인
+    // 스레드에서 바로 해도 가볍다 — 전체 디코딩으로 대체하지 않는다.
     final captureDates = <DateTime?>[];
     for (final file in files) {
-      try {
-        captureDates.add(await compute(readDiaryPhotoCaptureDate, await file.readAsBytes()));
-      } catch (_) {
-        captureDates.add(null);
-      }
+      captureDates.add(await readDiaryPhotoCaptureDate(file));
     }
     final suggested = suggestDiaryDateFromCaptureDates(captureDates);
     if (suggested == null || !mounted || !_dateAutoSuggestAllowed) return;
@@ -335,7 +337,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     final now = DateTime.now();
     final existing = widget.existing;
     final keptExisting = [for (final p in _photoItems) if (p.existing != null) p.existing!];
-    final newFiles = [for (final p in _photoItems) if (p.newFile != null) p.newFile!];
+    final newItems = [for (final p in _photoItems) if (p.newFile != null) p];
     final removedPhotos = [
       for (final old in existing?.photos ?? const <DiaryPhoto>[])
         if (!keptExisting.any((kept) => kept.path == old.path)) old,
@@ -353,15 +355,27 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       updatedAt: now,
     );
 
+    // 사진을 고를 때 이미 시작해 둔 압축을 기다린다("일기 수정" 지시서
+    // 1-3) — 대부분 이미 끝나 있으니(Future가 이미 완료) 거의 바로
+    // 돌아온다. 실패한(디코딩 못 한) 사진만 조용히 센다.
+    final processedResults = await Future.wait(newItems.map((p) => p.compressionFuture!));
+    final processedPhotos = <ProcessedDiaryPhoto>[];
     var decodeFailures = 0;
-    void onPhotoProgress(int index, int total) {
+    for (final result in processedResults) {
+      if (result == null) {
+        decodeFailures++;
+      } else {
+        processedPhotos.add(result);
+      }
+    }
+
+    void onPhotoProgress(int completed, int total) {
       if (!mounted) return;
       setState(() {
-        _photoProgressCurrent = index;
-        _photoProgressTotal = total;
+        _photoUploadCompleted = completed;
+        _photoUploadTotal = total;
       });
     }
-    void onPhotoDecodeFailed() => decodeFailures++;
 
     try {
       final repo = ref.read(diaryRepositoryProvider);
@@ -369,18 +383,16 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
         await repo.createDiary(
           uid,
           diaryToSave,
-          newFiles,
+          processedPhotos,
           onPhotoProgress: onPhotoProgress,
-          onPhotoDecodeFailed: onPhotoDecodeFailed,
         );
       } else {
         await repo.updateDiary(
           uid,
           diaryToSave,
-          newPhotoFiles: newFiles,
+          newProcessedPhotos: processedPhotos,
           removedPhotos: removedPhotos,
           onPhotoProgress: onPhotoProgress,
-          onPhotoDecodeFailed: onPhotoDecodeFailed,
         );
       }
       ref.invalidate(diariesPageProvider);
@@ -414,8 +426,8 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       if (mounted) {
         setState(() {
           _saving = false;
-          _photoProgressCurrent = null;
-          _photoProgressTotal = null;
+          _photoUploadCompleted = null;
+          _photoUploadTotal = null;
         });
       }
     }
@@ -647,7 +659,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _saving ? null : _save,
-                  child: _saving ? _SavingIndicator(current: _photoProgressCurrent, total: _photoProgressTotal) : const Text('저장'),
+                  child: _saving ? _SavingIndicator(completed: _photoUploadCompleted, total: _photoUploadTotal) : const Text('저장'),
                 ),
               ),
             ],
@@ -658,14 +670,14 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   }
 }
 
-/// 저장 버튼 안의 진행 표시 — 처리 중인 사진이 있으면 "사진 준비 중
-/// (n/m)"을, 없으면(또는 끝났으면) 평소 스피너를 보여준다("일기 보완"
-/// 지시서 1).
+/// 저장 버튼 안의 진행 표시 — 사진을 올리는 중이면 "사진 올리는 중
+/// (완료 n/m)"을, 없으면(또는 끝났으면) 평소 스피너를 보여준다("일기
+/// 수정" 지시서 1-4).
 class _SavingIndicator extends StatelessWidget {
-  final int? current;
+  final int? completed;
   final int? total;
 
-  const _SavingIndicator({required this.current, required this.total});
+  const _SavingIndicator({required this.completed, required this.total});
 
   @override
   Widget build(BuildContext context) {
@@ -674,13 +686,13 @@ class _SavingIndicator extends StatelessWidget {
       height: 20,
       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
     );
-    if (current == null || total == null) return spinner;
+    if (completed == null || total == null) return spinner;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         spinner,
         const SizedBox(width: 10),
-        Text('사진 준비 중 ($current/$total)', style: const TextStyle(color: Colors.white)),
+        Text('사진 올리는 중 (완료 $completed/$total)', style: const TextStyle(color: Colors.white)),
       ],
     );
   }

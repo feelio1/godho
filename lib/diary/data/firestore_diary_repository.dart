@@ -1,9 +1,10 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
+import '../../utils/concurrency.dart';
 import '../diary_photo_processor.dart';
 import '../models/diary.dart';
 import 'diary_repository.dart';
@@ -20,6 +21,11 @@ class FirestoreDiaryRepository implements DiaryRepository {
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+
+  /// 사진 한 장 안에서 원본·썸네일을 동시에 올린다("일기 수정" 지시서
+  /// 1-4) — 사진 여러 장 사이의 동시 개수 제한은 [mapWithConcurrency]가
+  /// 맡는다.
+  static const _uploadConcurrency = 3;
 
   CollectionReference<Map<String, dynamic>> _diaries(String uid) =>
       _firestore.collection('users').doc(uid).collection('diaries');
@@ -64,61 +70,78 @@ class FirestoreDiaryRepository implements DiaryRepository {
   Reference _thumbRef(String uid, String diaryId, String photoId) =>
       _storage.ref('diary_photos/$uid/$diaryId/${photoId}_t.jpg');
 
-  /// 원본(인쇄용, 긴 변 [kDiaryPhotoMainLongSide])·썸네일(긴 변
-  /// [kDiaryPhotoThumbLongSide]) 2벌을 만들어 함께 올린다("일기 활성화"
-  /// 지시서 A) — 두 벌 모두 EXIF(위치 등)를 지운 상태로 인코딩한다.
-  /// 가로·세로는 실제로 처리한(추정하지 않은) 원본 쪽 값을 쓴다.
-  ///
-  /// 디코딩·리사이즈·인코딩([processDiaryPhotosSequentially]이 맡는다 —
-  /// 한 장씩 순차로, 메인 isolate 밖에서, "일기 보완" 지시서 1)이 끝난
-  /// 결과만 올린다. 디코딩에 실패한 사진(깨진 파일 등)은 그 사진만
-  /// 조용히 빼고 계속 올린다 — 업로드 자체(네트워크)가 실패하면 그대로
-  /// 예외가 올라가 저장을 멈춘다.
-  Future<List<DiaryPhoto>> _uploadPhotos(
+  /// 이미 압축이 끝난 [processed]를 올린다 — 압축(디코딩·리사이즈·네이티브
+  /// 인코딩)은 작성 화면이 사진을 고르는 즉시 미리 끝내둔 뒤 넘기므로,
+  /// 여기서는 업로드(네트워크)만 맡는다("일기 수정" 지시서 1). 사진
+  /// 한 장의 원본·썸네일 `putData`+`getDownloadURL`을 동시에 하고, 사진
+  /// 여러 장도 최대 [_uploadConcurrency]장까지 동시에 올려 사진마다
+  /// 순차로 4번 기다리던 것을 없앤다. 하나라도 실패하면 이미 올라간
+  /// 파일을 지우려 시도하고 그대로 예외를 다시 던진다(부분 저장 없음).
+  Future<List<DiaryPhoto>> _uploadProcessedPhotos(
     String uid,
     String diaryId,
-    List<File> files, {
-    DiaryPhotoProgressCallback? onPhotoProgress,
-    void Function()? onPhotoDecodeFailed,
+    List<ProcessedDiaryPhoto> processed, {
+    DiaryPhotoUploadProgressCallback? onProgress,
   }) async {
-    final processedList = await processDiaryPhotosSequentially(files, onProgress: onPhotoProgress);
+    if (processed.isEmpty) return const [];
+    final total = processed.length;
+    var completedCount = 0;
+    final uploadedRefs = <Reference>[];
 
-    final photos = <DiaryPhoto>[];
-    for (final processed in processedList) {
-      if (processed == null) {
-        onPhotoDecodeFailed?.call();
-        continue;
-      }
+    Future<DiaryPhoto> uploadOne(ProcessedDiaryPhoto p, int index) async {
+      final stopwatch = Stopwatch()..start();
       final photoId = _newPhotoId();
       final ref = _photoRef(uid, diaryId, photoId);
       final thumbRef = _thumbRef(uid, diaryId, photoId);
       final metadata = SettableMetadata(contentType: 'image/jpeg');
-      await ref.putData(processed.mainBytes, metadata);
-      await thumbRef.putData(processed.thumbBytes, metadata);
-      final url = await ref.getDownloadURL();
-      final thumbUrl = await thumbRef.getDownloadURL();
-      photos.add(DiaryPhoto(path: url, thumbPath: thumbUrl, width: processed.width, height: processed.height));
+      final urls = await Future.wait([
+        ref.putData(p.mainBytes, metadata).then((_) {
+          uploadedRefs.add(ref);
+          return ref.getDownloadURL();
+        }),
+        thumbRef.putData(p.thumbBytes, metadata).then((_) {
+          uploadedRefs.add(thumbRef);
+          return thumbRef.getDownloadURL();
+        }),
+      ]);
+      completedCount++;
+      onProgress?.call(completedCount, total);
+      if (kDebugMode) {
+        debugPrint('[DiaryPhotoTiming] 업로드 #$index ${stopwatch.elapsedMilliseconds}ms');
+      }
+      return DiaryPhoto(path: urls[0], thumbPath: urls[1], width: p.width, height: p.height);
     }
-    return photos;
+
+    try {
+      return await mapWithConcurrency(processed, _uploadConcurrency, uploadOne);
+    } catch (e) {
+      // 업로드 실패 — 이미 올라간 파일은 지우려 시도한다("일기 수정"
+      // 지시서 1-5). 정리 자체가 실패해도(이미 지워졌거나 일시적 오류)
+      // 무시하고 원래 예외를 그대로 올린다.
+      for (final ref in uploadedRefs) {
+        try {
+          await ref.delete();
+        } catch (_) {}
+      }
+      rethrow;
+    }
   }
 
   @override
   Future<String> createDiary(
     String uid,
     Diary diary,
-    List<File> photoFiles, {
-    DiaryPhotoProgressCallback? onPhotoProgress,
-    void Function()? onPhotoDecodeFailed,
+    List<ProcessedDiaryPhoto> processedPhotos, {
+    DiaryPhotoUploadProgressCallback? onPhotoProgress,
   }) async {
     final docRef = _diaries(uid).doc();
     // 사진 업로드가 하나라도 실패하면 여기서 예외가 던져지고, 문서는
     // 아직 만들어지지 않은 채로 끝난다("업로드 실패 시 일기 저장 안 함").
-    final photos = await _uploadPhotos(
+    final photos = await _uploadProcessedPhotos(
       uid,
       docRef.id,
-      photoFiles,
-      onPhotoProgress: onPhotoProgress,
-      onPhotoDecodeFailed: onPhotoDecodeFailed,
+      processedPhotos,
+      onProgress: onPhotoProgress,
     );
     await docRef.set(diary.copyWith(photos: photos).toFirestore());
     return docRef.id;
@@ -128,19 +151,17 @@ class FirestoreDiaryRepository implements DiaryRepository {
   Future<void> updateDiary(
     String uid,
     Diary diary, {
-    List<File> newPhotoFiles = const [],
+    List<ProcessedDiaryPhoto> newProcessedPhotos = const [],
     List<DiaryPhoto> removedPhotos = const [],
-    DiaryPhotoProgressCallback? onPhotoProgress,
-    void Function()? onPhotoDecodeFailed,
+    DiaryPhotoUploadProgressCallback? onPhotoProgress,
   }) async {
     // 새 사진 업로드가 실패하면 여기서 예외가 올라가고, 기존 문서·사진은
     // 전혀 건드리지 않은 채로 끝난다(부분 저장 없음).
-    final newPhotos = await _uploadPhotos(
+    final newPhotos = await _uploadProcessedPhotos(
       uid,
       diary.id,
-      newPhotoFiles,
-      onPhotoProgress: onPhotoProgress,
-      onPhotoDecodeFailed: onPhotoDecodeFailed,
+      newProcessedPhotos,
+      onProgress: onPhotoProgress,
     );
     final removedPaths = removedPhotos.map((p) => p.path).toSet();
     final keptPhotos = diary.photos.where((p) => !removedPaths.contains(p.path)).toList();

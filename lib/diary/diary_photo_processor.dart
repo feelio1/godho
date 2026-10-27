@@ -1,16 +1,16 @@
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image/image.dart' as img;
 
 import '../utils/appointment_calendar.dart' show dateOnly;
 
 /// 일기 사진 업로드 전 처리 결과 — 책 인쇄용 원본과 작게 보이는 곳에 쓸
 /// 썸네일 2벌("일기 활성화" 지시서 A). 두 벌 모두 EXIF를 전부 지운 상태로
-/// 인코딩한다(위치 등 메타데이터를 업로드 파일에 남기지 않음) — 인코딩
-/// 전에 원본의 방향(orientation) 태그는 픽셀에 반영해 두어 세로·회전된
-/// 사진이 그대로 보이게 한다.
+/// 인코딩한다(위치 등 메타데이터를 업로드 파일에 남기지 않음) — 네이티브
+/// 압축기가 방향(orientation)도 픽셀에 반영해 두어 회전된 사진이 그대로
+/// 보이게 한다("일기 수정" 지시서 1).
 class ProcessedDiaryPhoto {
   final Uint8List mainBytes;
   final Uint8List thumbBytes;
@@ -33,72 +33,100 @@ const int kDiaryPhotoMainQuality = 85;
 const int kDiaryPhotoThumbLongSide = 480;
 const int kDiaryPhotoThumbQuality = 75;
 
-/// [bytes]를 디코딩해 원본(최대 [kDiaryPhotoMainLongSide])·썸네일(최대
-/// [kDiaryPhotoThumbLongSide]) 2벌의 JPEG를 만든다. 디코딩할 수 없는
-/// 파일(깨진 파일 등)이면 null.
-ProcessedDiaryPhoto? processDiaryPhoto(Uint8List bytes) {
-  final decoded = img.decodeImage(bytes);
-  if (decoded == null) return null;
-
-  final main = _fitLongSideStripped(decoded, kDiaryPhotoMainLongSide);
-  final thumb = _fitLongSideStripped(decoded, kDiaryPhotoThumbLongSide);
-
-  return ProcessedDiaryPhoto(
-    mainBytes: img.encodeJpg(main, quality: kDiaryPhotoMainQuality),
-    thumbBytes: img.encodeJpg(thumb, quality: kDiaryPhotoThumbQuality),
-    width: main.width,
-    height: main.height,
-  );
-}
-
-/// 한 장씩 부를 때마다 부른다(1-based [index], [total]은 전체 장수) —
-/// 저장 화면이 "사진 준비 중 (n/m)"을 보여주는 데 쓴다.
-typedef DiaryPhotoProgressListener = void Function(int index, int total);
-
-/// [files]를 한 장씩 순차로(동시에 여러 장을 메모리에 올리지 않도록)
-/// 처리한다 — 무거운 디코딩·리사이즈·인코딩([processDiaryPhoto])은
-/// [compute]로 메인 isolate 밖에서 돌려 화면이 멈추지 않게 한다("일기
-/// 보완" 지시서 1). 디코딩에 실패한 자리는 결과 목록에 null로 남는다
-/// (예외를 던지지 않음) — 호출부(저장소)가 그 사진만 빼고 계속 올릴 수
-/// 있게 한다.
-Future<List<ProcessedDiaryPhoto?>> processDiaryPhotosSequentially(
-  List<File> files, {
-  DiaryPhotoProgressListener? onProgress,
-}) async {
-  final results = <ProcessedDiaryPhoto?>[];
-  for (var i = 0; i < files.length; i++) {
-    onProgress?.call(i + 1, files.length);
-    final bytes = await files[i].readAsBytes();
-    results.add(await compute(processDiaryPhoto, bytes));
+void _logTiming(String label, Stopwatch stopwatch) {
+  // release 빌드에서는 아무것도 찍지 않는다("일기 수정" 지시서 1-6).
+  if (kDebugMode) {
+    debugPrint('[DiaryPhotoTiming] $label ${stopwatch.elapsedMilliseconds}ms');
   }
-  return results;
 }
 
-/// 긴 변을 [maxLongSide] 이하로 맞추고(원본이 더 작으면 그대로 둔다) EXIF를
-/// 전부 비운다 — [img.copyResize]가 원본의 방향(orientation) 태그를 보고
-/// 먼저 픽셀을 바로 돌려주므로, 크기가 그대로여도 리사이즈 호출을 거쳐야
-/// 회전이 반영된다.
-img.Image _fitLongSideStripped(img.Image src, int maxLongSide) {
-  final longSide = src.width >= src.height ? src.width : src.height;
-  final target = longSide > maxLongSide ? maxLongSide : longSide;
-  final resized = src.width >= src.height
-      ? img.copyResize(src, width: target)
-      : img.copyResize(src, height: target);
-  resized.exif = img.ExifData();
-  return resized;
+/// [filePath]의 원본 파일을 네이티브 압축기(`flutter_image_compress`)로
+/// 직접 처리한다 — 순수 Dart 전체 디코딩(기존 `image` 패키지 경로)이
+/// 고해상도 사진(수천만 화소급)에서 사진당 수 초~10초 이상 걸리던 문제를
+/// 없앤다("일기 수정" 지시서 1). 썸네일은 원본을 다시 파일에서 읽지 않고
+/// 이미 압축된 원본 바이트에서 만든다(한 번만 큰 파일을 건드린다).
+/// 네이티브 쪽이 null을 돌려주거나 예외를 던지면(처리할 수 없는 파일)
+/// null을 돌려준다 — 호출부가 그 사진만 빼고 계속 진행할 수 있게 한다.
+Future<ProcessedDiaryPhoto?> processDiaryPhotoNative(String filePath) async {
+  final totalStopwatch = Stopwatch()..start();
+  try {
+    final mainStopwatch = Stopwatch()..start();
+    final mainBytes = await FlutterImageCompress.compressWithFile(
+      filePath,
+      minWidth: kDiaryPhotoMainLongSide,
+      minHeight: kDiaryPhotoMainLongSide,
+      quality: kDiaryPhotoMainQuality,
+      keepExif: false,
+    );
+    _logTiming('원본 압축($filePath)', mainStopwatch);
+    if (mainBytes == null) return null;
+
+    final thumbStopwatch = Stopwatch()..start();
+    final thumbBytes = await FlutterImageCompress.compressWithList(
+      mainBytes,
+      minWidth: kDiaryPhotoThumbLongSide,
+      minHeight: kDiaryPhotoThumbLongSide,
+      quality: kDiaryPhotoThumbQuality,
+      keepExif: false,
+    );
+    _logTiming('썸네일 압축($filePath)', thumbStopwatch);
+
+    final size = _peekJpegSize(mainBytes);
+    if (size == null) return null;
+
+    return ProcessedDiaryPhoto(
+      mainBytes: mainBytes,
+      thumbBytes: thumbBytes,
+      width: size.width,
+      height: size.height,
+    );
+  } catch (e) {
+    if (kDebugMode) debugPrint('[DiaryPhotoTiming] 처리 실패($filePath): $e');
+    return null;
+  } finally {
+    _logTiming('전체 처리($filePath)', totalStopwatch);
+  }
 }
+
+/// 압축된(이미 2048px 이하로 작은) 결과물의 가로·세로만 가볍게 읽는다 —
+/// JPEG 마커만 훑고 실제 픽셀은 디코딩하지 않는[img.JpegDecoder.startDecode]
+/// 를 쓴다(이미 작으니 전체 디코딩도 빠르겠지만, 굳이 더 할 필요가 없다).
+({int width, int height})? _peekJpegSize(Uint8List jpegBytes) {
+  try {
+    final info = img.JpegDecoder().startDecode(jpegBytes);
+    if (info == null) return null;
+    return (width: info.width, height: info.height);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// EXIF 헤더를 찾는 데 충분한, 파일 앞부분만 읽는 크기 — 전체 파일을
+/// 읽지 않는다("일기 수정" 지시서 1-2).
+const int kDiaryPhotoExifHeaderBytes = 256 * 1024;
 
 final _exifDateTimePattern = RegExp(r'^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})');
 
-/// 사진의 EXIF 촬영일(DateTimeOriginal)을 읽는다 — 위치(GPS) 등 다른 EXIF는
-/// 읽지 않는다("일기 활성화" 지시서 C). JPEG가 아니거나 태그가 없으면
-/// null.
-DateTime? readDiaryPhotoCaptureDate(Uint8List bytes) {
-  final exif = img.decodeJpgExif(bytes) ?? img.decodeImage(bytes)?.exif;
-  if (exif == null) return null;
-  final raw = exif.exifIfd['DateTimeOriginal']?.toString();
-  if (raw == null || raw.isEmpty) return null;
-  return _parseExifDateTime(raw);
+/// [file]의 EXIF 촬영일(DateTimeOriginal)을 파일 앞부분(최대
+/// [kDiaryPhotoExifHeaderBytes])만 읽어 알아낸다 — 위치(GPS) 등 다른
+/// EXIF는 읽지 않는다. 헤더에서 못 찾으면(잘린 파일, EXIF 없음, JPEG가
+/// 아님 등) 전체를 다시 읽어 디코딩하지 않고 그냥 null로 돌아간다(날짜
+/// 정보 없음으로 처리 — "일기 수정" 지시서 1-2).
+Future<DateTime?> readDiaryPhotoCaptureDate(File file) async {
+  RandomAccessFile? raf;
+  try {
+    raf = await file.open();
+    final header = await raf.read(kDiaryPhotoExifHeaderBytes);
+    final exif = img.decodeJpgExif(header);
+    if (exif == null) return null;
+    final raw = exif.exifIfd['DateTimeOriginal']?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    return _parseExifDateTime(raw);
+  } catch (_) {
+    return null;
+  } finally {
+    await raf?.close();
+  }
 }
 
 DateTime? _parseExifDateTime(String raw) {

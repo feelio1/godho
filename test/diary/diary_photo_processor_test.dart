@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
@@ -15,69 +15,180 @@ Uint8List _jpegOf(int width, int height, {String? dateTimeOriginal}) {
   return img.encodeJpg(image, quality: 90);
 }
 
+/// 네이티브 압축기([FlutterImageCompress])를 실기기 없이 테스트하기 위한
+/// 가짜 구현("일기 수정" 지시서 1) — `compressWithFile`/`compressWithList`
+/// 호출을 그대로 가로채 미리 정해둔 동작을 흉내 낸다.
+class _FakeImageCompressPlatform extends FlutterImageCompressPlatform {
+  _FakeImageCompressPlatform({this.onCompressWithFile, this.onCompressWithList});
+
+  final Future<Uint8List?> Function(String path)? onCompressWithFile;
+  final Future<Uint8List> Function(Uint8List data)? onCompressWithList;
+
+  @override
+  FlutterImageCompressValidator get validator =>
+      FlutterImageCompressValidator(const MethodChannel('fake_flutter_image_compress'));
+
+  @override
+  Future<void> showNativeLog(bool value) async {}
+
+  @override
+  void ignoreCheckSupportPlatform(bool bool) {}
+
+  @override
+  Future<Uint8List?> compressWithFile(
+    String path, {
+    int minWidth = 1920,
+    int minHeight = 1080,
+    int inSampleSize = 1,
+    int quality = 95,
+    int rotate = 0,
+    bool autoCorrectionAngle = true,
+    CompressFormat format = CompressFormat.jpeg,
+    bool keepExif = false,
+    int numberOfRetries = 5,
+  }) {
+    return onCompressWithFile!(path);
+  }
+
+  @override
+  Future<Uint8List> compressWithList(
+    Uint8List image, {
+    int minWidth = 1920,
+    int minHeight = 1080,
+    int quality = 95,
+    int rotate = 0,
+    int inSampleSize = 1,
+    bool autoCorrectionAngle = true,
+    CompressFormat format = CompressFormat.jpeg,
+    bool keepExif = false,
+  }) {
+    return onCompressWithList!(image);
+  }
+
+  @override
+  Future<XFile?> compressAndGetFile(
+    String path,
+    String targetPath, {
+    int minWidth = 1920,
+    int minHeight = 1080,
+    int inSampleSize = 1,
+    int quality = 95,
+    int rotate = 0,
+    bool autoCorrectionAngle = true,
+    CompressFormat format = CompressFormat.jpeg,
+    bool keepExif = false,
+    int numberOfRetries = 5,
+  }) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Uint8List?> compressAssetImage(
+    String assetName, {
+    int minWidth = 1920,
+    int minHeight = 1080,
+    int quality = 95,
+    int rotate = 0,
+    bool autoCorrectionAngle = true,
+    CompressFormat format = CompressFormat.jpeg,
+    bool keepExif = false,
+  }) =>
+      throw UnimplementedError();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('processDiaryPhoto — 원본·썸네일 2벌("일기 활성화" 지시서 A)', () {
-    test('큰 사진은 각각 긴 변 한도로 줄어든다', () {
-      final jpeg = _jpegOf(4000, 2000);
-      final processed = processDiaryPhoto(jpeg);
+  final originalPlatform = FlutterImageCompressPlatform.instance;
+  late Directory tempDir;
+
+  setUp(() async {
+    tempDir = await Directory.systemTemp.createTemp('diary_photo_native_test_');
+  });
+
+  tearDown(() async {
+    FlutterImageCompressPlatform.instance = originalPlatform;
+    if (await tempDir.exists()) await tempDir.delete(recursive: true);
+  });
+
+  Future<File> writeFile(String name, List<int> bytes) async {
+    final file = File('${tempDir.path}/$name');
+    await file.writeAsBytes(bytes);
+    return file;
+  }
+
+  group('processDiaryPhotoNative — 네이티브 압축 경로("일기 수정" 지시서 1)', () {
+    test('정상 압축되면 원본·썸네일 바이트와 크기를 돌려준다', () async {
+      final mainJpeg = _jpegOf(1600, 900);
+      final thumbJpeg = _jpegOf(480, 270);
+      FlutterImageCompressPlatform.instance = _FakeImageCompressPlatform(
+        onCompressWithFile: (path) async => mainJpeg,
+        onCompressWithList: (data) async => thumbJpeg,
+      );
+
+      final file = await writeFile('a.jpg', [0xff, 0xd8, 0xff, 0xd9]);
+      final processed = await processDiaryPhotoNative(file.path);
 
       expect(processed, isNotNull);
-      final main = img.decodeImage(processed!.mainBytes)!;
-      final thumb = img.decodeImage(processed.thumbBytes)!;
-
-      expect(main.width, kDiaryPhotoMainLongSide);
-      expect(main.height, (kDiaryPhotoMainLongSide * 2000 / 4000).round());
-      expect(thumb.width, kDiaryPhotoThumbLongSide);
-      expect(processed.width, main.width);
-      expect(processed.height, main.height);
+      expect(processed!.mainBytes, mainJpeg);
+      expect(processed.thumbBytes, thumbJpeg);
+      expect(processed.width, 1600);
+      expect(processed.height, 900);
     });
 
-    test('원본보다 작은 한도로는 키우지 않는다(업스케일 금지)', () {
-      final jpeg = _jpegOf(100, 50);
-      final processed = processDiaryPhoto(jpeg);
+    test('네이티브가 null을 돌려주면(처리 불가 파일) null이다', () async {
+      FlutterImageCompressPlatform.instance = _FakeImageCompressPlatform(
+        onCompressWithFile: (path) async => null,
+        onCompressWithList: (data) async => Uint8List(0),
+      );
 
-      expect(processed, isNotNull);
-      final main = img.decodeImage(processed!.mainBytes)!;
-      final thumb = img.decodeImage(processed.thumbBytes)!;
-      expect(main.width, 100);
-      expect(main.height, 50);
-      expect(thumb.width, 100);
-      expect(thumb.height, 50);
+      final file = await writeFile('b.jpg', [0, 1, 2]);
+      expect(await processDiaryPhotoNative(file.path), isNull);
     });
 
-    test('EXIF는 원본·썸네일 둘 다에서 전부 지워진다(위치 등 저장 안 함)', () {
-      final jpeg = _jpegOf(800, 600, dateTimeOriginal: '2024:05:01 10:00:00');
-      final processed = processDiaryPhoto(jpeg);
+    test('네이티브가 예외를 던지면 null이다(그 사진만 제외)', () async {
+      FlutterImageCompressPlatform.instance = _FakeImageCompressPlatform(
+        onCompressWithFile: (path) async => throw Exception('boom'),
+      );
 
-      final main = img.decodeImage(processed!.mainBytes)!;
-      final thumb = img.decodeImage(processed.thumbBytes)!;
-      expect(main.exif.isEmpty, isTrue);
-      expect(thumb.exif.isEmpty, isTrue);
-      expect(main.exif.exifIfd['DateTimeOriginal'], isNull);
-      expect(thumb.exif.exifIfd['DateTimeOriginal'], isNull);
+      final file = await writeFile('c.jpg', [0, 1, 2]);
+      expect(await processDiaryPhotoNative(file.path), isNull);
     });
 
-    test('디코딩할 수 없는 바이트면 null을 돌려준다', () {
-      expect(processDiaryPhoto(Uint8List.fromList([1, 2, 3])), isNull);
+    test('썸네일 압축이 실패해도(예외) null이다', () async {
+      FlutterImageCompressPlatform.instance = _FakeImageCompressPlatform(
+        onCompressWithFile: (path) async => _jpegOf(800, 600),
+        onCompressWithList: (data) async => throw Exception('thumb failed'),
+      );
+
+      final file = await writeFile('d.jpg', [0, 1, 2]);
+      expect(await processDiaryPhotoNative(file.path), isNull);
     });
   });
 
-  group('readDiaryPhotoCaptureDate — EXIF 촬영일만 읽는다(위치 등은 읽지 않음)', () {
-    test('DateTimeOriginal 태그가 있으면 그 날짜를 읽는다', () {
+  group('readDiaryPhotoCaptureDate — 파일 앞부분만 읽어 EXIF 촬영일("일기 수정" 지시서 1-2)', () {
+    test('DateTimeOriginal 태그가 있으면 그 날짜를 읽는다', () async {
       final jpeg = _jpegOf(100, 100, dateTimeOriginal: '2024:05:01 10:30:15');
-      final date = readDiaryPhotoCaptureDate(jpeg);
+      final file = await writeFile('e.jpg', jpeg);
+
+      final date = await readDiaryPhotoCaptureDate(file);
       expect(date, DateTime(2024, 5, 1, 10, 30, 15));
     });
 
-    test('태그가 없으면 null이다', () {
+    test('EXIF 태그가 없으면 null이다(날짜 정보 없음)', () async {
       final jpeg = _jpegOf(100, 100);
-      expect(readDiaryPhotoCaptureDate(jpeg), isNull);
+      final file = await writeFile('f.jpg', jpeg);
+
+      expect(await readDiaryPhotoCaptureDate(file), isNull);
     });
 
-    test('JPEG가 아니면 null이다', () {
-      expect(readDiaryPhotoCaptureDate(Uint8List.fromList([1, 2, 3])), isNull);
+    test('잘렸거나 JPEG가 아닌 파일이면 전체를 다시 읽지 않고 null이다', () async {
+      final file = await writeFile('g.jpg', [1, 2, 3, 4, 5]);
+      expect(await readDiaryPhotoCaptureDate(file), isNull);
+    });
+
+    test('존재하지 않는 파일이면 예외 없이 null이다', () async {
+      final missing = File('${tempDir.path}/missing.jpg');
+      expect(await readDiaryPhotoCaptureDate(missing), isNull);
     });
   });
 
@@ -112,82 +223,6 @@ void main() {
     test('오늘 날짜 사진은 그대로 후보가 된다', () {
       final suggested = suggestDiaryDateFromCaptureDates([today], today: today);
       expect(suggested, today);
-    });
-  });
-
-  group('compute(processDiaryPhoto) — isolate 경유 처리도 결과가 같다("일기 보완" 지시서 1)', () {
-    test('메인에서 바로 처리한 것과 바이트가 완전히 같다', () async {
-      final jpeg = _jpegOf(1600, 900, dateTimeOriginal: '2024:05:01 10:00:00');
-
-      final direct = processDiaryPhoto(jpeg);
-      final viaIsolate = await compute(processDiaryPhoto, jpeg);
-
-      expect(viaIsolate, isNotNull);
-      expect(viaIsolate!.mainBytes, direct!.mainBytes);
-      expect(viaIsolate.thumbBytes, direct.thumbBytes);
-      expect(viaIsolate.width, direct.width);
-      expect(viaIsolate.height, direct.height);
-    });
-
-    test('디코딩할 수 없는 바이트는 isolate에서도 null이다', () async {
-      final viaIsolate = await compute(processDiaryPhoto, Uint8List.fromList([1, 2, 3]));
-      expect(viaIsolate, isNull);
-    });
-  });
-
-  group('processDiaryPhotosSequentially — 한 장씩 순차 처리 + 진행 표시("일기 보완" 지시서 1)', () {
-    late Directory tempDir;
-
-    setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('diary_photo_test_');
-    });
-
-    tearDown(() async {
-      if (await tempDir.exists()) await tempDir.delete(recursive: true);
-    });
-
-    Future<File> writeJpeg(String name, Uint8List bytes) async {
-      final file = File('${tempDir.path}/$name');
-      await file.writeAsBytes(bytes);
-      return file;
-    }
-
-    test('유효한 사진은 처리되고, 깨진 사진은 그 자리만 null이다', () async {
-      final good1 = await writeJpeg('a.jpg', _jpegOf(200, 100));
-      final broken = await writeJpeg('b.jpg', Uint8List.fromList([1, 2, 3]));
-      final good2 = await writeJpeg('c.jpg', _jpegOf(100, 200));
-
-      final results = await processDiaryPhotosSequentially([good1, broken, good2]);
-
-      expect(results, hasLength(3));
-      expect(results[0], isNotNull);
-      expect(results[1], isNull);
-      expect(results[2], isNotNull);
-      expect(results[0]!.width, 200);
-      expect(results[2]!.height, 200);
-    });
-
-    test('진행 콜백이 1부터 전체 장수까지 순서대로 불린다', () async {
-      final files = await Future.wait([
-        writeJpeg('1.jpg', _jpegOf(50, 50)),
-        writeJpeg('2.jpg', _jpegOf(50, 50)),
-        writeJpeg('3.jpg', _jpegOf(50, 50)),
-      ]);
-
-      final calls = <(int, int)>[];
-      await processDiaryPhotosSequentially(files, onProgress: (index, total) => calls.add((index, total)));
-
-      expect(calls, [(1, 3), (2, 3), (3, 3)]);
-    });
-
-    test('빈 목록이면 아무것도 처리하지 않는다', () async {
-      final calls = <(int, int)>[];
-      final results = await processDiaryPhotosSequentially(
-        const [],
-        onProgress: (index, total) => calls.add((index, total)),
-      );
-      expect(results, isEmpty);
-      expect(calls, isEmpty);
     });
   });
 }
