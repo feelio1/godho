@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -366,7 +367,7 @@ class _PetRow extends ConsumerWidget {
           CircleAvatar(
             radius: 22,
             backgroundColor: AppColors.surfaceMutedLight,
-            backgroundImage: pet.photoUrl != null ? NetworkImage(pet.photoUrl!) : null,
+            backgroundImage: pet.photoUrl != null ? CachedNetworkImageProvider(pet.photoUrl!) : null,
             child: pet.photoUrl == null ? const Icon(Icons.pets, color: AppColors.textPlaceholder) : null,
           ),
           const SizedBox(width: 12),

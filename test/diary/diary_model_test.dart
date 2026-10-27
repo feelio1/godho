@@ -59,6 +59,32 @@ void main() {
       expect(restored.photos, isEmpty);
     });
 
+    test('썸네일 경로를 저장·복원한다("일기 활성화" 지시서 A)', () async {
+      final diary = Diary(
+        id: 'ignored',
+        date: DateTime(2026, 3, 5),
+        petIds: const ['p1'],
+        photos: const [
+          DiaryPhoto(path: 'https://example.com/a.jpg', thumbPath: 'https://example.com/a_t.jpg', width: 1200, height: 900),
+        ],
+        createdAt: DateTime(2026, 3, 5),
+        updatedAt: DateTime(2026, 3, 5),
+      );
+
+      final ref = await firestore.collection('users').doc('u1').collection('diaries').add(diary.toFirestore());
+      final doc = await ref.get();
+      final restored = Diary.fromFirestore(doc.id, doc.data()!);
+
+      expect(restored.photos.single.thumbPath, 'https://example.com/a_t.jpg');
+      expect(restored.photos.single.displayThumbPath, 'https://example.com/a_t.jpg');
+    });
+
+    test('썸네일 없는 예전 사진은 원본으로 대체 표시한다(하위호환)', () {
+      const photo = DiaryPhoto(path: 'https://example.com/a.jpg', width: 1200, height: 900);
+      expect(photo.thumbPath, isNull);
+      expect(photo.displayThumbPath, 'https://example.com/a.jpg');
+    });
+
     test('알 수 없는 날씨/활동 값은 조용히 걸러진다(단정하지 않음)', () async {
       final ref = await firestore.collection('users').doc('u1').collection('diaries').add({
         'weather': 'tornado',

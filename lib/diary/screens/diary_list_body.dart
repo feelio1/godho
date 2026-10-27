@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -150,12 +151,12 @@ class _DiaryCard extends StatelessWidget {
                       alignment: Alignment.center,
                       child: const MascotImage(size: 32),
                     )
-                  : Image.network(
-                      diary.photos.first.path,
+                  : CachedNetworkImage(
+                      imageUrl: diary.photos.first.displayThumbPath,
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
+                      errorWidget: (context, url, error) => Container(
                         width: 64,
                         height: 64,
                         color: AppColors.surfaceLight,

@@ -182,23 +182,32 @@ class UserRepository {
   CollectionReference<Map<String, dynamic>> _diaries(String uid) => _users.doc(uid).collection('diaries');
 
   /// 일기에 첨부된 Storage 사진을 전부 지운다 — 일기 문서마다 따로 도는
-  /// 대신 `diary_photos/{uid}` 폴더 전체를 한 번에 재귀 조회해 지운다
-  /// (`DiaryRepository.deleteDiary`가 일기 1건 지울 때 쓰는 것과 같은
-  /// `listAll` 방식, 범위만 계정 전체로 넓힌 것). 폴더가 애초에 없거나
-  /// 일부 삭제가 실패해도 무시하고 계속 진행한다 — 탈퇴 자체는 막지
-  /// 않는다.
+  /// 대신 `diary_photos/{uid}` 폴더 전체를 한 번에 재귀 조회해 지운다.
+  /// `listAll`은 한 단계만 보여주고(`diary_photos/{uid}` 바로 아래엔
+  /// 파일이 없고 일기별 하위 폴더만 있다 — 실제 사진·썸네일은 그 안에
+  /// 있다), 그래서 [listed.prefixes]를 한 단계 더 내려가 지운다("일기
+  /// 활성화" 지시서 A — `_t.jpg` 썸네일도 같은 하위 폴더에 있어 함께
+  /// 지워진다). 폴더가 애초에 없거나 일부 삭제가 실패해도 무시하고
+  /// 계속 진행한다 — 탈퇴 자체는 막지 않는다.
   Future<void> _deleteAllDiaryPhotos(String uid) async {
     try {
-      final listed = await FirebaseStorage.instance.ref('diary_photos/$uid').listAll();
-      for (final item in listed.items) {
-        try {
-          await item.delete();
-        } catch (e) {
-          _log('일기 사진 삭제 실패(무시하고 계속): $e');
-        }
-      }
+      await _deleteStorageFolderRecursively(FirebaseStorage.instance.ref('diary_photos/$uid'));
     } catch (e) {
       _log('일기 사진 폴더 조회 실패(애초에 없었을 수 있음, 무시): $e');
+    }
+  }
+
+  Future<void> _deleteStorageFolderRecursively(Reference ref) async {
+    final listed = await ref.listAll();
+    for (final item in listed.items) {
+      try {
+        await item.delete();
+      } catch (e) {
+        _log('일기 사진 삭제 실패(무시하고 계속): $e');
+      }
+    }
+    for (final prefix in listed.prefixes) {
+      await _deleteStorageFolderRecursively(prefix);
     }
   }
 

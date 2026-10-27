@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../diary_photo_processor.dart';
 import '../models/diary.dart';
 import 'diary_repository.dart';
 
@@ -61,25 +61,30 @@ class FirestoreDiaryRepository implements DiaryRepository {
   Reference _photoRef(String uid, String diaryId, String photoId) =>
       _storage.ref('diary_photos/$uid/$diaryId/$photoId.jpg');
 
-  /// 책 인쇄를 염두에 둔 원본 비율 유지를 위해, 업로드 전 실제 디코딩한
-  /// 가로·세로를 쓴다(추정하지 않음) — "방향 개편" 지시서 C.
-  Future<({int width, int height})> _decodeSize(File file) async {
-    final bytes = await file.readAsBytes();
-    final codec = await ui.instantiateImageCodec(bytes);
-    final frame = await codec.getNextFrame();
-    final size = (width: frame.image.width, height: frame.image.height);
-    frame.image.dispose();
-    return size;
-  }
+  Reference _thumbRef(String uid, String diaryId, String photoId) =>
+      _storage.ref('diary_photos/$uid/$diaryId/${photoId}_t.jpg');
 
+  /// 원본(인쇄용, 긴 변 [kDiaryPhotoMainLongSide])·썸네일(긴 변
+  /// [kDiaryPhotoThumbLongSide]) 2벌을 만들어 함께 올린다("일기 활성화"
+  /// 지시서 A) — 두 벌 모두 EXIF(위치 등)를 지운 상태로 인코딩한다.
+  /// 가로·세로는 실제로 처리한(추정하지 않은) 원본 쪽 값을 쓴다.
   Future<List<DiaryPhoto>> _uploadPhotos(String uid, String diaryId, List<File> files) async {
     final photos = <DiaryPhoto>[];
     for (final file in files) {
-      final size = await _decodeSize(file);
-      final ref = _photoRef(uid, diaryId, _newPhotoId());
-      await ref.putFile(file);
+      final bytes = await file.readAsBytes();
+      final processed = processDiaryPhoto(bytes);
+      if (processed == null) {
+        throw const FormatException('이미지를 처리할 수 없습니다.');
+      }
+      final photoId = _newPhotoId();
+      final ref = _photoRef(uid, diaryId, photoId);
+      final thumbRef = _thumbRef(uid, diaryId, photoId);
+      final metadata = SettableMetadata(contentType: 'image/jpeg');
+      await ref.putData(processed.mainBytes, metadata);
+      await thumbRef.putData(processed.thumbBytes, metadata);
       final url = await ref.getDownloadURL();
-      photos.add(DiaryPhoto(path: url, width: size.width, height: size.height));
+      final thumbUrl = await thumbRef.getDownloadURL();
+      photos.add(DiaryPhoto(path: url, thumbPath: thumbUrl, width: processed.width, height: processed.height));
     }
     return photos;
   }
@@ -99,21 +104,28 @@ class FirestoreDiaryRepository implements DiaryRepository {
     String uid,
     Diary diary, {
     List<File> newPhotoFiles = const [],
-    List<String> removedPhotoPaths = const [],
+    List<DiaryPhoto> removedPhotos = const [],
   }) async {
     // 새 사진 업로드가 실패하면 여기서 예외가 올라가고, 기존 문서·사진은
     // 전혀 건드리지 않은 채로 끝난다(부분 저장 없음).
     final newPhotos = await _uploadPhotos(uid, diary.id, newPhotoFiles);
-    final keptPhotos = diary.photos.where((p) => !removedPhotoPaths.contains(p.path)).toList();
+    final removedPaths = removedPhotos.map((p) => p.path).toSet();
+    final keptPhotos = diary.photos.where((p) => !removedPaths.contains(p.path)).toList();
     final toSave = diary.copyWith(photos: [...keptPhotos, ...newPhotos]);
     await _diaries(uid).doc(diary.id).update(toSave.toFirestoreUpdate());
 
-    for (final path in removedPhotoPaths) {
+    // 원본·썸네일 둘 다 지운다("일기 활성화" 지시서 A) — 이미 지워졌거나
+    // 일시적 오류는 무시하고 계속 진행한다(펫 사진 삭제와 같은 관례,
+    // 문서는 이미 갱신됐으니).
+    for (final photo in removedPhotos) {
       try {
-        await _storage.refFromURL(path).delete();
-      } catch (_) {
-        // 이미 지워졌거나 일시적 오류 — 문서는 이미 갱신됐으니 무시하고
-        // 계속 진행한다(펫 사진 삭제와 같은 관례).
+        await _storage.refFromURL(photo.path).delete();
+      } catch (_) {}
+      final thumbPath = photo.thumbPath;
+      if (thumbPath != null) {
+        try {
+          await _storage.refFromURL(thumbPath).delete();
+        } catch (_) {}
       }
     }
   }

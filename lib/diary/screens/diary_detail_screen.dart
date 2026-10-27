@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -194,11 +195,11 @@ class _PhotoPagerState extends State<_PhotoPager> {
               onPageChanged: (i) => setState(() => _page = i),
               itemBuilder: (context, i) => GestureDetector(
                 onTap: () => _openFullScreen(i),
-                child: Image.network(
-                  widget.photos[i].path,
+                child: CachedNetworkImage(
+                  imageUrl: widget.photos[i].path,
                   fit: BoxFit.cover,
                   width: double.infinity,
-                  errorBuilder: (context, error, stackTrace) => Container(color: AppColors.surfaceMutedLight),
+                  errorWidget: (context, url, error) => Container(color: AppColors.surfaceMutedLight),
                 ),
               ),
             ),
@@ -243,7 +244,7 @@ class _FullScreenPhotoViewer extends StatelessWidget {
         itemCount: photos.length,
         itemBuilder: (context, i) => InteractiveViewer(
           child: Center(
-            child: Image.network(photos[i].path, fit: BoxFit.contain),
+            child: CachedNetworkImage(imageUrl: photos[i].path, fit: BoxFit.contain),
           ),
         ),
       ),

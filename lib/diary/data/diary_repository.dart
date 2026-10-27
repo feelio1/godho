@@ -35,14 +35,15 @@ abstract class DiaryRepository {
   Future<String> createDiary(String uid, Diary diary, List<File> photoFiles);
 
   /// [diary.photos]는 수정 시점 기준 "유지하려는 기존 사진 전체"여야
-  /// 한다 — [removedPhotoPaths]에 있는 것만 더 제외하고, [newPhotoFiles]를
-  /// 추가로 올려 합친다. 새 사진 업로드가 실패하면 예외가 올라가고 기존
-  /// 문서는 그대로 남는다(부분 저장 없음).
+  /// 한다 — [removedPhotos]에 있는 것만 더 제외하고, [newPhotoFiles]를
+  /// 추가로 올려 합친다. [removedPhotos]는 (원본·썸네일을 함께 지우기
+  /// 위해) 경로 문자열이 아니라 사진 전체를 받는다. 새 사진 업로드가
+  /// 실패하면 예외가 올라가고 기존 문서는 그대로 남는다(부분 저장 없음).
   Future<void> updateDiary(
     String uid,
     Diary diary, {
     List<File> newPhotoFiles = const [],
-    List<String> removedPhotoPaths = const [],
+    List<DiaryPhoto> removedPhotos = const [],
   });
 
   /// Storage에 올라간 사진을 전부 지운 뒤 문서를 지운다(순서: 사진 → 문서).

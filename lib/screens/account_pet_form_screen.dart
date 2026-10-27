@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -208,7 +209,7 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
   ImageProvider? get _avatarImage {
     if (_newPhotoFile != null) return FileImage(_newPhotoFile!);
     if (!_removePhoto && widget.existing?.photoUrl != null) {
-      return NetworkImage(widget.existing!.photoUrl!);
+      return CachedNetworkImageProvider(widget.existing!.photoUrl!);
     }
     return null;
   }

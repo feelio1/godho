@@ -48,21 +48,32 @@ enum DiaryActivity {
 /// URL이다(저장 경로 자체가 아니라 바로 띄울 수 있는 주소). 가로·세로
 /// 픽셀 크기를 함께 저장해 두면 나중에 책 인쇄 등에서 원본 비율로 배치할
 /// 수 있다 — 업로드 전 실제 디코딩한 값을 쓴다(추정하지 않음).
+///
+/// [thumbPath]는 목록·캘린더·홈 카드 등 작게 보이는 곳에 쓰는 썸네일의
+/// 다운로드 URL("일기 활성화" 지시서 A — 비용 관리). 썸네일 없이 올려둔
+/// 기존 일기는 null이고, 그런 경우 [displayThumbPath]가 원본으로 대체
+/// 표시한다(하위호환, 별도 마이그레이션 없음).
 class DiaryPhoto {
   final String path;
+  final String? thumbPath;
   final int width;
   final int height;
 
-  const DiaryPhoto({required this.path, required this.width, required this.height});
+  const DiaryPhoto({required this.path, this.thumbPath, required this.width, required this.height});
+
+  /// 작게 보이는 곳에서 쓸 주소 — 썸네일이 없으면 원본으로 대체한다.
+  String get displayThumbPath => thumbPath ?? path;
 
   factory DiaryPhoto.fromFirestore(Map<String, dynamic> data) => DiaryPhoto(
         path: data['path'] as String? ?? '',
+        thumbPath: data['thumbPath'] as String?,
         width: (data['width'] as num?)?.toInt() ?? 0,
         height: (data['height'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toFirestore() => {
         'path': path,
+        if (thumbPath != null) 'thumbPath': thumbPath,
         'width': width,
         'height': height,
       };

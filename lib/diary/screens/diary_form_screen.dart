@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,6 +15,7 @@ import '../../utils/appointment_calendar.dart' show dateOnly, isFutureDay;
 import '../../utils/network_error.dart';
 import '../../widgets/date_picker_sheet.dart';
 import '../../widgets/form_field_label.dart';
+import '../diary_photo_processor.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_weather_icons.dart';
@@ -62,6 +64,13 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   bool _dirty = false;
   bool _saving = false;
 
+  /// 사용자가 날짜를 직접 바꾼 뒤엔 사진 촬영일로 자동 바꾸지 않는다
+  /// ("일기 활성화" 지시서 C). 수정 화면(기존 일기)은 이미 정해둔 날짜가
+  /// 있으니 처음부터 자동 변경 대상에서 뺀다.
+  bool get _dateAutoSuggestAllowed => widget.existing == null && !_dateManuallySet;
+  bool _dateManuallySet = false;
+  bool _showAutoDateNotice = false;
+
   @override
   void initState() {
     super.initState();
@@ -92,7 +101,11 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       lastDate: DateTime.now(),
     );
     if (picked == null) return;
-    setState(() => _date = picked);
+    setState(() {
+      _date = picked;
+      _dateManuallySet = true;
+      _showAutoDateNotice = false;
+    });
     _markDirty();
   }
 
@@ -102,13 +115,19 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       return;
     }
     try {
-      final picked = await ImagePicker().pickMultiImage(maxWidth: 2048, maxHeight: 2048, imageQuality: 85);
+      // 리사이즈 전 원본에서 촬영일(EXIF)을 읽어야 하므로, 여기서는
+      // 줄이지 않고 원본 그대로 받는다 — 업로드용 압축은 저장 시점에
+      // 저장소(FirestoreDiaryRepository)가 맡는다("일기 활성화" 지시서
+      // A·C).
+      final picked = await ImagePicker().pickMultiImage();
       if (picked.isEmpty || !mounted) return;
       final allowed = capPhotoAdditions(_photoItems.length, picked);
       final overflow = allowed.length < picked.length;
-      setState(() => _photoItems.addAll(allowed.map((x) => _PhotoItem.newFile(File(x.path)))));
+      final files = allowed.map((x) => File(x.path)).toList();
+      setState(() => _photoItems.addAll(files.map(_PhotoItem.newFile)));
       _markDirty();
       if (overflow) _showPhotoLimitNotice();
+      await _applyExifDateSuggestion(files);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('사진을 불러오지 못했습니다.')));
@@ -122,15 +141,40 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       return;
     }
     try {
-      final picked = await ImagePicker().pickImage(source: ImageSource.camera, maxWidth: 2048, maxHeight: 2048, imageQuality: 85);
+      final picked = await ImagePicker().pickImage(source: ImageSource.camera);
       if (picked == null || !mounted) return;
-      setState(() => _photoItems.add(_PhotoItem.newFile(File(picked.path))));
+      final file = File(picked.path);
+      setState(() => _photoItems.add(_PhotoItem.newFile(file)));
       _markDirty();
+      await _applyExifDateSuggestion([file]);
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('사진을 불러오지 못했습니다.')));
       }
     }
+  }
+
+  /// 방금 고른 사진들의 EXIF 촬영일 중 가장 이른 날을 일기 날짜로
+  /// 제안한다 — 미래 날짜거나 정보가 없으면(둘 다 없으면) 바꾸지 않는다
+  /// ("일기 활성화" 지시서 C). 사용자가 날짜를 직접 바꾼 뒤·수정 화면에선
+  /// 아예 시도하지 않는다.
+  Future<void> _applyExifDateSuggestion(List<File> files) async {
+    if (!_dateAutoSuggestAllowed) return;
+    final captureDates = <DateTime?>[];
+    for (final file in files) {
+      try {
+        captureDates.add(readDiaryPhotoCaptureDate(await file.readAsBytes()));
+      } catch (_) {
+        captureDates.add(null);
+      }
+    }
+    final suggested = suggestDiaryDateFromCaptureDates(captureDates);
+    if (suggested == null || !mounted || !_dateAutoSuggestAllowed) return;
+    if (dateOnly(suggested) == dateOnly(_date)) return;
+    setState(() {
+      _date = suggested;
+      _showAutoDateNotice = true;
+    });
   }
 
   void _showPhotoLimitNotice() {
@@ -187,9 +231,9 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     final existing = widget.existing;
     final keptExisting = [for (final p in _photoItems) if (p.existing != null) p.existing!];
     final newFiles = [for (final p in _photoItems) if (p.newFile != null) p.newFile!];
-    final removedPaths = [
+    final removedPhotos = [
       for (final old in existing?.photos ?? const <DiaryPhoto>[])
-        if (!keptExisting.any((kept) => kept.path == old.path)) old.path,
+        if (!keptExisting.any((kept) => kept.path == old.path)) old,
     ];
 
     final diaryToSave = Diary(
@@ -209,7 +253,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       if (existing == null) {
         await repo.createDiary(uid, diaryToSave, newFiles);
       } else {
-        await repo.updateDiary(uid, diaryToSave, newPhotoFiles: newFiles, removedPhotoPaths: removedPaths);
+        await repo.updateDiary(uid, diaryToSave, newPhotoFiles: newFiles, removedPhotos: removedPhotos);
       }
       ref.invalidate(diariesPageProvider);
       if (existing != null) ref.invalidate(diaryProvider(existing.id));
@@ -262,6 +306,26 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
                   ),
                 ),
               ),
+              if (_showAutoDateNotice) ...[
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.photo_camera_outlined, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    const Text('사진 촬영일로 맞췄어요', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    TextButton(
+                      onPressed: _pickDate,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('바꾸기', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: AppSpacing.formField),
               const FormFieldLabel('반려동물'),
               Wrap(
@@ -470,12 +534,12 @@ class _PhotoThumb extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(AppRadius.field),
           child: existing != null
-              ? Image.network(
-                  existing.path,
+              ? CachedNetworkImage(
+                  imageUrl: existing.displayThumbPath,
                   width: 80,
                   height: 80,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(width: 80, height: 80, color: AppColors.surfaceMutedLight),
+                  errorWidget: (context, url, error) => Container(width: 80, height: 80, color: AppColors.surfaceMutedLight),
                 )
               : Image.file(newFile!, width: 80, height: 80, fit: BoxFit.cover),
         ),
