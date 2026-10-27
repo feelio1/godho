@@ -12,6 +12,7 @@ import '../models/medical_record.dart';
 import '../models/pet.dart';
 import '../providers/effective_appointments_provider.dart';
 import '../providers/effective_medical_records_provider.dart';
+import '../providers/pet_tab_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
@@ -54,6 +55,7 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
     final start = widget.initialDate != null ? dateOnly(widget.initialDate!) : dateOnly(DateTime.now());
     _focusedDay = start;
     _selectedDay = start;
+    _syncSelectedDayToTab(start);
   }
 
   /// 같은 반려동물이 선택된 채로(= [PetCalendarBody]가 새로 만들어지지
@@ -68,7 +70,19 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
         _selectedDay = target;
         _focusedDay = target;
       });
+      _syncSelectedDayToTab(target);
     }
+  }
+
+  /// AppBar의 "+" 버튼(캘린더 세그먼트)이 지금 선택된 날짜를 알 수 있게
+  /// [petTabCalendarSelectedDayProvider]에 반영한다("일기를 기본 보기로"
+  /// 지시서) — 이 화면 자체의 동작·모습은 그대로다. 빌드가 끝난 뒤
+  /// 반영해야 다른 위젯의 빌드 중에 상태를 바꾸는 오류를 피한다.
+  void _syncSelectedDayToTab(DateTime day) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(petTabCalendarSelectedDayProvider.notifier).state = day;
+    });
   }
 
   /// 과거·오늘을 고르면 그 날짜로 진료기록을, 미래를 고르면 예약을
@@ -116,10 +130,12 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
             return [...?recordsByDate[key], ...?appointmentsByDate[key], ...?diariesByDate[key]];
           },
           onDaySelected: (selected, focused) {
+            final day = dateOnly(selected);
             setState(() {
-              _selectedDay = dateOnly(selected);
+              _selectedDay = day;
               _focusedDay = focused;
             });
+            _syncSelectedDayToTab(day);
           },
           onPageChanged: (focused) => _focusedDay = focused,
           availableGestures: AvailableGestures.horizontalSwipe,

@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../diary/screens/diary_form_screen.dart';
 import '../diary/screens/diary_list_body.dart';
+import '../models/pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/calendar_focus_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../providers/pet_tab_provider.dart';
 import '../theme/app_dimens.dart';
+import '../utils/record_appointment_flow.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/inline_error_message.dart';
 import '../widgets/no_pets_message.dart';
@@ -16,12 +19,17 @@ import 'calendar_screen.dart' show PetCalendarBody;
 import 'health_record_screen.dart' show PetHealthBody;
 
 /// "우리 아이" 탭("탭 개편" 지시서 B, "방향 개편" 지시서 D에서 일기
-/// 추가) — [진료기록|캘린더|일기] 세그먼트로 전환한다. 세 보기 모두
-/// 기존 화면의 본문(PetHealthBody/PetCalendarBody — 각각 health_record_
-/// screen.dart/calendar_screen.dart에 있던 비공개 본문을 공개로 옮긴
-/// 것뿐, 내부 로직은 그대로다 / DiaryListBody — 일기 전용 새 본문)을
-/// 그대로 쓰고, 이 화면이 Scaffold/AppBar/게스트 게이팅/반려동물 선택을
-/// 한 번만 갖는다 — 예전처럼 화면마다 따로 있던 걸 하나로 모았다.
+/// 추가, "일기를 기본 보기로" 지시서에서 기본값·순서 변경) — [일기|
+/// 캘린더|진료기록] 세그먼트로 전환하고, 마지막으로 본 세그먼트를 기기에
+/// 저장해 앱을 다시 켜도 이어본다. 세 보기 모두 기존 화면의 본문
+/// (PetHealthBody/PetCalendarBody — 각각 health_record_screen.dart/
+/// calendar_screen.dart에 있던 비공개 본문을 공개로 옮긴 것뿐, 내부
+/// 로직은 그대로다 / DiaryListBody — 일기 전용 새 본문)을 그대로 쓰고,
+/// 이 화면이 Scaffold/AppBar/게스트 게이팅/반려동물 선택을 한 번만
+/// 갖는다 — 예전처럼 화면마다 따로 있던 걸 하나로 모았다. AppBar의 "+"
+/// 버튼은 반려동물이 선택된 동안은 지금 세그먼트에 맞는 입력(일기 작성/
+/// 캘린더 날짜/오늘 기록)을 열고, 반려동물이 없을 때만 반려동물 추가로
+/// 돌아간다.
 class PetTabScreen extends ConsumerStatefulWidget {
   const PetTabScreen({super.key});
 
@@ -33,10 +41,36 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
   String? _selectedPetId;
   DateTime? _pendingFocusDate;
 
+  @override
+  void initState() {
+    super.initState();
+    restorePersistedPetTabView(ref.read(petTabViewProvider.notifier));
+  }
+
   Future<void> _addAccountPet(String uid) async {
     final petId = await AccountPetActions.add(context, ref, uid);
     if (petId == null || !mounted) return;
     setState(() => _selectedPetId = 'account:$petId');
+  }
+
+  /// AppBar의 "+" 버튼 — 보고 있는 세그먼트 기준으로 다른 동작을 연다
+  /// ("일기를 기본 보기로" 지시서): 일기는 바로 일기 작성, 캘린더는 지금
+  /// 선택된 날짜로, 진료기록은 오늘로 통합 입력(기록/예약)을 연다.
+  void _handleAdd(PetTabView view, Pet selectedPet) {
+    switch (view) {
+      case PetTabView.diary:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [selectedPet.id])),
+        );
+        break;
+      case PetTabView.calendar:
+        final day = ref.read(petTabCalendarSelectedDayProvider);
+        openRecordOrAppointmentEntry(context, petId: selectedPet.id, initialDate: day);
+        break;
+      case PetTabView.records:
+        openRecordOrAppointmentEntry(context, petId: selectedPet.id);
+        break;
+    }
   }
 
   @override
@@ -72,18 +106,35 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
       ref.read(calendarFocusRequestProvider.notifier).state = null;
     });
 
+    // 세그먼트가 바뀔 때마다 기기에 저장해 다음 실행에서도 이어본다
+    // ("일기를 기본 보기로" 지시서).
+    ref.listen<PetTabView>(petTabViewProvider, (previous, next) {
+      persistPetTabView(next);
+    });
+
     final petsAsync = ref.watch(effectivePetsProvider);
     final view = ref.watch(petTabViewProvider);
+    final pets = petsAsync.value;
+    final selectedPet = (pets == null || pets.isEmpty)
+        ? null
+        : pets.firstWhere((p) => p.id == _selectedPetId, orElse: () => pets.first);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('우리 아이'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '반려동물 추가',
-            onPressed: () => _addAccountPet(uid),
-          ),
+          if (selectedPet != null)
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: '추가',
+              onPressed: () => _handleAdd(view, selectedPet),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: '반려동물 추가',
+              onPressed: () => _addAccountPet(uid),
+            ),
         ],
       ),
       body: petsAsync.when(
@@ -165,9 +216,9 @@ class _ViewSegment extends ConsumerWidget {
       child: SegmentedButton<PetTabView>(
         segments: const [
           ButtonSegment(
-            value: PetTabView.records,
-            label: Text('진료기록'),
-            icon: Icon(Icons.medical_information_outlined),
+            value: PetTabView.diary,
+            label: Text('일기'),
+            icon: Icon(Icons.edit_note),
           ),
           ButtonSegment(
             value: PetTabView.calendar,
@@ -175,9 +226,9 @@ class _ViewSegment extends ConsumerWidget {
             icon: Icon(Icons.calendar_month_outlined),
           ),
           ButtonSegment(
-            value: PetTabView.diary,
-            label: Text('일기'),
-            icon: Icon(Icons.edit_note),
+            value: PetTabView.records,
+            label: Text('진료기록'),
+            icon: Icon(Icons.medical_information_outlined),
           ),
         ],
         selected: {value},

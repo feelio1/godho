@@ -91,14 +91,14 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: MascotMessage(
-                      title: '첫 일기를 남겨보세요',
+                      title: '오늘 ${widget.selectedPet.name}의 하루를 남겨보세요',
                       subtitle: '오늘 하루 있었던 일을 사진과 함께 가볍게 남겨두세요.',
                       assetPath: MascotImage.emptyRecordAssetPath,
                       overlayIcon: Icons.edit_note,
                       trailing: FilledButton.icon(
                         onPressed: _openForm,
                         icon: const Icon(Icons.add, size: 18),
-                        label: const Text('일기 쓰기'),
+                        label: const Text('첫 일기 쓰기'),
                       ),
                     ),
                   ),

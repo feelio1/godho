@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:petcliniccheck/providers/auth_provider.dart';
 import 'package:petcliniccheck/providers/pet_tab_provider.dart';
@@ -19,6 +20,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Future<void> pumpGuest(WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       ProviderScope(
         overrides: [authStateProvider.overrideWith((ref) => Stream<User?>.value(null))],
@@ -50,11 +52,11 @@ void main() {
   });
 
   group('petTabViewProvider — 세그먼트 선택은 앱 실행 중 유지된다("탭 개편" 지시서 B)', () {
-    test('기본값은 진료기록이다', () {
+    test('기본값은 일기다("일기를 기본 보기로" 지시서)', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      expect(container.read(petTabViewProvider), PetTabView.records);
+      expect(container.read(petTabViewProvider), PetTabView.diary);
     });
 
     test('캘린더로 바꾸면 다시 읽어도(=탭을 벗어났다 돌아와도) 캘린더로 유지된다', () {
@@ -71,6 +73,50 @@ void main() {
 
       container.read(petTabViewProvider.notifier).state = PetTabView.diary;
       expect(container.read(petTabViewProvider), PetTabView.diary);
+    });
+  });
+
+  group('세그먼트 기억 — 앱을 다시 켜도 마지막으로 본 세그먼트를 이어본다("일기를 기본 보기로" 지시서)', () {
+    test('저장값이 없으면 기본값(일기)이 그대로 유지된다', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await restorePersistedPetTabView(container.read(petTabViewProvider.notifier));
+
+      expect(container.read(petTabViewProvider), PetTabView.diary);
+    });
+
+    test('저장값이 깨졌으면(알 수 없는 문자열) 기본값(일기)이 그대로 유지된다', () async {
+      SharedPreferences.setMockInitialValues({'pet_tab_view_v1': 'not-a-real-view'});
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await restorePersistedPetTabView(container.read(petTabViewProvider.notifier));
+
+      expect(container.read(petTabViewProvider), PetTabView.diary);
+    });
+
+    test('저장값이 캘린더면 캘린더로 복원된다', () async {
+      SharedPreferences.setMockInitialValues({'pet_tab_view_v1': 'calendar'});
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      await restorePersistedPetTabView(container.read(petTabViewProvider.notifier));
+
+      expect(container.read(petTabViewProvider), PetTabView.calendar);
+    });
+
+    test('세그먼트를 바꾸면 저장되고, 다음에 복원하면 그 값으로 돌아온다', () async {
+      SharedPreferences.setMockInitialValues({});
+
+      await persistPetTabView(PetTabView.records);
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      await restorePersistedPetTabView(container.read(petTabViewProvider.notifier));
+
+      expect(container.read(petTabViewProvider), PetTabView.records);
     });
   });
 }
