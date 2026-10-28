@@ -9,21 +9,51 @@ import '../../theme/app_dimens.dart';
 import '../../utils/network_error.dart';
 import '../../widgets/inline_error_message.dart';
 import '../diary_photo_display.dart';
+import '../diary_photo_display_merge.dart';
+import '../diary_photo_display_widgets.dart';
+import '../diary_photo_upload_queue.dart';
+import '../diary_photo_upload_queue_service.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_form_screen.dart';
 import 'diary_weather_icons.dart';
 
 /// 일기 상세("방향 개편" 지시서 D) — 사진 좌우 넘김(탭하면 전체 화면),
-/// 날짜·날씨·태그·글, 수정/삭제.
-class DiaryDetailScreen extends ConsumerWidget {
+/// 날짜·날씨·태그·글, 수정/삭제. 백그라운드 업로드 대기열이 바뀌면
+/// (`DiaryPhotoUploadQueueService.instance.changeTick`, "일기 재수정"
+/// 지시서 2-3) 일기 문서·대기열 조회를 다시 불러 "올리는 중" 표시를
+/// 서버 사진으로 자동 교체한다.
+class DiaryDetailScreen extends ConsumerStatefulWidget {
   final String diaryId;
 
   const DiaryDetailScreen({super.key, required this.diaryId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final diaryAsync = ref.watch(diaryProvider(diaryId));
+  ConsumerState<DiaryDetailScreen> createState() => _DiaryDetailScreenState();
+}
+
+class _DiaryDetailScreenState extends ConsumerState<DiaryDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    DiaryPhotoUploadQueueService.instance.changeTick.addListener(_onQueueChanged);
+  }
+
+  @override
+  void dispose() {
+    DiaryPhotoUploadQueueService.instance.changeTick.removeListener(_onQueueChanged);
+    super.dispose();
+  }
+
+  void _onQueueChanged() {
+    if (!mounted) return;
+    ref.invalidate(diaryProvider(widget.diaryId));
+    ref.invalidate(diaryPendingPhotosProvider(widget.diaryId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final diaryAsync = ref.watch(diaryProvider(widget.diaryId));
 
     return Scaffold(
       appBar: AppBar(
@@ -41,7 +71,7 @@ class DiaryDetailScreen extends ConsumerWidget {
                           final saved = await Navigator.of(context).push<bool>(
                             MaterialPageRoute(builder: (_) => DiaryFormScreen(existing: diary)),
                           );
-                          if (saved == true) ref.invalidate(diaryProvider(diaryId));
+                          if (saved == true) ref.invalidate(diaryProvider(widget.diaryId));
                         },
                       ),
                       IconButton(
@@ -58,11 +88,10 @@ class DiaryDetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => InlineErrorMessage(
           error: error,
-          onRetry: () => ref.invalidate(diaryProvider(diaryId)),
+          onRetry: () => ref.invalidate(diaryProvider(widget.diaryId)),
         ),
-        data: (diary) => diary == null
-            ? const Center(child: Text('일기를 찾을 수 없어요'))
-            : _DiaryDetailBody(diary: diary),
+        data: (diary) =>
+            diary == null ? const Center(child: Text('일기를 찾을 수 없어요')) : _DiaryDetailBody(diary: diary),
       ),
     );
   }
@@ -88,6 +117,9 @@ class DiaryDetailScreen extends ConsumerWidget {
     if (uid == null) return;
     try {
       await ref.read(diaryRepositoryProvider).deleteDiary(uid, diary.id);
+      // 아직 이 기기 대기열에 남아 올라가는 중이던 사진·로컬 파일도
+      // 함께 치운다("일기 재수정" 지시서 2-6).
+      await DiaryPhotoUploadQueueService.instance.cancelForDiary(diary.id);
       ref.invalidate(diariesPageProvider);
       if (context.mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -100,18 +132,32 @@ class DiaryDetailScreen extends ConsumerWidget {
   }
 }
 
-class _DiaryDetailBody extends StatelessWidget {
+class _DiaryDetailBody extends ConsumerWidget {
   final Diary diary;
 
   const _DiaryDetailBody({required this.diary});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final localPending = diary.pendingPhotoCount > 0
+        ? ref.watch(diaryPendingPhotosProvider(diary.id)).value ?? const <DiaryPhotoQueueItem>[]
+        : const <DiaryPhotoQueueItem>[];
+    final displayPhotos = mergeDiaryPhotosForDisplay(
+      uploaded: diary.photos,
+      localPending: localPending,
+      pendingPhotoCount: diary.pendingPhotoCount,
+    );
+    final hasGivenUp = displayPhotos.any((p) => p.kind == DiaryDisplayPhotoKind.localPending && p.givenUp);
+
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.page),
       children: [
-        if (diary.photos.isNotEmpty) ...[
-          _PhotoPager(photos: diary.photos),
+        if (displayPhotos.isNotEmpty) ...[
+          _PhotoPager(photos: displayPhotos),
+          if (hasGivenUp) ...[
+            const SizedBox(height: 10),
+            _RetryUploadBanner(diaryId: diary.id),
+          ],
           const SizedBox(height: AppSpacing.section),
         ],
         Row(
@@ -151,8 +197,53 @@ class _DiaryDetailBody extends StatelessWidget {
   }
 }
 
+/// "사진을 올리지 못했어요 · 다시 시도" 안내("일기 재수정" 지시서 2-4) —
+/// 누르면 이 일기의 대기열 항목을 전부 초기화하고 바로 다시 올린다.
+class _RetryUploadBanner extends ConsumerStatefulWidget {
+  final String diaryId;
+
+  const _RetryUploadBanner({required this.diaryId});
+
+  @override
+  ConsumerState<_RetryUploadBanner> createState() => _RetryUploadBannerState();
+}
+
+class _RetryUploadBannerState extends ConsumerState<_RetryUploadBanner> {
+  bool _retrying = false;
+
+  Future<void> _retry() async {
+    setState(() => _retrying = true);
+    await DiaryPhotoUploadQueueService.instance.retryDiary(widget.diaryId);
+    if (mounted) setState(() => _retrying = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(AppRadius.field),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text('사진을 올리지 못했어요', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: _retrying ? null : _retry,
+            child: Text(_retrying ? '다시 시도 중…' : '다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PhotoPager extends StatefulWidget {
-  final List<DiaryPhoto> photos;
+  final List<DiaryDisplayPhoto> photos;
 
   const _PhotoPager({required this.photos});
 
@@ -170,7 +261,8 @@ class _PhotoPagerState extends State<_PhotoPager> {
     _controller = PageController();
     // 상세에 들어오자마자 첫 장·다음 장 원본을 미리 받아 둔다("일기
     // 수정" 지시서 2-2) — 레이아웃이 끝난 뒤라야 context로 안전하게
-    // precache할 수 있다.
+    // precache할 수 있다. 서버에 올라간 사진만 precache 대상이다(로컬
+    // 파일·자리표시는 네트워크 요청이 아니다).
     WidgetsBinding.instance.addPostFrameCallback((_) => _precacheAround(0));
   }
 
@@ -183,8 +275,10 @@ class _PhotoPagerState extends State<_PhotoPager> {
   void _precacheAround(int index) {
     if (!mounted) return;
     for (final i in diaryPhotoPrecacheIndices(index: index, total: widget.photos.length)) {
+      final path = widget.photos[i].networkPath;
+      if (path == null) continue;
       precacheImage(
-        CachedNetworkImageProvider(widget.photos[i].path),
+        CachedNetworkImageProvider(path),
         context,
         onError: (exception, stackTrace) {},
       );
@@ -219,11 +313,11 @@ class _PhotoPagerState extends State<_PhotoPager> {
               },
               itemBuilder: (context, i) => GestureDetector(
                 onTap: () => _openFullScreen(i),
-                child: DiaryPhotoFadeImage(
-                  mainUrl: widget.photos[i].path,
-                  thumbUrl: widget.photos[i].thumbPath,
+                child: DiaryDisplayImage(
+                  photo: widget.photos[i],
                   fit: BoxFit.cover,
                   width: double.infinity,
+                  height: 280,
                   memCacheWidth: memCacheWidth,
                 ),
               ),
@@ -254,7 +348,7 @@ class _PhotoPagerState extends State<_PhotoPager> {
 }
 
 class _FullScreenPhotoViewer extends StatefulWidget {
-  final List<DiaryPhoto> photos;
+  final List<DiaryDisplayPhoto> photos;
   final int initialIndex;
 
   const _FullScreenPhotoViewer({required this.photos, required this.initialIndex});
@@ -282,8 +376,10 @@ class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
   void _precacheAround(int index) {
     if (!mounted) return;
     for (final i in diaryPhotoPrecacheIndices(index: index, total: widget.photos.length)) {
+      final path = widget.photos[i].networkPath;
+      if (path == null) continue;
       precacheImage(
-        CachedNetworkImageProvider(widget.photos[i].path),
+        CachedNetworkImageProvider(path),
         context,
         onError: (exception, stackTrace) {},
       );
@@ -303,52 +399,10 @@ class _FullScreenPhotoViewerState extends State<_FullScreenPhotoViewer> {
           child: Center(
             // 전체화면은 원본 해상도 그대로 디코딩한다(memCacheWidth 없음,
             // 확대해서 볼 수 있어야 하므로 — "일기 수정" 지시서 2-3).
-            child: DiaryPhotoFadeImage(
-              mainUrl: widget.photos[i].path,
-              thumbUrl: widget.photos[i].thumbPath,
-              fit: BoxFit.contain,
-            ),
+            child: DiaryDisplayImage(photo: widget.photos[i], fit: BoxFit.contain),
           ),
         ),
       ),
-    );
-  }
-}
-
-/// 썸네일을 먼저 보여주고(목록에서 이미 캐시돼 있어 즉시 뜬다), 원본이
-/// 준비되면 짧은 fade로 바꾼다("일기 수정" 지시서 2-1) — `thumbUrl`이
-/// 없는(썸네일 없이 올려둔 예전 일기) 사진은 자리표시 없이 그냥 원본만
-/// 기다린다(기존과 동일). [memCacheWidth]를 주면 그 너비로만 디코딩해
-/// 메모리를 아낀다(작은 영역에 큰 원본을 그대로 띄우지 않음).
-class DiaryPhotoFadeImage extends StatelessWidget {
-  final String mainUrl;
-  final String? thumbUrl;
-  final BoxFit fit;
-  final double? width;
-  final int? memCacheWidth;
-
-  const DiaryPhotoFadeImage({
-    super.key,
-    required this.mainUrl,
-    required this.thumbUrl,
-    this.fit = BoxFit.cover,
-    this.width,
-    this.memCacheWidth,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final thumb = thumbUrl;
-    return CachedNetworkImage(
-      imageUrl: mainUrl,
-      fit: fit,
-      width: width,
-      memCacheWidth: memCacheWidth,
-      fadeInDuration: const Duration(milliseconds: 180),
-      placeholder: thumb == null
-          ? null
-          : (context, url) => CachedNetworkImage(imageUrl: thumb, fit: fit, width: width),
-      errorWidget: (context, url, error) => Container(color: AppColors.surfaceMutedLight),
     );
   }
 }

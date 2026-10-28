@@ -1,11 +1,4 @@
-import '../diary_photo_processor.dart' show ProcessedDiaryPhoto;
 import '../models/diary.dart';
-
-/// 사진을 한 장 업로드할 때마다 부른다(1-based [completed], [total]은
-/// 전체 장수) — 저장 화면이 "사진 올리는 중 (완료 n/m)"을 보여주는 데
-/// 쓴다("일기 수정" 지시서 1-4). 압축은 작성 화면이 미리 끝내두므로,
-/// 여기서 말하는 진행은 업로드(네트워크)만 가리킨다.
-typedef DiaryPhotoUploadProgressCallback = void Function(int completed, int total);
 
 /// 일기 목록 한 페이지("방향 개편" 지시서 C — 페이지네이션 20개). [cursor]는
 /// 호출부가 내용을 들여다보지 않고 그대로 다음 호출에 돌려주는 불투명
@@ -27,10 +20,12 @@ class DiaryPage {
 /// 위해서 — 일기 수가 많지 않은 개인 데이터라 클라이언트 필터링 비용이
 /// 작다).
 ///
-/// 사진 압축(디코딩·리사이즈·네이티브 인코딩)은 이 계층의 일이 아니다 —
-/// 작성 화면이 사진을 고르는 즉시 미리 압축을 시작해 두고([ProcessedDiaryPhoto]
-/// 로 넘긴다), 이 계층은 그 결과를 올리기만 한다("일기 수정" 지시서 1:
-/// 저장 속도 — 압축과 업로드를 겹쳐서 끝낸다).
+/// 사진 업로드(네트워크)는 이 계층의 일이 아니다("일기 재수정" 지시서
+/// 2) — [createDiary]/[updateDiary]는 문서만 바로 만들거나 갱신하고
+/// 돌아온다(기다리지 않음). 새로 추가한 사진의 실제 업로드는 호출부가
+/// `DiaryPhotoUploadQueueService`에 별도로 넘겨 백그라운드로 처리한다 —
+/// 그래서 이 메서드들은 압축된 사진 바이트를 전혀 받지 않고, 몇 장이
+/// 아직 올라가는 중인지([pendingPhotoCount])만 받는다.
 abstract class DiaryRepository {
   Future<DiaryPage> fetchDiaries(String uid, {int limit = 20, Object? cursor});
 
@@ -39,32 +34,28 @@ abstract class DiaryRepository {
 
   Future<Diary?> fetchDiary(String uid, String diaryId);
 
-  /// 이미 압축된 [processedPhotos]를 먼저 올리고, 전부 성공해야 문서를
-  /// 만든다 — 하나라도 업로드(네트워크)에 실패하면 예외가 그대로 올라가고
-  /// 문서는 생성되지 않으며, 그때까지 올라간 파일은 지우려 시도한다
-  /// ("방향 개편" 지시서 C: "업로드 실패 시 일기 저장 안 함", "일기 수정"
-  /// 지시서 1-5). 새로 생성된 문서 id를 돌려준다.
-  Future<String> createDiary(
-    String uid,
-    Diary diary,
-    List<ProcessedDiaryPhoto> processedPhotos, {
-    DiaryPhotoUploadProgressCallback? onPhotoProgress,
-  });
+  /// [diary.photos]는 보통 빈 목록이다(사진이 있어도 아직 올라가지
+  /// 않았으므로) — [pendingPhotoCount]만큼 "올리는 중"으로 표시된다.
+  /// 새로 생성된 문서 id를 돌려준다. 네트워크를 기다리지 않아 거의
+  /// 즉시 끝난다("일기 재수정" 지시서 2-1).
+  Future<String> createDiary(String uid, Diary diary, {int pendingPhotoCount = 0});
 
-  /// [diary.photos]는 수정 시점 기준 "유지하려는 기존 사진 전체"여야
-  /// 한다 — [removedPhotos]에 있는 것만 더 제외하고, [newProcessedPhotos]를
-  /// 추가로 올려 합친다. [removedPhotos]는 (원본·썸네일을 함께 지우기
-  /// 위해) 경로 문자열이 아니라 사진 전체를 받는다. 새 사진 업로드가
-  /// 실패하면 예외가 올라가고 기존 문서는 그대로 남는다(부분 저장 없음,
-  /// 그때까지 올라간 파일은 지우려 시도한다).
+  /// [diary.photos]는 수정 시점 기준 "유지하려는 기존 사진 전체(순서
+  /// 반영)"여야 한다 — 새로 추가한 사진은 여기 포함하지 않고
+  /// [newPendingPhotoCount]만 늘린다(실제 업로드는 호출부가 큐에 별도로
+  /// 넘긴다). [removedPhotos]는 (원본·썸네일을 함께 지우기 위해) 경로
+  /// 문자열이 아니라 사진 전체를 받고, 즉시(네트워크를 기다려) 지운다 —
+  /// 대기열과 달리 삭제는 뒤로 미루지 않는다.
   Future<void> updateDiary(
     String uid,
     Diary diary, {
-    List<ProcessedDiaryPhoto> newProcessedPhotos = const [],
     List<DiaryPhoto> removedPhotos = const [],
-    DiaryPhotoUploadProgressCallback? onPhotoProgress,
+    int newPendingPhotoCount = 0,
   });
 
   /// Storage에 올라간 사진을 전부 지운 뒤 문서를 지운다(순서: 사진 → 문서).
+  /// 아직 업로드 대기열에 남아 있는 사진(로컬 파일·대기열 항목)은
+  /// 포함하지 않는다 — 호출부가 `DiaryPhotoUploadQueueService`로 따로
+  /// 정리한다("일기 재수정" 지시서 2-6).
   Future<void> deleteDiary(String uid, String diaryId);
 }

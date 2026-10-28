@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:petcliniccheck/diary/screens/diary_detail_screen.dart';
+import 'package:petcliniccheck/diary/diary_photo_display_widgets.dart';
 
 /// 상세 PageView·전체화면이 쓰는 "썸네일 먼저, 원본은 fade로" 위젯
 /// ("일기 수정" 지시서 2-1) — 실제 네트워크 로딩 타이밍에 의존하지 않고,

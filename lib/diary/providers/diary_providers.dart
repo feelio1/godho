@@ -4,9 +4,19 @@ import '../../providers/auth_provider.dart';
 import '../data/diary_repository.dart';
 import '../data/firestore_diary_repository.dart';
 import '../diary_calendar.dart' show onThisDayCandidates;
+import '../diary_photo_upload_queue.dart';
 import '../models/diary.dart';
 
 final diaryRepositoryProvider = Provider<DiaryRepository>((ref) => FirestoreDiaryRepository());
+
+/// 이 일기의 이 기기 업로드 대기열 항목(아직 안 올라간 사진, 순서 포함) —
+/// 목록·상세가 "올리는 중" 자리표시로 즉시 보여주는 데 쓴다("일기
+/// 재수정" 지시서 2-3). 큐 상태가 바뀌면(`DiaryPhotoUploadQueueService.
+/// instance.changeTick`) 호출부가 invalidate해 다시 불러온다.
+final diaryPendingPhotosProvider =
+    FutureProvider.autoDispose.family<List<DiaryPhotoQueueItem>, String>((ref, diaryId) {
+  return const DiaryPhotoUploadQueueStore().loadForDiary(diaryId);
+});
 
 /// 일기 목록 첫 페이지(최신순, 20개) — 로그인 전용 기능이라 게스트는 항상
 /// 빈 페이지다("방향 개편" 지시서 C). 더 보기(페이지네이션)는 화면이

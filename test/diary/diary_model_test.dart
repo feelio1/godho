@@ -59,6 +59,40 @@ void main() {
       expect(restored.photos, isEmpty);
     });
 
+    test('pendingPhotoCount·order를 저장·복원한다("일기 재수정" 지시서 2)', () async {
+      final diary = Diary(
+        id: 'ignored',
+        date: DateTime(2026, 3, 5),
+        petIds: const ['p1'],
+        photos: const [
+          DiaryPhoto(path: 'https://example.com/a.jpg', width: 1, height: 1, order: 3),
+        ],
+        createdAt: DateTime(2026, 3, 5),
+        updatedAt: DateTime(2026, 3, 5),
+        pendingPhotoCount: 2,
+      );
+
+      final ref = await firestore.collection('users').doc('u1').collection('diaries').add(diary.toFirestore());
+      final doc = await ref.get();
+      final restored = Diary.fromFirestore(doc.id, doc.data()!);
+
+      expect(restored.pendingPhotoCount, 2);
+      expect(restored.photos.single.order, 3);
+    });
+
+    test('pendingPhotoCount·order가 없는(이 필드가 생기기 전) 문서는 0으로 떨어진다(하위호환)', () async {
+      final ref = await firestore.collection('users').doc('u1').collection('diaries').add({
+        'photos': [
+          {'path': 'https://example.com/a.jpg', 'width': 1, 'height': 1},
+        ],
+      });
+      final doc = await ref.get();
+      final restored = Diary.fromFirestore(doc.id, doc.data()!);
+
+      expect(restored.pendingPhotoCount, 0);
+      expect(restored.photos.single.order, 0);
+    });
+
     test('썸네일 경로를 저장·복원한다("일기 활성화" 지시서 A)', () async {
       final diary = Diary(
         id: 'ignored',
@@ -174,6 +208,29 @@ void main() {
     test('이미 가득 찼으면(또는 넘었으면) 아무것도 더하지 않는다', () {
       expect(capPhotoAdditions(kDiaryMaxPhotos, ['a']), isEmpty);
       expect(capPhotoAdditions(kDiaryMaxPhotos + 1, ['a']), isEmpty);
+    });
+  });
+
+  group('sortedDiaryPhotos — order 기준 정렬("일기 재수정" 지시서 2)', () {
+    test('배열 저장 순서와 달라도 order 기준으로 정렬된다', () {
+      const photos = [
+        DiaryPhoto(path: 'b', width: 1, height: 1, order: 1),
+        DiaryPhoto(path: 'a', width: 1, height: 1, order: 0),
+        DiaryPhoto(path: 'c', width: 1, height: 1, order: 2),
+      ];
+      expect(sortedDiaryPhotos(photos).map((p) => p.path), ['a', 'b', 'c']);
+    });
+
+    test('order가 같으면(옛 데이터) 원래 배열 순서를 유지한다(안정 정렬)', () {
+      const photos = [
+        DiaryPhoto(path: 'first', width: 1, height: 1),
+        DiaryPhoto(path: 'second', width: 1, height: 1),
+      ];
+      expect(sortedDiaryPhotos(photos).map((p) => p.path), ['first', 'second']);
+    });
+
+    test('빈 목록은 빈 목록이다', () {
+      expect(sortedDiaryPhotos(const []), isEmpty);
     });
   });
 }

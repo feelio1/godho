@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
 import '../../utils/appointment_calendar.dart' show dateOnly;
 import '../../widgets/mascot_image.dart';
+import '../models/diary.dart' show sortedDiaryPhotos;
 import '../providers/diary_providers.dart';
 import 'diary_detail_screen.dart';
 
@@ -41,7 +42,8 @@ class OnThisDayDiaryCard extends ConsumerWidget {
     final isYearAgo = dateOnly(diary.date) == yearAgo;
     final label = isYearAgo ? '1년 전 오늘' : '한 달 전 오늘';
     final preview = diary.text.trim().split('\n').first;
-    final thumbPath = diary.photos.isEmpty ? null : diary.photos.first.displayThumbPath;
+    final orderedPhotos = sortedDiaryPhotos(diary.photos);
+    final thumbPath = orderedPhotos.isEmpty ? null : orderedPhotos.first.displayThumbPath;
 
     return Padding(
       padding: const EdgeInsets.only(top: 10),

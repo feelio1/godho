@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
-import '../../data/app_settings.dart';
 import '../../models/pet.dart';
 import '../../notifications/notification_service.dart';
 import '../../providers/auth_provider.dart';
@@ -21,7 +20,8 @@ import '../../widgets/form_field_label.dart';
 import '../diary_daily_question.dart';
 import '../diary_draft.dart';
 import '../diary_photo_processor.dart';
-import '../diary_reminder_prompt.dart';
+import '../diary_photo_upload_queue.dart';
+import '../diary_photo_upload_queue_service.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_weather_icons.dart';
@@ -88,13 +88,6 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
   bool _dirty = false;
   bool _saving = false;
 
-  /// 저장 중 "사진 올리는 중 (완료 n/m)" 표시용 — 사진이 없거나(또는
-  /// 아직 업로드를 시작하기 전) null이면 평소 "저장 중" 표시로 보인다
-  /// ("일기 수정" 지시서 1-4). 압축은 사진을 고를 때 이미 끝내두므로,
-  /// 여기서 보여주는 진행은 업로드(네트워크)만 가리킨다.
-  int? _photoUploadCompleted;
-  int? _photoUploadTotal;
-
   /// 사용자가 날짜를 직접 바꾼 뒤엔 사진 촬영일로 자동 바꾸지 않는다
   /// ("일기 활성화" 지시서 C). 수정 화면(기존 일기)은 이미 정해둔 날짜가
   /// 있으니 처음부터 자동 변경 대상에서 뺀다.
@@ -116,7 +109,10 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     _weather = existing?.weather;
     _activities = {...(existing?.activities ?? const [])};
     _textController = TextEditingController(text: existing?.text ?? '');
-    _photoItems = [for (final p in existing?.photos ?? const <DiaryPhoto>[]) _PhotoItem.existing(p)];
+    // 보여줄 순서(order) 기준으로 불러온다 — 배열에 저장된 순서가 아니다
+    // (백그라운드 업로드가 동시에·재시도로 뒤섞여 끝날 수 있어, "일기
+    // 재수정" 지시서 2에서 순서는 항상 order 필드로 정한다).
+    _photoItems = [for (final p in sortedDiaryPhotos(existing?.photos ?? const <DiaryPhoto>[])) _PhotoItem.existing(p)];
     if (existing == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _checkDraftOnStart());
     }
@@ -337,12 +333,32 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     setState(() => _saving = true);
     final now = DateTime.now();
     final existing = widget.existing;
-    final keptExisting = [for (final p in _photoItems) if (p.existing != null) p.existing!];
-    final newItems = [for (final p in _photoItems) if (p.newFile != null) p];
     final removedPhotos = [
       for (final old in existing?.photos ?? const <DiaryPhoto>[])
-        if (!keptExisting.any((kept) => kept.path == old.path)) old,
+        if (!_photoItems.any((p) => p.existing?.path == old.path)) old,
     ];
+
+    // 화면에 보이는 최종 순서(드래그로 바꿨으면 그 순서) 그대로 order를
+    // 매긴다("일기 재수정" 지시서 2) — 기존 사진은 바로 그 순서로 두고,
+    // 새 사진은 미리 시작해 둔 압축을 기다렸다가(대부분 이미 끝나 있다)
+    // 대기열로 넘긴다. 압축에 실패한(디코딩 못 한) 사진만 조용히 센다.
+    final keptPhotos = <DiaryPhoto>[];
+    final queuedPhotos = <QueuedDiaryPhoto>[];
+    var decodeFailures = 0;
+    for (var i = 0; i < _photoItems.length; i++) {
+      final item = _photoItems[i];
+      final existingPhoto = item.existing;
+      if (existingPhoto != null) {
+        keptPhotos.add(existingPhoto.copyWith(order: i));
+        continue;
+      }
+      final processed = await item.compressionFuture!;
+      if (processed == null) {
+        decodeFailures++;
+      } else {
+        queuedPhotos.add(QueuedDiaryPhoto(processed: processed, order: i));
+      }
+    }
 
     final diaryToSave = Diary(
       id: existing?.id ?? '',
@@ -351,50 +367,31 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       weather: _weather,
       activities: _activities.toList(),
       text: _textController.text.trim(),
-      photos: existing == null ? const [] : keptExisting,
+      photos: keptPhotos,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     );
 
-    // 사진을 고를 때 이미 시작해 둔 압축을 기다린다("일기 수정" 지시서
-    // 1-3) — 대부분 이미 끝나 있으니(Future가 이미 완료) 거의 바로
-    // 돌아온다. 실패한(디코딩 못 한) 사진만 조용히 센다.
-    final processedResults = await Future.wait(newItems.map((p) => p.compressionFuture!));
-    final processedPhotos = <ProcessedDiaryPhoto>[];
-    var decodeFailures = 0;
-    for (final result in processedResults) {
-      if (result == null) {
-        decodeFailures++;
-      } else {
-        processedPhotos.add(result);
-      }
-    }
-
-    void onPhotoProgress(int completed, int total) {
-      if (!mounted) return;
-      setState(() {
-        _photoUploadCompleted = completed;
-        _photoUploadTotal = total;
-      });
-    }
-
     try {
       final repo = ref.read(diaryRepositoryProvider);
+      // 사진 업로드(네트워크)는 기다리지 않는다 — 문서를 바로 만들거나
+      // 갱신하고, 새 사진은 대기열에 넘긴 뒤 곧바로 화면을 닫는다
+      // ("일기 재수정" 지시서 2-1). 압축은 이미 끝났으니(위에서 await)
+      // 여기서부터는 전부 네트워크가 느려도 금방 끝나는 로컬 작업이다.
+      final String diaryId;
       if (existing == null) {
-        await repo.createDiary(
-          uid,
-          diaryToSave,
-          processedPhotos,
-          onPhotoProgress: onPhotoProgress,
-        );
+        diaryId = await repo.createDiary(uid, diaryToSave, pendingPhotoCount: queuedPhotos.length);
       } else {
+        diaryId = existing.id;
         await repo.updateDiary(
           uid,
           diaryToSave,
-          newProcessedPhotos: processedPhotos,
           removedPhotos: removedPhotos,
-          onPhotoProgress: onPhotoProgress,
+          newPendingPhotoCount: queuedPhotos.length,
         );
+      }
+      if (queuedPhotos.isNotEmpty) {
+        await DiaryPhotoUploadQueueService.instance.enqueue(uid: uid, diaryId: diaryId, photos: queuedPhotos);
       }
       ref.invalidate(diariesPageProvider);
       ref.invalidate(recentDiariesForTagOrderProvider);
@@ -415,7 +412,6 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
         );
         await Future.delayed(const Duration(milliseconds: 1200));
       }
-      if (existing == null) await _maybeShowDiaryReminderPrompt();
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
@@ -424,13 +420,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _saving = false;
-          _photoUploadCompleted = null;
-          _photoUploadTotal = null;
-        });
-      }
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -439,100 +429,6 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       if (_selectedPetIds.contains(pet.id)) return pet.name;
     }
     return pets.isNotEmpty ? pets.first.name : '반려동물';
-  }
-
-  /// 실제 일기 수가 3편 이상이면("정확히 3"이 아니라) 아직 안 물었을 때
-  /// 한 번만 알림 동의를 묻는다("일기 수정" 지시서 3) — 수락/거절
-  /// 상관없이 한 번 묻고 나면 다시 묻지 않는다. "이미 물음"은
-  /// `users/{uid}`에 저장해 재설치·기기 변경 후에도 유지되고, 이 기능
-  /// 추가 전부터 있던 로컬 "이미 물음" 값도 하위호환으로 존중한다.
-  /// 알림이 이미 켜져 있으면 묻지 않는다. 기본값은 꺼짐이라 아무것도
-  /// 하지 않으면 알림은 울리지 않는다.
-  Future<void> _maybeShowDiaryReminderPrompt() async {
-    final uid = ref.read(authStateProvider).value?.uid;
-    if (uid == null) return;
-    const settings = AppSettings();
-    final userRepo = ref.read(userRepositoryProvider);
-    final reminderEnabled = await settings.diaryReminderEnabled();
-    final alreadyAsked = await settings.diaryReminderPromptShown() || await userRepo.diaryReminderAsked(uid);
-    final diaryPage = await ref.read(diaryRepositoryProvider).fetchDiaries(uid, limit: 3);
-    if (!shouldPromptDiaryReminder(
-      diaryCount: diaryPage.diaries.length,
-      alreadyAsked: alreadyAsked,
-      reminderEnabled: reminderEnabled,
-    )) {
-      return;
-    }
-    await userRepo.markDiaryReminderAsked(uid);
-    if (!mounted) return;
-
-    final wantsToTurnOn = await showModalBottomSheet<bool>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('매일 이 시간에 일기 알림을 받을까요?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              const Text(
-                '정한 시간에 오늘 하루를 일기로 남겨보도록 알려드려요. 언제든 내 정보 > 설정에서 끌 수 있어요.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(false),
-                      child: const Text('괜찮아요'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(true),
-                      child: const Text('시간 정하고 켜기'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (wantsToTurnOn != true || !mounted) return;
-
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(
-        hour: AppSettings.diaryReminderDefaultHour,
-        minute: AppSettings.diaryReminderDefaultMinute,
-      ),
-    );
-    if (picked == null) return;
-
-    // 알림 권한이 없으면 여기서 요청한다 — 거부되면 "켜짐" 상태로
-    // 저장하지 않는다("일기 수정" 지시서 3-4).
-    final granted = await NotificationService.instance.requestPermission();
-    if (!granted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('설정에서 알림을 허용해주세요.')),
-        );
-      }
-      return;
-    }
-
-    await settings.setDiaryReminderEnabled(true);
-    await settings.setDiaryReminderTime(hour: picked.hour, minute: picked.minute);
-    await NotificationService.instance.refillDiaryReminderWindow(hour: picked.hour, minute: picked.minute);
   }
 
   @override
@@ -688,41 +584,19 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: _saving ? null : _save,
-                  child: _saving ? _SavingIndicator(completed: _photoUploadCompleted, total: _photoUploadTotal) : const Text('저장'),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('저장'),
                 ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-/// 저장 버튼 안의 진행 표시 — 사진을 올리는 중이면 "사진 올리는 중
-/// (완료 n/m)"을, 없으면(또는 끝났으면) 평소 스피너를 보여준다("일기
-/// 수정" 지시서 1-4).
-class _SavingIndicator extends StatelessWidget {
-  final int? completed;
-  final int? total;
-
-  const _SavingIndicator({required this.completed, required this.total});
-
-  @override
-  Widget build(BuildContext context) {
-    final spinner = const SizedBox(
-      width: 20,
-      height: 20,
-      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-    );
-    if (completed == null || total == null) return spinner;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        spinner,
-        const SizedBox(width: 10),
-        Text('사진 올리는 중 (완료 $completed/$total)', style: const TextStyle(color: Colors.white)),
-      ],
     );
   }
 }

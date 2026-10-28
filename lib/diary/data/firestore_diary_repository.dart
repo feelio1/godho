@@ -1,39 +1,30 @@
-import 'dart:math';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 
-import '../../utils/concurrency.dart';
-import '../diary_photo_cache.dart';
-import '../diary_photo_processor.dart';
 import '../models/diary.dart';
 import 'diary_repository.dart';
 
-String _newPhotoId() => '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 31)}';
-
 /// [DiaryRepository]의 Firestore + Storage 구현 — 생성자 주입으로
 /// [FirebaseFirestore] 인스턴스를 바꿔 끼울 수 있다(`fake_cloud_firestore`
-/// 등), `UserRepository`와 같은 관례. [cacheWriter]도 같은 이유로
-/// 바꿔 끼울 수 있게 뺐다(테스트에서 실제 디스크 캐시 없이 호출만
-/// 검증, "일기 수정" 지시서 2-4).
+/// 등), `UserRepository`와 같은 관례.
+///
+/// 사진 업로드(네트워크)는 이 클래스가 맡지 않는다("일기 재수정" 지시서
+/// 2) — [DiaryPhotoUploadQueueService]가 Storage에 직접 올리고, 끝나면
+/// 그 서비스가 이 저장소와 같은 경로(`users/{uid}/diaries/{diaryId}`)의
+/// `photos`/`pendingPhotoCount` 필드만 원자적으로(`FieldValue`) 갱신한다.
 class FirestoreDiaryRepository implements DiaryRepository {
-  FirestoreDiaryRepository({
-    FirebaseFirestore? firestore,
-    FirebaseStorage? storage,
-    DiaryPhotoCacheWriter? cacheWriter,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance,
-        _cacheWriter = cacheWriter ?? cacheDiaryPhotoBytesDefault;
+  FirestoreDiaryRepository({FirebaseFirestore? firestore, FirebaseStorage? storage})
+      : _firestore = firestore ?? FirebaseFirestore.instance,
+        _storageOverride = storage;
 
   final FirebaseFirestore _firestore;
-  final FirebaseStorage _storage;
-  final DiaryPhotoCacheWriter _cacheWriter;
-
-  /// 사진 한 장 안에서 원본·썸네일을 동시에 올린다("일기 수정" 지시서
-  /// 1-4) — 사진 여러 장 사이의 동시 개수 제한은 [mapWithConcurrency]가
-  /// 맡는다.
-  static const _uploadConcurrency = 3;
+  // Storage는 지우는 사진이 있을 때만 쓴다 — 생성자에서 바로
+  // `FirebaseStorage.instance`를 건드리지 않아야(지연 평가) Storage
+  // 가짜가 없는 이 프로젝트에서도 Firestore만 쓰는 메서드(createDiary,
+  // 사진 제거 없는 updateDiary)를 `fake_cloud_firestore`로 테스트할 수
+  // 있다.
+  final FirebaseStorage? _storageOverride;
+  FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
 
   CollectionReference<Map<String, dynamic>> _diaries(String uid) =>
       _firestore.collection('users').doc(uid).collection('diaries');
@@ -72,94 +63,10 @@ class FirestoreDiaryRepository implements DiaryRepository {
     return Diary.fromFirestore(doc.id, data);
   }
 
-  Reference _photoRef(String uid, String diaryId, String photoId) =>
-      _storage.ref('diary_photos/$uid/$diaryId/$photoId.jpg');
-
-  Reference _thumbRef(String uid, String diaryId, String photoId) =>
-      _storage.ref('diary_photos/$uid/$diaryId/${photoId}_t.jpg');
-
-  /// 이미 압축이 끝난 [processed]를 올린다 — 압축(디코딩·리사이즈·네이티브
-  /// 인코딩)은 작성 화면이 사진을 고르는 즉시 미리 끝내둔 뒤 넘기므로,
-  /// 여기서는 업로드(네트워크)만 맡는다("일기 수정" 지시서 1). 사진
-  /// 한 장의 원본·썸네일 `putData`+`getDownloadURL`을 동시에 하고, 사진
-  /// 여러 장도 최대 [_uploadConcurrency]장까지 동시에 올려 사진마다
-  /// 순차로 4번 기다리던 것을 없앤다. 하나라도 실패하면 이미 올라간
-  /// 파일을 지우려 시도하고 그대로 예외를 다시 던진다(부분 저장 없음).
-  Future<List<DiaryPhoto>> _uploadProcessedPhotos(
-    String uid,
-    String diaryId,
-    List<ProcessedDiaryPhoto> processed, {
-    DiaryPhotoUploadProgressCallback? onProgress,
-  }) async {
-    if (processed.isEmpty) return const [];
-    final total = processed.length;
-    var completedCount = 0;
-    final uploadedRefs = <Reference>[];
-
-    Future<DiaryPhoto> uploadOne(ProcessedDiaryPhoto p, int index) async {
-      final stopwatch = Stopwatch()..start();
-      final photoId = _newPhotoId();
-      final ref = _photoRef(uid, diaryId, photoId);
-      final thumbRef = _thumbRef(uid, diaryId, photoId);
-      final metadata = SettableMetadata(contentType: 'image/jpeg');
-      final urls = await Future.wait([
-        ref.putData(p.mainBytes, metadata).then((_) {
-          uploadedRefs.add(ref);
-          return ref.getDownloadURL();
-        }),
-        thumbRef.putData(p.thumbBytes, metadata).then((_) {
-          uploadedRefs.add(thumbRef);
-          return thumbRef.getDownloadURL();
-        }),
-      ]);
-      completedCount++;
-      onProgress?.call(completedCount, total);
-      if (kDebugMode) {
-        debugPrint('[DiaryPhotoTiming] 업로드 #$index ${stopwatch.elapsedMilliseconds}ms');
-      }
-      // 방금 올린 바이트를 그대로 디스크 캐시에 넣어 둔다 — 저장 직후
-      // 목록·상세가 같은 URL을 다시 받아오지 않고 바로 보여준다("일기
-      // 수정" 지시서 2-4). 실패해도(캐시 주입은 편의 기능) 저장
-      // 자체에는 영향 없다.
-      await cacheUploadedDiaryPhotos(
-        [(url: urls[0], bytes: p.mainBytes), (url: urls[1], bytes: p.thumbBytes)],
-        _cacheWriter,
-      );
-      return DiaryPhoto(path: urls[0], thumbPath: urls[1], width: p.width, height: p.height);
-    }
-
-    try {
-      return await mapWithConcurrency(processed, _uploadConcurrency, uploadOne);
-    } catch (e) {
-      // 업로드 실패 — 이미 올라간 파일은 지우려 시도한다("일기 수정"
-      // 지시서 1-5). 정리 자체가 실패해도(이미 지워졌거나 일시적 오류)
-      // 무시하고 원래 예외를 그대로 올린다.
-      for (final ref in uploadedRefs) {
-        try {
-          await ref.delete();
-        } catch (_) {}
-      }
-      rethrow;
-    }
-  }
-
   @override
-  Future<String> createDiary(
-    String uid,
-    Diary diary,
-    List<ProcessedDiaryPhoto> processedPhotos, {
-    DiaryPhotoUploadProgressCallback? onPhotoProgress,
-  }) async {
+  Future<String> createDiary(String uid, Diary diary, {int pendingPhotoCount = 0}) async {
     final docRef = _diaries(uid).doc();
-    // 사진 업로드가 하나라도 실패하면 여기서 예외가 던져지고, 문서는
-    // 아직 만들어지지 않은 채로 끝난다("업로드 실패 시 일기 저장 안 함").
-    final photos = await _uploadProcessedPhotos(
-      uid,
-      docRef.id,
-      processedPhotos,
-      onProgress: onPhotoProgress,
-    );
-    await docRef.set(diary.copyWith(photos: photos).toFirestore());
+    await docRef.set(diary.copyWith(photos: const [], pendingPhotoCount: pendingPhotoCount).toFirestore());
     return docRef.id;
   }
 
@@ -167,24 +74,22 @@ class FirestoreDiaryRepository implements DiaryRepository {
   Future<void> updateDiary(
     String uid,
     Diary diary, {
-    List<ProcessedDiaryPhoto> newProcessedPhotos = const [],
     List<DiaryPhoto> removedPhotos = const [],
-    DiaryPhotoUploadProgressCallback? onPhotoProgress,
+    int newPendingPhotoCount = 0,
   }) async {
-    // 새 사진 업로드가 실패하면 여기서 예외가 올라가고, 기존 문서·사진은
-    // 전혀 건드리지 않은 채로 끝난다(부분 저장 없음).
-    final newPhotos = await _uploadProcessedPhotos(
-      uid,
-      diary.id,
-      newProcessedPhotos,
-      onProgress: onPhotoProgress,
-    );
-    final removedPaths = removedPhotos.map((p) => p.path).toSet();
-    final keptPhotos = diary.photos.where((p) => !removedPaths.contains(p.path)).toList();
-    final toSave = diary.copyWith(photos: [...keptPhotos, ...newPhotos]);
-    await _diaries(uid).doc(diary.id).update(toSave.toFirestoreUpdate());
+    // pendingPhotoCount는 늘어난 만큼만 원자적으로 더한다(FieldValue.
+    // increment) — 호출부가 준 [diary] 객체의 그 필드 값(보통 0, 호출부가
+    // 들고 있지 않은 값)으로 그냥 덮어쓰면, 아직 안 끝난 이전 업로드의
+    // pendingPhotoCount를 지워버릴 수 있다. 새 사진이 없으면(0) 건드리지
+    // 않는다.
+    final update = diary.toFirestoreUpdate()..remove('pendingPhotoCount');
+    if (newPendingPhotoCount != 0) {
+      update['pendingPhotoCount'] = FieldValue.increment(newPendingPhotoCount);
+    }
+    await _diaries(uid).doc(diary.id).update(update);
 
-    // 원본·썸네일 둘 다 지운다("일기 활성화" 지시서 A) — 이미 지워졌거나
+    // 원본·썸네일 둘 다 지운다("일기 활성화" 지시서 A) — 대기열과 달리
+    // 미루지 않고 바로 지운다("일기 재수정" 지시서 2-5). 이미 지워졌거나
     // 일시적 오류는 무시하고 계속 진행한다(펫 사진 삭제와 같은 관례,
     // 문서는 이미 갱신됐으니).
     for (final photo in removedPhotos) {

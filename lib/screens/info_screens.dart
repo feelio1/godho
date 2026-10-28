@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
 import '../data/app_settings.dart';
+import '../diary/diary_photo_upload_queue_service.dart';
 import '../models/app_user.dart';
 import '../models/hospital_status.dart';
 import '../notifications/notification_service.dart';
@@ -208,6 +209,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     String? errorMessage;
     try {
       await ref.read(userRepositoryProvider).deleteAllUserData(uid);
+      // 아직 이 기기 대기열에 남아 올라가는 중이던 사진·로컬 파일도
+      // 전부 지운다("일기 재수정" 지시서 2-6).
+      await DiaryPhotoUploadQueueService.instance.cancelAllForUid(uid);
       if (!context.mounted) return;
       await _deleteAuthAccountWithReauth(context, uid);
     } on FirebaseAuthException catch (e) {

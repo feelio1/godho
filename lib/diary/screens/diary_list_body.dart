@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +9,10 @@ import '../../widgets/inline_error_message.dart';
 import '../../widgets/mascot_image.dart';
 import '../../widgets/mascot_message.dart';
 import '../diary_calendar.dart' show diaryRecordedDays;
+import '../diary_photo_display_merge.dart';
+import '../diary_photo_display_widgets.dart';
+import '../diary_photo_upload_queue.dart';
+import '../diary_photo_upload_queue_service.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_detail_screen.dart';
@@ -33,6 +36,29 @@ class DiaryListBody extends ConsumerStatefulWidget {
 
 class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
   bool _showAll = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 백그라운드 업로드 대기열이 바뀌면(사진 완료·실패) 목록을 다시
+    // 불러 "올리는 중" 표시를 자동으로 교체한다("일기 재수정" 지시서
+    // 2-3).
+    DiaryPhotoUploadQueueService.instance.changeTick.addListener(_onQueueChanged);
+  }
+
+  @override
+  void dispose() {
+    DiaryPhotoUploadQueueService.instance.changeTick.removeListener(_onQueueChanged);
+    super.dispose();
+  }
+
+  void _onQueueChanged() {
+    if (!mounted) return;
+    ref.invalidate(diariesPageProvider);
+    ref.invalidate(diariesForPetProvider);
+    ref.invalidate(diariesForMonthProvider);
+    ref.invalidate(diaryPendingPhotosProvider);
+  }
 
   void _openForm() {
     Navigator.of(context).push(
@@ -178,14 +204,24 @@ class _MonthlyDiaryTracker extends ConsumerWidget {
   }
 }
 
-class _DiaryCard extends StatelessWidget {
+class _DiaryCard extends ConsumerWidget {
   final Diary diary;
 
   const _DiaryCard({required this.diary});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final preview = diary.text.trim();
+    final localPending = diary.pendingPhotoCount > 0
+        ? ref.watch(diaryPendingPhotosProvider(diary.id)).value ?? const <DiaryPhotoQueueItem>[]
+        : const <DiaryPhotoQueueItem>[];
+    final displayPhotos = mergeDiaryPhotosForDisplay(
+      uploaded: diary.photos,
+      localPending: localPending,
+      pendingPhotoCount: diary.pendingPhotoCount,
+    );
+    final thumb = displayPhotos.isEmpty ? null : displayPhotos.first;
+
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadius.card),
       onTap: () => Navigator.of(context).push(
@@ -202,7 +238,7 @@ class _DiaryCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.field),
-              child: diary.photos.isEmpty
+              child: thumb == null
                   ? Container(
                       width: 64,
                       height: 64,
@@ -210,21 +246,14 @@ class _DiaryCard extends StatelessWidget {
                       alignment: Alignment.center,
                       child: const MascotImage(size: 32),
                     )
-                  : CachedNetworkImage(
-                      imageUrl: diary.photos.first.displayThumbPath,
+                  : DiaryDisplayImage(
+                      photo: thumb,
                       width: 64,
                       height: 64,
                       fit: BoxFit.cover,
                       // 보이는 크기(64·기기 배율)만큼만 디코딩한다 —
                       // 상세 PageView와 같은 절약("일기 수정" 지시서 2-3).
                       memCacheWidth: (64 * MediaQuery.of(context).devicePixelRatio).round(),
-                      errorWidget: (context, url, error) => Container(
-                        width: 64,
-                        height: 64,
-                        color: AppColors.surfaceLight,
-                        alignment: Alignment.center,
-                        child: const MascotImage(size: 32),
-                      ),
                     ),
             ),
             const SizedBox(width: 12),

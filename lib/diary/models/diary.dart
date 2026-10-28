@@ -73,13 +73,33 @@ List<DiaryActivity> sortActivitiesByRecentUsage(List<Diary> recentDiaries) {
 /// 다운로드 URL("일기 활성화" 지시서 A — 비용 관리). 썸네일 없이 올려둔
 /// 기존 일기는 null이고, 그런 경우 [displayThumbPath]가 원본으로 대체
 /// 표시한다(하위호환, 별도 마이그레이션 없음).
+/// [order]는 보여줄 순서다("일기 재수정" 지시서 2) — 사진 업로드를
+/// 백그라운드 대기열로 돌리면서 완료 순서가 원래 순서와 달라질 수 있어
+/// (동시 업로드·재시도), Firestore 배열에 추가되는 순서가 아니라 이
+/// 필드로 항상 다시 정렬한다. 이 필드가 생기기 전에 저장된 사진은 0(배열
+/// 순서 그대로)이다.
 class DiaryPhoto {
   final String path;
   final String? thumbPath;
   final int width;
   final int height;
+  final int order;
 
-  const DiaryPhoto({required this.path, this.thumbPath, required this.width, required this.height});
+  const DiaryPhoto({
+    required this.path,
+    this.thumbPath,
+    required this.width,
+    required this.height,
+    this.order = 0,
+  });
+
+  DiaryPhoto copyWith({int? order}) => DiaryPhoto(
+        path: path,
+        thumbPath: thumbPath,
+        width: width,
+        height: height,
+        order: order ?? this.order,
+      );
 
   /// 작게 보이는 곳에서 쓸 주소 — 썸네일이 없으면 원본으로 대체한다.
   String get displayThumbPath => thumbPath ?? path;
@@ -89,6 +109,7 @@ class DiaryPhoto {
         thumbPath: data['thumbPath'] as String?,
         width: (data['width'] as num?)?.toInt() ?? 0,
         height: (data['height'] as num?)?.toInt() ?? 0,
+        order: (data['order'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toFirestore() => {
@@ -96,7 +117,21 @@ class DiaryPhoto {
         if (thumbPath != null) 'thumbPath': thumbPath,
         'width': width,
         'height': height,
+        'order': order,
       };
+}
+
+/// [photos]를 [DiaryPhoto.order] 기준으로 정렬한다 — 동시에 끝난
+/// 업로드가 배열에 어떤 순서로 추가됐든 항상 사용자가 고른 순서로
+/// 보여준다("일기 재수정" 지시서 2). 순서가 같으면(옛 데이터 등) 원래
+/// 배열 순서를 그대로 유지한다(안정 정렬).
+List<DiaryPhoto> sortedDiaryPhotos(List<DiaryPhoto> photos) {
+  final indexed = photos.indexed.toList()
+    ..sort((a, b) {
+      final diff = a.$2.order - b.$2.order;
+      return diff != 0 ? diff : a.$1 - b.$1;
+    });
+  return indexed.map((e) => e.$2).toList();
 }
 
 /// 사진 최대 장수("방향 개편" 지시서 C) — 책 인쇄를 염두에 둔 원본 품질
@@ -138,6 +173,11 @@ class Diary {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  /// 아직 백그라운드 대기열에서 업로드 중인 사진 수("일기 재수정" 지시서
+  /// 2) — 0이면 전부 올라갔다는 뜻. 이 필드가 생기기 전 문서는 없음(0)과
+  /// 같다(하위호환).
+  final int pendingPhotoCount;
+
   const Diary({
     required this.id,
     required this.date,
@@ -148,6 +188,7 @@ class Diary {
     this.photos = const [],
     required this.createdAt,
     required this.updatedAt,
+    this.pendingPhotoCount = 0,
   });
 
   Diary copyWith({
@@ -157,6 +198,7 @@ class Diary {
     List<DiaryActivity>? activities,
     String? text,
     List<DiaryPhoto>? photos,
+    int? pendingPhotoCount,
     bool clearWeather = false,
   }) {
     return Diary(
@@ -169,6 +211,7 @@ class Diary {
       photos: photos ?? this.photos,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      pendingPhotoCount: pendingPhotoCount ?? this.pendingPhotoCount,
     );
   }
 
@@ -187,6 +230,7 @@ class Diary {
             .toList(),
         createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        pendingPhotoCount: (data['pendingPhotoCount'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toFirestore() => {
@@ -198,6 +242,7 @@ class Diary {
         'photos': photos.map((e) => e.toFirestore()).toList(),
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
+        'pendingPhotoCount': pendingPhotoCount,
       };
 
   /// 수정 시 `createdAt`을 덮어쓰지 않도록 [toFirestore]에서 그 키만 뺀

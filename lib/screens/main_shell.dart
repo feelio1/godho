@@ -20,6 +20,7 @@ import '../providers/followup_appointment_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/pet_provider.dart';
+import '../diary/diary_photo_upload_queue_service.dart';
 import '../diary/screens/diary_form_screen.dart';
 import '../notifications/notification_service.dart';
 import '../providers/region_auto_detect.dart';
@@ -130,6 +131,9 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     // 앱을 시작할 때 일기 알림 14일 창을 다시 채운다("일기 보완" 지시서
     // 2) — 꺼져 있으면 아무 일도 하지 않는다.
     unawaited(_refillDiaryReminderIfEnabled());
+    // 앱이 꺼졌다 켜지면 끊긴 사진 업로드 대기열을 이어서 처리한다
+    // ("일기 재수정" 지시서 2-4).
+    unawaited(DiaryPhotoUploadQueueService.instance.processPending());
   }
 
   @override
@@ -173,6 +177,9 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       // 포그라운드로 돌아올 때도 14일 창을 다시 채운다("일기 보완"
       // 지시서 2: "앱 시작/복귀 시 다시 채움").
       unawaited(_refillDiaryReminderIfEnabled());
+      // 포그라운드 복귀 시에도 끊긴 업로드를 이어간다("일기 재수정"
+      // 지시서 2-4).
+      unawaited(DiaryPhotoUploadQueueService.instance.processPending());
     }
   }
 
