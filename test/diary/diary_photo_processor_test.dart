@@ -7,10 +7,13 @@ import 'package:image/image.dart' as img;
 
 import 'package:petcliniccheck/diary/diary_photo_processor.dart';
 
-Uint8List _jpegOf(int width, int height, {String? dateTimeOriginal}) {
+Uint8List _jpegOf(int width, int height, {String? dateTimeOriginal, int? orientation}) {
   final image = img.Image(width: width, height: height);
   if (dateTimeOriginal != null) {
     image.exif.exifIfd['DateTimeOriginal'] = dateTimeOriginal;
+  }
+  if (orientation != null) {
+    image.exif.imageIfd['Orientation'] = orientation;
   }
   return img.encodeJpg(image, quality: 90);
 }
@@ -23,6 +26,14 @@ class _FakeImageCompressPlatform extends FlutterImageCompressPlatform {
 
   final Future<Uint8List?> Function(String path)? onCompressWithFile;
   final Future<Uint8List> Function(Uint8List data)? onCompressWithList;
+
+  // 테스트가 실제로 어떤 minWidth/minHeight로 호출됐는지 확인할 수 있게
+  // 마지막 호출 값을 기록해 둔다("일기 수정" 지시서 1 재수정 — 목표
+  // 크기를 정확히 넘기는지 검증).
+  int? lastFileMinWidth;
+  int? lastFileMinHeight;
+  int? lastListMinWidth;
+  int? lastListMinHeight;
 
   @override
   FlutterImageCompressValidator get validator =>
@@ -47,6 +58,8 @@ class _FakeImageCompressPlatform extends FlutterImageCompressPlatform {
     bool keepExif = false,
     int numberOfRetries = 5,
   }) {
+    lastFileMinWidth = minWidth;
+    lastFileMinHeight = minHeight;
     return onCompressWithFile!(path);
   }
 
@@ -62,6 +75,8 @@ class _FakeImageCompressPlatform extends FlutterImageCompressPlatform {
     CompressFormat format = CompressFormat.jpeg,
     bool keepExif = false,
   }) {
+    lastListMinWidth = minWidth;
+    lastListMinHeight = minHeight;
     return onCompressWithList!(image);
   }
 
@@ -162,6 +177,79 @@ void main() {
 
       final file = await writeFile('d.jpg', [0, 1, 2]);
       expect(await processDiaryPhotoNative(file.path), isNull);
+    });
+
+    test('4:3 원본(2100×1575)이면 긴 변이 정확히 2048에 맞는 minWidth/minHeight로 압축을 호출한다('
+        '"일기 수정" 지시서 1 재수정 — 짧은 변 기준 버그)', () async {
+      final sourceJpeg = _jpegOf(2100, 1575); // 2100×1575, 4:3, 2048보다 큼
+      final mainJpeg = _jpegOf(2048, 1536); // 실제 네이티브라면 이렇게 나와야 함
+      final thumbJpeg = _jpegOf(480, 360);
+      final fake = _FakeImageCompressPlatform(
+        onCompressWithFile: (path) async => mainJpeg,
+        onCompressWithList: (data) async => thumbJpeg,
+      );
+      FlutterImageCompressPlatform.instance = fake;
+
+      final file = await writeFile('h.jpg', sourceJpeg);
+      final processed = await processDiaryPhotoNative(file.path);
+
+      expect(processed, isNotNull);
+      // 긴 변 기준(짧은 변 기준이었다면 2048×2048이 됐을 것)으로 정확히
+      // 2048×1536을 요청했는지 확인한다.
+      expect(fake.lastFileMinWidth, 2048);
+      expect(fake.lastFileMinHeight, 1536);
+      // 썸네일도 같은 방식으로, 압축된 원본의 실제 크기(2048×1536)를
+      // 기준으로 480×360을 요청한다.
+      expect(fake.lastListMinWidth, 480);
+      expect(fake.lastListMinHeight, 360);
+      expect(processed!.width, 2048);
+      expect(processed.height, 1536);
+    });
+
+    test('EXIF Orientation이 90도 회전이면 회전을 반영한 가로·세로로 목표 크기를 계산한다', () async {
+      // 센서 원본은 3024×4032(세로)지만 Orientation=6(시계방향 90도)이라
+      // 실제로 보이는 모습은 4032×3024(가로, 4:3)다.
+      final sourceJpeg = _jpegOf(3024, 4032, orientation: 6);
+      final mainJpeg = _jpegOf(2048, 1536);
+      final fake = _FakeImageCompressPlatform(
+        onCompressWithFile: (path) async => mainJpeg,
+        onCompressWithList: (data) async => _jpegOf(480, 360),
+      );
+      FlutterImageCompressPlatform.instance = fake;
+
+      final file = await writeFile('i.jpg', sourceJpeg);
+      await processDiaryPhotoNative(file.path);
+
+      // 회전을 반영하지 않았다면(세로로 취급) 1536×2048이 됐을 것이다.
+      expect(fake.lastFileMinWidth, 2048);
+      expect(fake.lastFileMinHeight, 1536);
+    });
+  });
+
+  group('targetDiaryPhotoSize — 긴 변 기준 목표 크기 계산("일기 수정" 지시서 1 재수정)', () {
+    test('4:3 가로 사진은 2048×1536이 된다', () {
+      final target = targetDiaryPhotoSize(sourceWidth: 4032, sourceHeight: 3024, longSide: 2048);
+      expect(target, (width: 2048, height: 1536));
+    });
+
+    test('16:9 가로 사진은 2048×1152가 된다', () {
+      final target = targetDiaryPhotoSize(sourceWidth: 3840, sourceHeight: 2160, longSide: 2048);
+      expect(target, (width: 2048, height: 1152));
+    });
+
+    test('세로 사진(3:4)은 1536×2048이 된다', () {
+      final target = targetDiaryPhotoSize(sourceWidth: 3024, sourceHeight: 4032, longSide: 2048);
+      expect(target, (width: 1536, height: 2048));
+    });
+
+    test('원본이 이미 목표보다 작으면(확대 금지) 그대로 돌려준다', () {
+      final target = targetDiaryPhotoSize(sourceWidth: 800, sourceHeight: 600, longSide: 2048);
+      expect(target, (width: 800, height: 600));
+    });
+
+    test('원본 긴 변이 목표와 정확히 같으면 그대로 돌려준다(경계값)', () {
+      final target = targetDiaryPhotoSize(sourceWidth: 2048, sourceHeight: 1536, longSide: 2048);
+      expect(target, (width: 2048, height: 1536));
     });
   });
 

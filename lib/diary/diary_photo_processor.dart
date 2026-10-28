@@ -25,9 +25,10 @@ class ProcessedDiaryPhoto {
   });
 }
 
-/// 원본(인쇄용) 긴 변 — 기존 품질(JPEG 85) 그대로 유지한다.
+/// 원본(인쇄용) 긴 변 — 인쇄 품질을 유지하는 범위에서 용량을 줄이려
+/// JPEG 82로 낮췄다("일기 수정" 지시서 1 재수정, 기존 85).
 const int kDiaryPhotoMainLongSide = 2048;
-const int kDiaryPhotoMainQuality = 85;
+const int kDiaryPhotoMainQuality = 82;
 
 /// 목록·캘린더·홈 카드 등 작게 보이는 곳에 쓰는 썸네일.
 const int kDiaryPhotoThumbLongSide = 480;
@@ -50,29 +51,50 @@ void _logTiming(String label, Stopwatch stopwatch) {
 Future<ProcessedDiaryPhoto?> processDiaryPhotoNative(String filePath) async {
   final totalStopwatch = Stopwatch()..start();
   try {
+    // 압축 전에 원본(회전 반영) 가로·세로를 알아야 목표 크기를 정확히
+    // 계산할 수 있다 — 네이티브 압축기의 minWidth/minHeight는 "짧은 변"
+    // 기준으로 동작해(실기기 확인, "일기 수정" 지시서 1 재수정), 둘 다
+    // 그냥 긴 변 값을 넘기면 결과가 의도보다 커진다. 헤더에서 못 읽으면
+    // (아주 드문 경우) 기존처럼 짧은 변 기준 결과로 안전하게 대체한다.
+    final sourceSize = await _peekSourcePhotoSize(filePath);
+    final mainTarget = sourceSize == null
+        ? (width: kDiaryPhotoMainLongSide, height: kDiaryPhotoMainLongSide)
+        : targetDiaryPhotoSize(
+            sourceWidth: sourceSize.width,
+            sourceHeight: sourceSize.height,
+            longSide: kDiaryPhotoMainLongSide,
+          );
+
     final mainStopwatch = Stopwatch()..start();
     final mainBytes = await FlutterImageCompress.compressWithFile(
       filePath,
-      minWidth: kDiaryPhotoMainLongSide,
-      minHeight: kDiaryPhotoMainLongSide,
+      minWidth: mainTarget.width,
+      minHeight: mainTarget.height,
       quality: kDiaryPhotoMainQuality,
       keepExif: false,
     );
     _logTiming('원본 압축($filePath)', mainStopwatch);
     if (mainBytes == null) return null;
 
+    final size = _peekJpegSize(mainBytes);
+    if (size == null) return null;
+
+    // 썸네일은 방금 만든 원본(이미 목표 긴 변에 정확히 맞춰진 결과)의
+    // 실제 크기를 기준으로 다시 같은 방식으로 줄인다.
+    final thumbTarget = targetDiaryPhotoSize(
+      sourceWidth: size.width,
+      sourceHeight: size.height,
+      longSide: kDiaryPhotoThumbLongSide,
+    );
     final thumbStopwatch = Stopwatch()..start();
     final thumbBytes = await FlutterImageCompress.compressWithList(
       mainBytes,
-      minWidth: kDiaryPhotoThumbLongSide,
-      minHeight: kDiaryPhotoThumbLongSide,
+      minWidth: thumbTarget.width,
+      minHeight: thumbTarget.height,
       quality: kDiaryPhotoThumbQuality,
       keepExif: false,
     );
     _logTiming('썸네일 압축($filePath)', thumbStopwatch);
-
-    final size = _peekJpegSize(mainBytes);
-    if (size == null) return null;
 
     return ProcessedDiaryPhoto(
       mainBytes: mainBytes,
@@ -85,6 +107,57 @@ Future<ProcessedDiaryPhoto?> processDiaryPhotoNative(String filePath) async {
     return null;
   } finally {
     _logTiming('전체 처리($filePath)', totalStopwatch);
+  }
+}
+
+/// 원본 긴 변이 [longSide] 이하가 되도록(확대 금지) `flutter_image_compress`
+/// 에 넘길 목표 가로·세로를 계산하는 순수 함수("일기 수정" 지시서 1
+/// 재수정) — 이 플러그인의 minWidth/minHeight는 "각 값 이상"이 되도록
+/// 짧은 변 기준으로 스케일을 정하므로(실기기 확인), 목표 가로·세로를
+/// 미리 정확히 계산해 그대로 넘겨야 긴 변이 정확히 [longSide]에 맞는다.
+/// 원본이 이미 [longSide] 이하면 그대로 돌려준다(확대 금지).
+({int width, int height}) targetDiaryPhotoSize({
+  required int sourceWidth,
+  required int sourceHeight,
+  required int longSide,
+}) {
+  final landscape = sourceWidth >= sourceHeight;
+  final srcLong = landscape ? sourceWidth : sourceHeight;
+  final srcShort = landscape ? sourceHeight : sourceWidth;
+  if (srcLong <= longSide) {
+    return (width: sourceWidth, height: sourceHeight);
+  }
+  final scale = longSide / srcLong;
+  final targetShort = (srcShort * scale).floor().clamp(1, longSide);
+  return landscape ? (width: longSide, height: targetShort) : (width: targetShort, height: longSide);
+}
+
+/// 압축 전 원본 파일의 회전을 반영한 가로·세로를 파일 앞부분만 읽어
+/// 알아낸다("일기 수정" 지시서 1 재수정) — EXIF Orientation이 90/270도
+/// 회전을 나타내면(5~8) 가로·세로를 맞바꾼다(네이티브 압축기가
+/// `autoCorrectionAngle`로 회전을 픽셀에 반영하므로, 목표 크기 계산도
+/// 회전 반영 기준이어야 한다). 헤더에서 못 찾으면(아주 드문 경우) null —
+/// 호출부가 안전한 기본값으로 대체한다.
+Future<({int width, int height})?> _peekSourcePhotoSize(String filePath) async {
+  RandomAccessFile? raf;
+  try {
+    raf = await File(filePath).open();
+    final header = await raf.read(kDiaryPhotoExifHeaderBytes);
+    final info = img.JpegDecoder().startDecode(header);
+    if (info == null) return null;
+    var width = info.width;
+    var height = info.height;
+    final orientation = img.decodeJpgExif(header)?.getTag(0x0112)?.toInt();
+    if (orientation != null && orientation >= 5 && orientation <= 8) {
+      final swapped = width;
+      width = height;
+      height = swapped;
+    }
+    return (width: width, height: height);
+  } catch (_) {
+    return null;
+  } finally {
+    await raf?.close();
   }
 }
 

@@ -101,7 +101,7 @@ class DiaryPhoto {
 
 /// 사진 최대 장수("방향 개편" 지시서 C) — 책 인쇄를 염두에 둔 원본 품질
 /// 유지와 별개로, 한 편의 일기에 담을 수 있는 사진 수는 제한한다.
-const int kDiaryMaxPhotos = 10;
+const int kDiaryMaxPhotos = 5;
 
 /// 이미 [current]장이 있는 상태에서 [toAdd]를 더할 때, [kDiaryMaxPhotos]를
 /// 넘지 않도록 앞에서부터 자른다 — 갤러리에서 한 번에 여러 장을 고를 때
