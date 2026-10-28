@@ -101,6 +101,8 @@ flutter:
     - assets/legal/
     # 손글씨 폰트(나눔손글씨 펜) 라이선스 — SIL OFL 1.1, 폰트와 함께 배포.
     - assets/fonts/nanum_pen_script/OFL.txt
+    # IBM Plex(Sans KR·Mono) 라이선스 — SIL OFL 1.1, IBM/plex 저장소 LICENSE.txt 원문.
+    - assets/fonts/OFL.txt
 
   fonts:
     - family: IBM Plex Sans KR

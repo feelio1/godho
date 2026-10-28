@@ -212,7 +212,7 @@ class _DiaryBookSetupScreenState extends ConsumerState<DiaryBookSetupScreen> {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: result is BookLayoutOk ? () => _openPreview(input!) : null,
+                onPressed: result is BookLayoutOk ? () => _openPreview(input!, source!.missingPhotoCount) : null,
                 child: const Text('미리보기 만들기'),
               ),
             ),
@@ -224,9 +224,12 @@ class _DiaryBookSetupScreenState extends ConsumerState<DiaryBookSetupScreen> {
 
   void _selectCover(String id) => setState(() => _coverPhotoId = id);
 
-  void _openPreview(BookInput input) {
+  void _openPreview(BookInput input, int missingPhotoCount) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => DiaryBookPreviewScreen(input: input, spec: widget.spec)),
+      MaterialPageRoute(
+        builder: (_) =>
+            DiaryBookPreviewScreen(input: input, spec: widget.spec, missingPhotoCount: missingPhotoCount),
+      ),
     );
   }
 }

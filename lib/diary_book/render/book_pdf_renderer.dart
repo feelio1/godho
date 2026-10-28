@@ -48,7 +48,7 @@ class BookPalette {
 const double _mm = PdfPageFormat.mm;
 
 /// 렌더러 버전 — 그리는 방식이 바뀌면 올려서 캐시된 미리보기를 무효화한다.
-const int kBookRendererVersion = 1;
+const int kBookRendererVersion = 2;
 
 Future<Uint8List> renderBookPdf(
   BookLayout layout, {

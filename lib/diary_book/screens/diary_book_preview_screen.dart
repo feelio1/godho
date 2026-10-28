@@ -36,7 +36,15 @@ class DiaryBookPreviewScreen extends ConsumerStatefulWidget {
   final BookInput input;
   final BookSpec spec;
 
-  const DiaryBookPreviewScreen({super.key, required this.input, this.spec = BookSpec.a5});
+  /// 다른 기기에서 아직 올라가는 중이라 이번 미리보기에서 빠진 사진 수.
+  final int missingPhotoCount;
+
+  const DiaryBookPreviewScreen({
+    super.key,
+    required this.input,
+    this.spec = BookSpec.a5,
+    this.missingPhotoCount = 0,
+  });
 
   @override
   ConsumerState<DiaryBookPreviewScreen> createState() => _DiaryBookPreviewScreenState();
@@ -150,10 +158,27 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
   Widget _buildPreview(BuildContext context) {
     final layout = _layout!;
     final views = diaryBookViews(layout.pageCount, spread: _spread);
-    final lowRes = layout.lowResolutionPageNumbers;
+    final lowRes = layout.lowResolutionPageNames;
     final aspect = widget.spec.widthMm / widget.spec.heightMm;
     return Column(
       children: [
+        // 다른 기기에서 아직 올라가는 중인 사진 — 회색 정보 톤, 0장이면 숨김.
+        if (widget.missingPhotoCount > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 16, color: AppColors.textSecondary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '사진 ${widget.missingPhotoCount}장은 아직 올라가는 중이라 이번 미리보기에서 빠졌어요',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(AppSpacing.page, 8, AppSpacing.page, 4),
           child: Row(
@@ -192,7 +217,7 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
                             child: _PageImage(
                               key: ValueKey('page-$pageIndex'),
                               future: _pageImage(pageIndex),
-                              label: '${pageIndex + 1}쪽',
+                              label: layout.pages[pageIndex].displayName,
                             ),
                           ),
                         ),
@@ -212,7 +237,7 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    '${lowRes.join(', ')}쪽에 해상도가 낮은 사진이 있어요. 인쇄하면 흐릿하게 보일 수 있어요.',
+                    '${lowRes.join(', ')}에 해상도가 낮은 사진이 있어요. 인쇄하면 흐릿하게 보일 수 있어요.',
                     style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
                 ),
@@ -243,7 +268,7 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        _PageImage(future: _thumbImage(index), label: '${index + 1}'),
+                        _PageImage(future: _thumbImage(index), label: page.displayName),
                         if (page.hasLowResolutionPhoto)
                           const Positioned(
                             right: 2,

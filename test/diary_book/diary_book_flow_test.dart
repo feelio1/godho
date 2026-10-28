@@ -16,6 +16,7 @@ import 'package:petcliniccheck/diary/screens/diary_list_body.dart';
 import 'package:petcliniccheck/diary_book/book_layout.dart';
 import 'package:petcliniccheck/diary_book/book_spec.dart';
 import 'package:petcliniccheck/diary_book/diary_book_pdf_service.dart';
+import 'package:petcliniccheck/diary_book/diary_book_source.dart';
 import 'package:petcliniccheck/diary_book/providers/diary_book_switch.dart';
 import 'package:petcliniccheck/diary_book/screens/diary_book_preview_screen.dart';
 import 'package:petcliniccheck/diary_book/screens/diary_book_setup_screen.dart';
@@ -218,6 +219,31 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('그림일기를 만들지 못했어요'), findsOneWidget);
       expect(find.text('다시 시도'), findsOneWidget);
+    });
+  });
+
+  group('미리보기 안내', () {
+    Future<void> pumpPreview(WidgetTester tester, {required int missing}) async {
+      final input = buildDiaryBookSource(
+        query: DiaryBookQuery(uid: 'u1', petId: _pet.id, petName: _pet.name, start: _daysAgo(30), end: _daysAgo(0)),
+        diaries: [_diary('d1', _daysAgo(1))],
+        pendingByDiary: const {},
+      ).input;
+      await tester.pumpWidget(ProviderScope(
+        overrides: _overrides(diaries: const []),
+        child: MaterialApp(home: DiaryBookPreviewScreen(input: input, missingPhotoCount: missing)),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('다른 기기에서 올라가는 중이라 빠진 사진이 있으면 상단에 안내', (tester) async {
+      await pumpPreview(tester, missing: 2);
+      expect(find.text('사진 2장은 아직 올라가는 중이라 이번 미리보기에서 빠졌어요'), findsOneWidget);
+    });
+
+    testWidgets('빠진 사진이 없으면 안내하지 않는다', (tester) async {
+      await pumpPreview(tester, missing: 0);
+      expect(find.textContaining('아직 올라가는 중'), findsNothing);
     });
   });
 

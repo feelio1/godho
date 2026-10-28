@@ -252,6 +252,7 @@ SummaryPage _summaryPage(BookSpec spec, List<BookDiaryEntry> sorted, String peri
     topActivities: topActivities(sorted),
     titleRect: MmRect(left, top + h * 0.18, w, 16),
     bodyRect: MmRect(left + w * 0.12, top + h * 0.18 + 26, w * 0.76, 70),
-    footerRect: MmRect(left, top + h - 6, w, 6),
+    // 맨 아래 쪽 번호 자리(footerHeight) 바로 위.
+    footerRect: MmRect(left, top + h - BookLayoutMetrics.footerHeight - 6, w, 6),
   );
 }

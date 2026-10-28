@@ -127,8 +127,29 @@ void main() {
       expect(layout.pages[2], isA<MemoPage>());
       expect(layout.pages[3], isA<SummaryPage>());
       expect([for (final p in layout.pages) p.pageNumber], [1, 2, 3, 4]);
-      expect(layout.pages[1].pageLabel, '— 2 —');
-      expect(layout.pages[0].pageLabel, isNull);
+    });
+
+    test('쪽 번호: 표지는 없음, 첫 일기 쪽이 1 — 이어지는 쪽·메모·함께한 날들까지 연속', () {
+      // 표지 + 일기(1) + 이어서(2) + 일기(3) + 메모(4) + 함께한 날들(5) = 6쪽.
+      final layout = _ok(layoutBook(_input([
+        _entry('long', DateTime(2026, 10, 1), photos: 1, text: '가' * 200),
+        _entry('next', DateTime(2026, 10, 2)),
+      ])));
+      expect(layout.pages.map((p) => p.runtimeType).toList(),
+          [CoverPage, DiaryEntryPage, ContinuationPage, DiaryEntryPage, MemoPage, SummaryPage]);
+      expect([for (final p in layout.pages) p.displayNumber], [null, 1, 2, 3, 4, 5]);
+      expect([for (final p in layout.pages) p.pageLabel], [null, '— 1 —', '— 2 —', '— 3 —', '— 4 —', '— 5 —']);
+      expect(layout.pages.first.displayName, '표지');
+      expect(layout.pages[2].displayName, '2쪽');
+    });
+
+    test('함께한 날들의 작은 하단 문구는 쪽 번호 자리와 겹치지 않는다', () {
+      const spec = BookSpec.a5;
+      final layout = _ok(layoutBook(_input([_entry('d1', DateTime(2026, 10, 1))])));
+      final summary = layout.pages.last as SummaryPage;
+      final pageNumberTop = spec.heightMm - spec.safeMm - BookLayoutMetrics.footerHeight;
+      expect(summary.footerRect.bottom, lessThanOrEqualTo(pageNumberTop + 1e-9));
+      expect(summary.footerRect.y, greaterThan(summary.bodyRect.bottom));
     });
 
     test('총 쪽수가 홀수면 메모 쪽 하나로 짝수를 맞춘다', () {
@@ -282,6 +303,12 @@ void main() {
         BookDiaryEntry(id: 'ok', date: DateTime(2026, 10, 3), photos: [_photo('big')]),
       ], coverPhotoId: 'big')));
       expect(layout.lowResolutionPageNumbers, [2]);
+      expect(layout.lowResolutionPageNames, ['1쪽']);
+      // 표지 사진이 낮으면 "표지".
+      final cover = _ok(layoutBook(_input([
+        BookDiaryEntry(id: 'low', date: DateTime(2026, 10, 2), photos: const [BookPhoto(id: 'tiny', widthPx: 200, heightPx: 150)]),
+      ])));
+      expect(cover.lowResolutionPageNames, ['표지', '1쪽']);
     });
 
     test('함께한 날들: 기간·일기 수·많이 한 활동 3개(같으면 먼저 기록된 순)', () {

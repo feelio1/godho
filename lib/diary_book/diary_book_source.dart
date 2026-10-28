@@ -48,7 +48,10 @@ class DiaryBookSource {
   final BookInput input;
   final Map<String, String> thumbnails;
 
-  const DiaryBookSource({required this.input, required this.thumbnails});
+  /// 다른 기기에서 아직 올라가는 중이라 이 기기에 파일이 없어 빠진 사진 수.
+  final int missingPhotoCount;
+
+  const DiaryBookSource({required this.input, required this.thumbnails, this.missingPhotoCount = 0});
 
   List<BookPhoto> get allPhotos => [for (final e in input.entries) ...e.photos];
 }
@@ -98,14 +101,19 @@ DiaryBookSource buildDiaryBookSource({
 }) {
   final thumbnails = <String, String>{};
   final entries = <BookDiaryEntry>[];
+  var missing = 0;
   for (final diary in diaries) {
+    final localPending = pendingByDiary[diary.id] ?? const <DiaryPhotoQueueItem>[];
+    // 아직 올라가는 중인 사진 중 이 기기 대기열에도 없는 것 = 다른 기기의 사진.
+    final remotePending = diary.pendingPhotoCount - localPending.length;
+    if (remotePending > 0) missing += remotePending;
     final photos = <(int, BookPhoto)>[];
     for (final p in sortedDiaryPhotos(diary.photos)) {
       if (p.path.isEmpty) continue;
       photos.add((p.order, BookPhoto(id: p.path, widthPx: p.width, heightPx: p.height)));
       thumbnails[p.path] = p.displayThumbPath;
     }
-    for (final item in pendingByDiary[diary.id] ?? const <DiaryPhotoQueueItem>[]) {
+    for (final item in localPending) {
       final id = '$kBookLocalPhotoPrefix${item.mainFilePath}';
       photos.add((item.order, BookPhoto(id: id, widthPx: item.width, heightPx: item.height)));
       thumbnails[id] = '$kBookLocalPhotoPrefix${item.thumbFilePath}';
@@ -133,6 +141,7 @@ DiaryBookSource buildDiaryBookSource({
       entries: entries,
     ),
     thumbnails: thumbnails,
+    missingPhotoCount: missing,
   );
 }
 

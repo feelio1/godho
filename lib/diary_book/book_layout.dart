@@ -120,7 +120,8 @@ const String kDogSpeechAiNotice = 'AI가 사진과 기록을 바탕으로 상상
 const bool kDogSpeechEnabled = false;
 
 sealed class BookPage {
-  /// 1부터 세는 실제 쪽 번호(표지 = 1).
+  /// 1부터 세는 실제(물리) 쪽 위치 — 표지 = 1. 미리보기의 쪽 이동·진행
+  /// 표시에 쓴다. 인쇄되는 쪽 번호는 [displayNumber].
   final int pageNumber;
 
   const BookPage(this.pageNumber);
@@ -128,8 +129,21 @@ sealed class BookPage {
   /// 이 쪽에 해상도가 낮은 사진이 있는가.
   bool get hasLowResolutionPhoto => false;
 
-  /// 하단 가운데 쪽 번호 표시("— 3 —") — null이면 표시하지 않는다.
-  String? get pageLabel => null;
+  /// 인쇄되는 쪽 번호 — 표지는 번호 없음(null), 첫 일기 쪽이 1이고 이어지는
+  /// 쪽·메모·함께한 날들까지 연속으로 센다.
+  int? get displayNumber => pageNumber - 1;
+
+  /// 하단 가운데 쪽 번호 표시("— 1 —") — null이면 표시하지 않는다.
+  String? get pageLabel {
+    final n = displayNumber;
+    return n == null ? null : '— $n —';
+  }
+
+  /// 미리보기 안내용 이름("표지" / "3쪽").
+  String get displayName {
+    final n = displayNumber;
+    return n == null ? '표지' : '$n쪽';
+  }
 }
 
 class CoverPage extends BookPage {
@@ -152,6 +166,9 @@ class CoverPage extends BookPage {
 
   @override
   bool get hasLowResolutionPhoto => photo?.lowResolution ?? false;
+
+  @override
+  int? get displayNumber => null;
 }
 
 class DiaryEntryPage extends BookPage {
@@ -203,9 +220,6 @@ class DiaryEntryPage extends BookPage {
 
   @override
   bool get hasLowResolutionPhoto => photos.any((p) => p.lowResolution);
-
-  @override
-  String get pageLabel => '— $pageNumber —';
 }
 
 /// 원고지가 넘친 일기의 다음 쪽 — 머리 칸은 날짜와 "(이어서)"만.
@@ -222,9 +236,6 @@ class ContinuationPage extends BookPage {
     required this.headerRect,
     required this.grid,
   }) : super(pageNumber);
-
-  @override
-  String get pageLabel => '— $pageNumber —';
 }
 
 /// 쪽 수를 맞추려고 넣는 빈 메모 쪽.
@@ -241,9 +252,6 @@ class MemoPage extends BookPage {
     required this.lineStartX,
     required this.lineEndX,
   }) : super(pageNumber);
-
-  @override
-  String get pageLabel => '— $pageNumber —';
 }
 
 class ActivityCount {
@@ -295,9 +303,12 @@ class BookLayout {
 
   int get pageCount => pages.length;
 
-  /// 해상도 경고가 달린 쪽 번호들.
+  /// 해상도 경고가 달린 쪽들(물리 위치, 표지 = 1).
   List<int> get lowResolutionPageNumbers =>
       [for (final p in pages) if (p.hasLowResolutionPhoto) p.pageNumber];
+
+  /// 해상도 경고가 달린 쪽들의 인쇄 이름("표지", "3쪽").
+  List<String> get lowResolutionPageNames => [for (final p in pages) if (p.hasLowResolutionPhoto) p.displayName];
 }
 
 sealed class BookLayoutResult {
