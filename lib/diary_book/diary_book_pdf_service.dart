@@ -64,6 +64,11 @@ Future<Uint8List> rasterizeDiaryBookPage(Uint8List pdf, int pageIndex, double dp
 
 const _cacheFolder = 'diary_book_preview';
 
+/// 그림일기 임시 PDF를 전부 지운다 — 로그아웃·회원 탈퇴 때 부른다(다른
+/// 계정이 이 기기에서 이전 사람의 미리보기를 보지 않게). 실패해도 예외를
+/// 던지지 않는다.
+Future<void> clearDiaryBookCache() => DiaryBookPdfService().clearCache();
+
 Future<Directory> diaryBookCacheDirectory() async {
   final base = await getApplicationCacheDirectory();
   return Directory('${base.path}/$_cacheFolder');
@@ -125,7 +130,7 @@ class DiaryBookPdfService implements DiaryBookPdfGenerator {
       for (final page in layout.pages)
         ...switch (page) {
           CoverPage(:final photo) => [if (photo != null) photo.photo.id],
-          DiaryPage(:final photos) => [for (final p in photos) p.photo.id],
+          DiaryEntryPage(:final photos) => [for (final p in photos) p.photo.id],
           _ => const <String>[],
         },
     }.toList();

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../data/auth_repository.dart';
+import '../diary_book/diary_book_pdf_service.dart';
 
 /// 로그인 사용자를 부르는 이름 — 닉네임(displayName)이 있으면 그걸,
 /// 없으면(예: 애플 로그인에서 이름 비공개) 이메일 앞부분을 쓴다. 홈 상단
@@ -48,4 +51,7 @@ Future<void> confirmAndSignOut(BuildContext context, AuthRepository authReposito
   } catch (e) {
     debugPrint('[confirmAndSignOut] signOut 실패: $e');
   }
+  // 그림일기 임시 PDF(앱 캐시)는 계정과 함께 정리한다 — 로그아웃 흐름을
+  // 기다리게 하지 않고, 실패해도 조용히 넘어간다.
+  unawaited(clearDiaryBookCache());
 }

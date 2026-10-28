@@ -104,7 +104,7 @@ class WeatherMark {
 }
 
 /// 원고지 아래 "강아지 한마디" 말풍선 자리 — 다음 단계(AI)에서 켠다. 이번
-/// 단계에서는 레이아웃이 이 자리를 만들지 않는다([DiaryPage.dogSpeech]는
+/// 단계에서는 레이아웃이 이 자리를 만들지 않는다([DiaryEntryPage.dogSpeech]는
 /// 늘 null).
 class DogSpeechSlot {
   final MmRect rect;
@@ -154,7 +154,7 @@ class CoverPage extends BookPage {
   bool get hasLowResolutionPhoto => photo?.lowResolution ?? false;
 }
 
-class DiaryPage extends BookPage {
+class DiaryEntryPage extends BookPage {
   final String diaryId;
   final String dateLabel;
   final MmRect headerRect;
@@ -180,7 +180,7 @@ class DiaryPage extends BookPage {
   final ManuscriptGrid grid;
   final DogSpeechSlot? dogSpeech;
 
-  const DiaryPage({
+  const DiaryEntryPage({
     required int pageNumber,
     required this.diaryId,
     required this.dateLabel,

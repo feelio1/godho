@@ -172,7 +172,7 @@ void _addDiaryPages(BookSpec spec, BookDiaryEntry entry, List<BookPage> pages) {
         cells: cells,
       );
 
-  pages.add(DiaryPage(
+  pages.add(DiaryEntryPage(
     pageNumber: pages.length + 1,
     diaryId: entry.id,
     dateLabel: dateLabel,

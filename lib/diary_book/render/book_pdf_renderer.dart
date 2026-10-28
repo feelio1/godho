@@ -158,7 +158,7 @@ class _Renderer {
     switch (page) {
       case CoverPage():
         _cover(page, painters, overlays);
-      case DiaryPage():
+      case DiaryEntryPage():
         painters.add(_paper);
         _diary(page, painters, overlays);
       case ContinuationPage():
@@ -311,7 +311,7 @@ class _Renderer {
 
   // ── 내지 ────────────────────────────────────────────────────────────
 
-  void _diary(DiaryPage page, List<void Function(_MmCanvas)> painters, List<pw.Widget> overlays) {
+  void _diary(DiaryEntryPage page, List<void Function(_MmCanvas)> painters, List<pw.Widget> overlays) {
     painters.add((c) {
       c.roundRect(page.headerRect, 2.5, fill: BookPalette.cream, stroke: BookPalette.navy);
       c.line(page.headerDividerX, page.headerRect.y, page.headerDividerX, page.headerRect.bottom);

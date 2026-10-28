@@ -123,7 +123,7 @@ void main() {
       final layout = _ok(layoutBook(_input([_entry('d1', DateTime(2026, 10, 28), photos: 1)])));
       expect(layout.pageCount, 4);
       expect(layout.pages[0], isA<CoverPage>());
-      expect(layout.pages[1], isA<DiaryPage>());
+      expect(layout.pages[1], isA<DiaryEntryPage>());
       expect(layout.pages[2], isA<MemoPage>());
       expect(layout.pages[3], isA<SummaryPage>());
       expect([for (final p in layout.pages) p.pageNumber], [1, 2, 3, 4]);
@@ -163,7 +163,7 @@ void main() {
         _entry('late', DateTime(2026, 11, 2)),
         _entry('early', DateTime(2026, 10, 28)),
       ])));
-      final diaries = layout.pages.whereType<DiaryPage>().toList();
+      final diaries = layout.pages.whereType<DiaryEntryPage>().toList();
       expect(diaries.map((d) => d.diaryId), ['early', 'late']);
       expect(diaries.first.dateLabel, '2026년 10월 28일 수요일');
     });
@@ -173,7 +173,7 @@ void main() {
         _entry('rain', DateTime(2026, 10, 1), weather: BookWeather.rainy),
         _entry('none', DateTime(2026, 10, 2)),
       ])));
-      final diaries = layout.pages.whereType<DiaryPage>().toList();
+      final diaries = layout.pages.whereType<DiaryEntryPage>().toList();
       final rain = diaries[0];
       expect(rain.weatherIcons.map((w) => w.weather), BookWeather.values);
       final rainIcon = rain.weatherIcons[BookWeather.rainy.index];
@@ -193,7 +193,7 @@ void main() {
         _entry('a', DateTime(2026, 10, 1), activities: ['산책', '간식', '놀이']),
         _entry('b', DateTime(2026, 10, 2)),
       ])));
-      final diaries = layout.pages.whereType<DiaryPage>().toList();
+      final diaries = layout.pages.whereType<DiaryEntryPage>().toList();
       expect(diaries[0].activityText, '산책 · 간식 · 놀이');
       expect(diaries[1].activityText, '');
     });
@@ -203,7 +203,7 @@ void main() {
         _entry('photo', DateTime(2026, 10, 1), photos: 3),
         _entry('nophoto', DateTime(2026, 10, 2)),
       ])));
-      final diaries = layout.pages.whereType<DiaryPage>().toList();
+      final diaries = layout.pages.whereType<DiaryEntryPage>().toList();
       expect(diaries[0].pictureBox, isNotNull);
       expect(diaries[0].photos.length, 3);
       expect(diaries[1].pictureBox, isNull);
@@ -228,7 +228,7 @@ void main() {
           r.bottom <= spec.heightMm - spec.safeMm + 1e-9;
       for (final page in layout.pages) {
         switch (page) {
-          case DiaryPage():
+          case DiaryEntryPage():
             expect(inside(page.headerRect), isTrue);
             expect(inside(page.grid.rect), isTrue);
             expect(inside(page.pictureBox!), isTrue);
@@ -253,7 +253,7 @@ void main() {
         _entry('next', DateTime(2026, 10, 2)),
       ])));
       final kinds = layout.pages.map((p) => p.runtimeType).toList();
-      expect(kinds.sublist(0, 4), [CoverPage, DiaryPage, ContinuationPage, DiaryPage]);
+      expect(kinds.sublist(0, 4), [CoverPage, DiaryEntryPage, ContinuationPage, DiaryEntryPage]);
       final cont = layout.pages[2] as ContinuationPage;
       expect(cont.diaryId, 'long');
       expect(cont.dateLabel, '2026년 10월 1일 목요일');
