@@ -16,3 +16,9 @@ const bool kEnableAppleLogin = false;
 /// Firestore 문서의 `enabled`만 콘솔에서 바꾼다 — 그래야 앱 업데이트 없이
 /// 오픈할 수 있다.
 const bool kEnableShopCode = true;
+
+/// 그림일기(일기책) 코드의 컴파일 타임 스위치 — [kEnableShopCode]와 같은
+/// 이중 스위치 구조. false면 Firestore `config/book`을 조회하지 않고 진입점이
+/// 늘 숨겨진다. 실제로 열고 닫는 건 콘솔의 `config/book.enabled`로 한다
+/// (`diaryBookEnabledProvider`, fail-closed).
+const bool kEnableDiaryBookCode = true;

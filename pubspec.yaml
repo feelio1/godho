@@ -97,6 +97,8 @@ flutter:
     - assets/fees.json
     - assets/mascot/
     - assets/legal/
+    # 손글씨 폰트(나눔손글씨 펜) 라이선스 — SIL OFL 1.1, 폰트와 함께 배포.
+    - assets/fonts/nanum_pen_script/OFL.txt
 
   fonts:
     - family: IBM Plex Sans KR
@@ -109,6 +111,10 @@ flutter:
           weight: 600
         - asset: assets/fonts/IBMPlexSansKR-Bold.ttf
           weight: 700
+    # 그림일기 손글씨(나눔손글씨 펜, SIL OFL 1.1 — google/fonts ofl/nanumpenscript).
+    - family: Nanum Pen Script
+      fonts:
+        - asset: assets/fonts/nanum_pen_script/NanumPenScript-Regular.ttf
     - family: IBM Plex Mono
       fonts:
         - asset: assets/fonts/IBMPlexMono-Regular.ttf
