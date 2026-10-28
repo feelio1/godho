@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../diary/screens/diary_form_screen.dart';
 import '../diary/screens/diary_list_body.dart';
+import '../diary/screens/diary_reminder_prompt_sheet.dart';
 import '../models/pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/calendar_focus_provider.dart';
@@ -56,14 +57,17 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
   /// AppBar의 "+" 버튼 — 보고 있는 세그먼트 기준으로 다른 동작을 연다
   /// ("일기를 기본 보기로" 지시서): 일기는 바로 일기 작성, 캘린더는 지금
   /// 선택된 날짜로, 진료기록은 오늘로 통합 입력(기록/예약)을 연다.
-  void _handleAdd(PetTabView view, Pet selectedPet) {
+  Future<void> _handleAdd(PetTabView view, Pet selectedPet) async {
     switch (view) {
       case PetTabView.diary:
-        Navigator.of(context).push(
+        final saved = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (_) => DiaryFormScreen(defaultPetIds: [selectedPet.id], openGalleryOnStart: true),
           ),
         );
+        // 새 일기를 저장하고 돌아오면("일기 재수정" 지시서 3-1) 알림
+        // 동의 조건을 다시 확인한다.
+        if (saved == true && mounted) await maybeShowDiaryReminderPrompt(context, ref);
         break;
       case PetTabView.calendar:
         final day = ref.read(petTabCalendarSelectedDayProvider);

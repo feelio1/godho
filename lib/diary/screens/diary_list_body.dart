@@ -17,6 +17,7 @@ import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_detail_screen.dart';
 import 'diary_form_screen.dart';
+import 'diary_reminder_prompt_sheet.dart';
 import 'diary_weather_icons.dart';
 
 /// "우리 아이" 탭의 일기 보기("방향 개편" 지시서 D) — 선택된 반려동물이
@@ -44,6 +45,11 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
     // 불러 "올리는 중" 표시를 자동으로 교체한다("일기 재수정" 지시서
     // 2-3).
     DiaryPhotoUploadQueueService.instance.changeTick.addListener(_onQueueChanged);
+    // 일기 알림 동의 질문은 저장 화면이 아니라 이 목록을 열 때(그리고
+    // 아래 _openForm에서 새 일기를 저장하고 돌아왔을 때) 보여준다
+    // ("일기 재수정" 지시서 3-1) — 저장 화면이 바로 닫히는 시점과
+    // 겹쳐 시트 컨텍스트가 불안정해지는 문제를 피한다.
+    WidgetsBinding.instance.addPostFrameCallback((_) => maybeShowDiaryReminderPrompt(context, ref));
   }
 
   @override
@@ -60,10 +66,15 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
     ref.invalidate(diaryPendingPhotosProvider);
   }
 
-  void _openForm() {
-    Navigator.of(context).push(
+  /// 새 일기를 저장하고 돌아오면("일기 재수정" 지시서 3-1) 다시 한 번
+  /// 알림 동의 조건을 확인한다 — 실제 판단·표시는
+  /// [maybeShowDiaryReminderPrompt]가 맡는다(이미 물었거나 조건이 안
+  /// 맞으면 조용히 아무 일도 하지 않는다).
+  Future<void> _openForm() async {
+    final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [widget.selectedPet.id])),
     );
+    if (saved == true && mounted) await maybeShowDiaryReminderPrompt(context, ref);
   }
 
   @override

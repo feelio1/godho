@@ -69,8 +69,11 @@ class UserRepository {
     return doc.data()?['diaryReminderAskedAt'] != null;
   }
 
+  /// `update()`가 아니라 `set(..., merge: true)`를 쓴다("일기 재수정"
+  /// 지시서 3-4) — 문서 상태와 무관하게 안전하다(update는 문서가 없으면
+  /// 예외를 던진다; 이 필드만 있는 경우 등에도 merge가 더 안전하다).
   Future<void> markDiaryReminderAsked(String uid) async {
-    await _users.doc(uid).update({'diaryReminderAskedAt': Timestamp.now()});
+    await _users.doc(uid).set({'diaryReminderAskedAt': Timestamp.now()}, SetOptions(merge: true));
   }
 
   CollectionReference<Map<String, dynamic>> _pets(String uid) => _users.doc(uid).collection('pets');

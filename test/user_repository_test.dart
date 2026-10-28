@@ -86,6 +86,24 @@ void main() {
       await repository.markDiaryReminderAsked('uid-asked-2');
       expect(await repository.diaryReminderAsked('uid-asked-2'), isTrue);
     });
+
+    test('markDiaryReminderAsked는 update가 아니라 merge라 다른 필드를 지우지 않는다("일기 재수정" 지시서 3-4)', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(AppUser(uid: 'uid-asked-3', loginType: LoginType.google, email: 'kept@example.com', createdAt: now, updatedAt: now));
+      await repository.markDiaryReminderAsked('uid-asked-3');
+
+      final user = await repository.fetchUser('uid-asked-3');
+      expect(user!.email, 'kept@example.com');
+      expect(await repository.diaryReminderAsked('uid-asked-3'), isTrue);
+    });
+
+    test('여러 번 불러도(다시 물음·다시 켜기 등) 예외 없이 그대로 true다', () async {
+      final now = DateTime(2026, 1, 1);
+      await repository.createUser(AppUser(uid: 'uid-asked-4', loginType: LoginType.google, createdAt: now, updatedAt: now));
+      await repository.markDiaryReminderAsked('uid-asked-4');
+      await repository.markDiaryReminderAsked('uid-asked-4');
+      expect(await repository.diaryReminderAsked('uid-asked-4'), isTrue);
+    });
   });
 
   test('건너뛰기로 통계 동의를 취소하면 agreedStatsAt도 함께 비운다', () async {
