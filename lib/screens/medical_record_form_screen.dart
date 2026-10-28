@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../ads/app_open_ad_suppression.dart';
 import '../data/effective_record_actions.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
@@ -198,11 +199,11 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
 
   Future<void> _pickPhoto() async {
     try {
-      final picked = await ImagePicker().pickImage(
+      final picked = await ref.read(adSuppressionProvider).during(() => ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: 1600,
         imageQuality: 80,
-      );
+      ));
       if (picked != null && mounted) {
         setState(() => _photoPath = picked.path);
       }
@@ -272,8 +273,12 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     }
   }
 
+  // 진료기록 입력 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
+  // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     // 로그인 상태면 계정(Firestore) 반려동물, 게스트면 로컬 반려동물 —
     // 진료기록 화면과 같은 소스를 써서 선택되는 반려동물이 항상 일치한다
     // (펫클 3단계 지시서 2).

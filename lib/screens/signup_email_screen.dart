@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ads/app_open_ad_suppression.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -87,8 +88,12 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
     }
   }
 
+  // 회원가입 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
+  // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(),
       body: SafeArea(

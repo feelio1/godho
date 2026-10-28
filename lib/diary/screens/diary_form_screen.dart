@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../ads/app_open_ad_suppression.dart';
 import '../../models/pet.dart';
 import '../../notifications/notification_service.dart';
 import '../../providers/auth_provider.dart';
@@ -225,7 +226,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       // 줄이지 않고 원본 그대로 받는다 — 업로드용 압축은 저장 시점에
       // 저장소(FirestoreDiaryRepository)가 맡는다("일기 활성화" 지시서
       // A·C).
-      final picked = await ImagePicker().pickMultiImage();
+      final picked = await ref.read(adSuppressionProvider).during(() => ImagePicker().pickMultiImage());
       if (picked.isEmpty || !mounted) return;
       final allowed = capPhotoAdditions(_photoItems.length, picked);
       final overflow = allowed.length < picked.length;
@@ -247,7 +248,7 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
       return;
     }
     try {
-      final picked = await ImagePicker().pickImage(source: ImageSource.camera);
+      final picked = await ref.read(adSuppressionProvider).during(() => ImagePicker().pickImage(source: ImageSource.camera));
       if (picked == null || !mounted) return;
       final file = File(picked.path);
       setState(() => _photoItems.add(_PhotoItem.newFile(file)));
@@ -431,8 +432,12 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
     return pets.isNotEmpty ? pets.first.name : '반려동물';
   }
 
+  // 일기 작성·수정 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
+  // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     final pets = ref.watch(effectivePetsProvider).value ?? const <Pet>[];
     final recentDiaries = ref.watch(recentDiariesForTagOrderProvider).value ?? const <Diary>[];
     final orderedActivities = sortActivitiesByRecentUsage(recentDiaries);

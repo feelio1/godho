@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../ads/app_open_ad_suppression.dart';
 import '../models/pet.dart';
 import '../models/signup_pet.dart';
 import '../theme/app_colors.dart';
@@ -97,11 +99,11 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
 
   Future<void> _pickPhoto() async {
     try {
-      final picked = await ImagePicker().pickImage(
+      final picked = await ProviderScope.containerOf(context, listen: false).read(adSuppressionProvider).during(() => ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: 1024,
         imageQuality: 80,
-      );
+      ));
       if (picked != null && mounted) {
         setState(() {
           _newPhotoFile = File(picked.path);
@@ -216,8 +218,12 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
 
   bool get _hasPhoto => _avatarImage != null;
 
+  // 반려동물 추가·수정 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
+  // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     final isEditing = widget.existing != null;
     return Scaffold(
       appBar: AppBar(title: Text(isEditing ? '반려동물 정보 수정' : '반려동물 정보')),

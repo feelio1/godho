@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
 
+import '../ads/app_open_ad_suppression.dart';
 import '../data/app_settings.dart';
 import '../diary/diary_photo_upload_queue_service.dart';
 import '../models/app_user.dart';
@@ -162,7 +163,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// 반대로 하면 Auth 계정이 없어진 순간 보안 규칙상 본인 데이터에 더는
   /// 쓸 수 없어 Firestore 정리가 막힌다. Auth 삭제가 `requires-recent-login`
   /// 로 실패하면 로그인 수단에 맞게 재인증한 뒤 다시 시도한다.
-  Future<void> _confirmAndDeleteAccount(BuildContext context, String uid) async {
+  ///
+  /// 확인 다이얼로그부터 재인증(구글 등 외부 화면 전환 포함)·삭제가 끝날
+  /// 때까지 앱 오프닝 광고를 억제한다 — 예외로 끝나도 반드시 풀린다.
+  Future<void> _confirmAndDeleteAccount(BuildContext context, String uid) =>
+      ref.read(adSuppressionProvider).during(() => _runDeleteAccountFlow(context, uid));
+
+  Future<void> _runDeleteAccountFlow(BuildContext context, String uid) async {
     final step1 = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(

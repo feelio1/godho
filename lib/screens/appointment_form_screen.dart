@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../ads/app_open_ad_suppression.dart';
 import '../data/effective_appointment_actions.dart';
 import '../models/appointment.dart';
 import '../models/reminder_offset.dart';
@@ -312,8 +313,12 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
     }
   }
 
+  // 예약 입력 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
+  // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null ? '기록·예약 추가' : '예약 알림'),

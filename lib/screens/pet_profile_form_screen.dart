@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../ads/app_open_ad_suppression.dart';
 import '../models/pet.dart';
 import '../providers/pet_provider.dart';
 import '../theme/app_colors.dart';
@@ -61,11 +62,11 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
 
   Future<void> _pickPhoto() async {
     try {
-      final picked = await ImagePicker().pickImage(
+      final picked = await ref.read(adSuppressionProvider).during(() => ImagePicker().pickImage(
         source: ImageSource.gallery,
         maxWidth: 1024,
         imageQuality: 80,
-      );
+      ));
       if (picked != null && mounted) {
         setState(() => _photoPath = picked.path);
       }
@@ -137,8 +138,12 @@ class _PetProfileFormScreenState extends ConsumerState<PetProfileFormScreen> {
     Navigator.of(context).pop();
   }
 
+  // 반려동물 추가·수정 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
+  // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+
+  Widget _buildScreen(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.existing == null ? '반려동물 등록' : '반려동물 정보 수정')),
       body: SafeArea(
