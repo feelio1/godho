@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../diary_book/providers/diary_book_switch.dart';
+import '../../diary_book/screens/diary_book_setup_screen.dart';
 import '../../models/pet.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
@@ -87,11 +89,26 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 0),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.lock_outline, size: 13, color: AppColors.textSecondary),
-              SizedBox(width: 4),
-              Text('일기는 나만 볼 수 있어요', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+              const Icon(Icons.lock_outline, size: 13, color: AppColors.textSecondary),
+              const SizedBox(width: 4),
+              const Expanded(
+                child: Text('일기는 나만 볼 수 있어요', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+              ),
+              // 그림일기 진입점 — config/book 스위치가 열렸을 때만(fail-closed).
+              if (ref.watch(diaryBookVisibleProvider))
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => DiaryBookSetupScreen(initialPetId: widget.selectedPet.id)),
+                  ),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                  ),
+                  icon: const Icon(Icons.menu_book_outlined, size: 16),
+                  label: const Text('그림일기 만들기'),
+                ),
             ],
           ),
         ),

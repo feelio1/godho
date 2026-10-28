@@ -67,6 +67,15 @@ class BookInput {
     required this.entries,
     this.coverPhotoId,
   });
+
+  BookInput copyWith({String? title, String? coverPhotoId}) => BookInput(
+        petName: petName,
+        title: title ?? this.title,
+        periodStart: periodStart,
+        periodEnd: periodEnd,
+        entries: entries,
+        coverPhotoId: coverPhotoId ?? this.coverPhotoId,
+      );
 }
 
 String defaultBookTitle(String petName) => '$petName의 그림일기';

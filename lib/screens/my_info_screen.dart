@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ads/global_banner_ad.dart';
+import '../diary_book/providers/diary_book_switch.dart';
+import '../diary_book/screens/diary_book_setup_screen.dart';
 import '../models/signup_pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
@@ -230,6 +232,9 @@ class _LoggedInBody extends ConsumerWidget {
           onTap: () => _push(context, const SavedScreen()),
         ),
         if (shopEnabled) _MenuRow(title: '주문내역', onTap: () => _push(context, const OrderHistoryScreen())),
+        // 그림일기 — config/book 스위치가 열렸을 때만(fail-closed).
+        if (ref.watch(diaryBookVisibleProvider))
+          _MenuRow(title: '내 그림일기', onTap: () => _push(context, const DiaryBookSetupScreen())),
         _MenuRow(title: '설정', onTap: () => _push(context, const SettingsScreen())),
         const SizedBox(height: AppSpacing.section),
         const _SectionHeader('안내'),

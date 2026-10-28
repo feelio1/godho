@@ -77,5 +77,19 @@ void main() {
       expect(pages3[2][1].first, '가');
       expect(pages3[2][2].every((c) => c == ''), isTrue);
     });
+
+    test('이어지는 쪽은 빈 줄로 시작하지 않고, 남은 게 빈 줄뿐이면 쪽을 더 만들지 않는다', () {
+      final lines = [
+        ['가'],
+        ['나'],
+        <String>[],
+        <String>[],
+        ['다'],
+      ];
+      final pages = paginateManuscript(lines, firstPageRows: 2, continuationRows: 3);
+      expect(pages.length, 2);
+      expect(pages[1][0].first, '다');
+      expect(paginateManuscript(lines.sublist(0, 4), firstPageRows: 2, continuationRows: 3).length, 1);
+    });
   });
 }

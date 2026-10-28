@@ -55,7 +55,8 @@ List<List<String>> layoutManuscriptLines(String text, {int columns = kManuscript
 }
 
 /// 줄 목록을 쪽별 칸 배열로 나눈다 — 첫 쪽은 [firstPageRows]줄, 이어지는
-/// 쪽은 [continuationRows]줄. 각 쪽은 rows×columns로 빈 칸('')을 채운다.
+/// 쪽은 [continuationRows]줄(맨 앞 빈 줄은 건너뜀). 각 쪽은 rows×columns로
+/// 빈 칸('')을 채운다.
 /// 글이 없어도 첫 쪽(빈 원고지) 하나는 돌려준다.
 List<List<List<String>>> paginateManuscript(
   List<List<String>> lines, {
@@ -71,7 +72,13 @@ List<List<List<String>>> paginateManuscript(
 
   final pages = <List<List<String>>>[pad(lines.take(firstPageRows).toList(), firstPageRows)];
   var index = firstPageRows;
-  while (index < lines.length) {
+  while (true) {
+    // 이어지는 쪽이 빈 줄(문단 사이 줄바꿈)로 시작하지 않게 건너뛴다 —
+    // 남은 게 빈 줄뿐이면 쪽을 더 만들지 않는다.
+    while (index < lines.length && lines[index].isEmpty) {
+      index++;
+    }
+    if (index >= lines.length) break;
     pages.add(pad(lines.skip(index).take(continuationRows).toList(), continuationRows));
     index += continuationRows;
   }
