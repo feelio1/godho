@@ -34,8 +34,9 @@ import 'search_result_screen.dart';
 /// "방향 개편" 지시서 B — 포지셔닝("병원 확인에서 시작하는 우리 아이
 /// 관리 앱")에 맞춰 순서를 다시 짰다: 브랜드 헤더 → 장구름 인사 →
 /// (로그인+반려동물) 우리 아이 영역 → 병원 영역(섹션 제목·타이틀·검색·
-/// 3개 바로가기·지역 진료비 시세 요약) → 펫보험 제휴 카드 → 쇼핑 추천
-/// (쇼핑이 열려 있고 판매 중 상품이 있을 때만) → 광고. 이전("출시 전
+/// 3개 바로가기·지역 진료비 시세 요약) → 쇼핑 추천(쇼핑이 열려 있고
+/// 판매 중 상품이 있을 때만) → 펫보험 제휴 카드 → 광고. 제휴 카드는
+/// 병원 데이터 카드와 인접하지 않게 쇼핑 추천 뒤로 옮겼다. 이전("출시 전
 /// 마무리" 지시서 A~C)엔 우리 아이 카드가 병원 영역 중간에 끼어 있었고,
 /// 지역 진료비 시세 요약은 맨 아래였다. "내 주변 가까운 병원 / 운영 20년
 /// 이상 / 최근 개원 / 최근 확인한 병원 / 저장한 병원" 세로 리스트 섹션들은
@@ -166,9 +167,12 @@ class _HomeBody extends ConsumerWidget {
         const SizedBox(height: AppSpacing.section),
         const FeeSummaryCard(),
         const SizedBox(height: AppSpacing.section),
-        const AffiliateFeeCard(),
-        const SizedBox(height: AppSpacing.section),
         const HomeShopRecommendation(),
+        // 제휴 카드는 병원 데이터 카드(FeeSummaryCard)와 붙지 않게 쇼핑 추천
+        // 뒤에 둔다 — 쇼핑이 꺼져 위 섹션이 비어도 위아래 간격이 두 번
+        // 겹쳐 병원 영역과 충분히 떨어진다(CLAUDE.md 광고 배치 원칙).
+        const SizedBox(height: AppSpacing.section),
+        const AffiliateFeeCard(),
         const SizedBox(height: AppSpacing.section),
         const GlobalBannerAd(inline: true),
       ],
