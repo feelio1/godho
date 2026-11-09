@@ -1,0 +1,28 @@
+[
+  {
+    "id": "aggaeng",
+    "name": "아깽이상점",
+    "brandName": "펫클 스토어",
+    "ceoName": "【대표자명】",
+    "bizRegNo": "【사업자등록번호】",
+    "mailOrderNo": "【통신판매업 신고번호】",
+    "address": "【사업장 주소】",
+    "csPhone": "【고객센터 전화】",
+    "csEmail": "miyaongshop@gmail.com",
+    "shipping": {
+      "baseFee": 3000,
+      "freeOver": 30000,
+      "bulkyFee": 4000,
+      "extraJejuFee": 3000,
+      "carrier": "공급사 지정 택배",
+      "dispatchDays": 1
+    },
+    "returnPolicy": {
+      "returnFee": 3000,
+      "exchangeFee": 6000,
+      "returnAddress": "인천 서구 여우재로 106 1층 (공급사 반품지)",
+      "note": "단순변심 수령 후 7일 이내 / 불량 30일 이내. 간식은 포장 개봉 시 단순변심 반품 불가."
+    },
+    "status": "active"
+  }
+]

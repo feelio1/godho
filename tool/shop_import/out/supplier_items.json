@@ -1,0 +1,669 @@
+[
+  {
+    "id": "nr-5dcsgnsf6dra",
+    "productId": "nr-5dcsgnsf6dra",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "5dcsgnsf6dra",
+    "supplierUrl": "https://nr-pet.com/products/5dcsgnsf6dra",
+    "supplierName_raw": "강아지 비건 수제간식 5종",
+    "wholesale": 2310,
+    "wholesaleByOption": {
+      "딸기": 2310,
+      "당근": 2310,
+      "고구마": 2310,
+      "양배추": 2310,
+      "단호박": 2310
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 5000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-ubzzsbzu6n5g",
+    "productId": "nr-ubzzsbzu6n5g",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "ubzzsbzu6n5g",
+    "supplierUrl": "https://nr-pet.com/products/ubzzsbzu6n5g",
+    "supplierName_raw": "튼튼요정견 황태져키 200g",
+    "wholesale": 5530,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 10900,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-mvdjzceblxh3",
+    "productId": "nr-mvdjzceblxh3",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "mvdjzceblxh3",
+    "supplierUrl": "https://nr-pet.com/products/mvdjzceblxh3",
+    "supplierName_raw": "윤기요정견 연어져키 200g",
+    "wholesale": 5530,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 10900,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-p48rypwft47l",
+    "productId": "nr-p48rypwft47l",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "p48rypwft47l",
+    "supplierUrl": "https://nr-pet.com/products/p48rypwft47l",
+    "supplierName_raw": "근육요정견 소고기져키 200g",
+    "wholesale": 5530,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 10900,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-hfydvz4rh7yn",
+    "productId": "nr-hfydvz4rh7yn",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "hfydvz4rh7yn",
+    "supplierUrl": "https://nr-pet.com/products/hfydvz4rh7yn",
+    "supplierName_raw": "강아지 여름 나시티",
+    "wholesale": 2380,
+    "wholesaleByOption": {
+      "블루 / XS": 2380,
+      "블루 / S": 2590,
+      "블루 / M": 2800,
+      "블루 / L": 3010,
+      "블루 / XL": 3220,
+      "블루 / 2XL": 3430,
+      "연보라 / XS": 2380,
+      "연보라 / S": 2590,
+      "연보라 / M": 2800,
+      "연보라 / L": 3010,
+      "연보라 / XL": 3220,
+      "연보라 / 2XL": 3430
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 3400,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-pftcbb58mpvf",
+    "productId": "nr-pftcbb58mpvf",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "pftcbb58mpvf",
+    "supplierUrl": "https://nr-pet.com/products/pftcbb58mpvf",
+    "supplierName_raw": "강아지 후드티",
+    "wholesale": 6720,
+    "wholesaleByOption": {
+      "그레이 / XS": 6720,
+      "그레이 / S": 6720,
+      "그레이 / M": 6720,
+      "그레이 / L": 6720,
+      "그레이 / XL": 6720,
+      "베이지 / XS": 6720,
+      "베이지 / S": 6720,
+      "베이지 / M": 6720,
+      "베이지 / L": 6720,
+      "베이지 / XL": 6720
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 15000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-dy6vykku8mnc",
+    "productId": "nr-dy6vykku8mnc",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "dy6vykku8mnc",
+    "supplierUrl": "https://nr-pet.com/products/dy6vykku8mnc",
+    "supplierName_raw": "강아지 레이어드 맨투맨",
+    "wholesale": 7210,
+    "wholesaleByOption": {
+      "블랙 / XS": 7210,
+      "블랙 / S": 7210,
+      "블랙 / M": 7210,
+      "블랙 / L": 7210,
+      "블랙 / XL": 7210,
+      "베이지 / XS": 7210,
+      "베이지 / S": 7210,
+      "베이지 / M": 7210,
+      "베이지 / L": 7210,
+      "베이지 / XL": 7210
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 16000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-82b99edjgt6w",
+    "productId": "nr-82b99edjgt6w",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "82b99edjgt6w",
+    "supplierUrl": "https://nr-pet.com/products/82b99edjgt6w",
+    "supplierName_raw": "강아지 와플 니트",
+    "wholesale": 4480,
+    "wholesaleByOption": {
+      "아이보리 / XS": 4480,
+      "아이보리 / S": 4480,
+      "아이보리 / M": 4480,
+      "아이보리 / L": 4480,
+      "아이보리 / XL": 4480,
+      "네이비 / XS": 4480,
+      "네이비 / S": 4480,
+      "네이비 / M": 4480,
+      "네이비 / L": 4480,
+      "네이비 / XL": 4480,
+      "그레이 / XS": 4480,
+      "그레이 / S": 4480,
+      "그레이 / M": 4480,
+      "그레이 / L": 4480,
+      "그레이 / XL": 4480
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 10000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-6ll5zwn7fura",
+    "productId": "nr-6ll5zwn7fura",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "6ll5zwn7fura",
+    "supplierUrl": "https://nr-pet.com/products/6ll5zwn7fura",
+    "supplierName_raw": "강아지 양털 후리스",
+    "wholesale": 7140,
+    "wholesaleByOption": {
+      "화이트 / XS": 7140,
+      "화이트 / S": 7140,
+      "화이트 / M": 7140,
+      "화이트 / L": 7140,
+      "화이트 / XL": 7140,
+      "화이트 / 2XL": 7140,
+      "네이비 / XS": 7140,
+      "네이비 / S": 7140,
+      "네이비 / M": 7140,
+      "네이비 / L": 7140,
+      "네이비 / XL": 7140,
+      "네이비 / 2XL": 7140
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 20000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-lgjuphlknuqd",
+    "productId": "nr-lgjuphlknuqd",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "lgjuphlknuqd",
+    "supplierUrl": "https://nr-pet.com/products/lgjuphlknuqd",
+    "supplierName_raw": "강아지 경량 조끼패딩",
+    "wholesale": 7350,
+    "wholesaleByOption": {
+      "아이보리 / S": 7350,
+      "아이보리 / M": 7350,
+      "아이보리 / L": 7350,
+      "아이보리 / XL": 7350,
+      "아이보리 / 2XL": 7350,
+      "카키 / S": 7350,
+      "카키 / M": 7350,
+      "카키 / L": 7350,
+      "카키 / XL": 7350,
+      "카키 / 2XL": 7350
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 20000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-xm2u5x4y2wxj",
+    "productId": "nr-xm2u5x4y2wxj",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "xm2u5x4y2wxj",
+    "supplierUrl": "https://nr-pet.com/products/xm2u5x4y2wxj",
+    "supplierName_raw": "강아지 양털 조끼패딩",
+    "wholesale": 10710,
+    "wholesaleByOption": {
+      "블랙 / S": 10710,
+      "블랙 / M": 11900,
+      "블랙 / L": 13090,
+      "블랙 / XL": 14280,
+      "블랙 / XXL": 15470,
+      "블루 / S": 10710,
+      "블루 / M": 11900,
+      "블루 / L": 13090,
+      "블루 / XL": 14280,
+      "블루 / XXL": 15470,
+      "카키 / S": 10710,
+      "카키 / M": 10710,
+      "카키 / L": 10710,
+      "카키 / XL": 10710,
+      "카키 / XXL": 10710
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 25000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-jkrp86sw5vbk",
+    "productId": "nr-jkrp86sw5vbk",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "jkrp86sw5vbk",
+    "supplierUrl": "https://nr-pet.com/products/jkrp86sw5vbk",
+    "supplierName_raw": "강아지 파자마",
+    "wholesale": 5950,
+    "wholesaleByOption": {
+      "블랙 / XS": 5950,
+      "블랙 / S": 5950,
+      "블랙 / M": 5950,
+      "블랙 / L": 5950,
+      "블랙 / XL": 5950,
+      "블랙 / 2XL": 5950,
+      "핑크 / XS": 5950,
+      "핑크 / S": 5950,
+      "핑크 / M": 5950,
+      "핑크 / L": 5950,
+      "핑크 / XL": 5950,
+      "핑크 / 2XL": 5950
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 13000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-swggqv79ctnn",
+    "productId": "nr-swggqv79ctnn",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "swggqv79ctnn",
+    "supplierUrl": "https://nr-pet.com/products/swggqv79ctnn",
+    "supplierName_raw": "강아지 야구점퍼",
+    "wholesale": 7560,
+    "wholesaleByOption": {
+      "블루 / XS": 7560,
+      "블루 / S": 7560,
+      "블루 / M": 7560,
+      "블루 / L": 7560,
+      "블루 / XL": 7560,
+      "브라운 / XS": 7560,
+      "브라운 / S": 7560,
+      "브라운 / M": 7560,
+      "브라운 / L": 7560,
+      "브라운 / XL": 7560
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 15000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-g27jlztfnzue",
+    "productId": "nr-g27jlztfnzue",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "g27jlztfnzue",
+    "supplierUrl": "https://nr-pet.com/products/g27jlztfnzue",
+    "supplierName_raw": "강아지 커피 배변봉투 가방",
+    "wholesale": 1365,
+    "wholesaleByOption": {
+      "배변봉투+통": 1365
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 1950,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-d3h44g3gszc9",
+    "productId": "nr-d3h44g3gszc9",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "d3h44g3gszc9",
+    "supplierUrl": "https://nr-pet.com/products/d3h44g3gszc9",
+    "supplierName_raw": "강아지 배변판",
+    "wholesale": 8400,
+    "wholesaleByOption": {
+      "그레이": 8400,
+      "블루": 8400
+    },
+    "supplierShipping": {
+      "method": "배변판",
+      "fee": 4000
+    },
+    "supplierListPrice": 18000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-6yrw26savsn6",
+    "productId": "nr-6yrw26savsn6",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "6yrw26savsn6",
+    "supplierUrl": "https://nr-pet.com/products/6yrw26savsn6",
+    "supplierName_raw": "강아지 켄넬",
+    "wholesale": 29890,
+    "wholesaleByOption": {
+      "켄넬(소)": 29890,
+      "켄넬(대)": 38640
+    },
+    "supplierShipping": {
+      "method": "켄넬",
+      "fee": 4000
+    },
+    "supplierListPrice": 60000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-z4h7w83kv24n",
+    "productId": "nr-z4h7w83kv24n",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "z4h7w83kv24n",
+    "supplierUrl": "https://nr-pet.com/products/z4h7w83kv24n",
+    "supplierName_raw": "강아지 이동가방",
+    "wholesale": 7700,
+    "wholesaleByOption": {
+      "블랙": 7700,
+      "그레이": 7700,
+      "핑크": 7700,
+      "브라운": 7700
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 18000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-ksny9wfa4erw",
+    "productId": "nr-ksny9wfa4erw",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "ksny9wfa4erw",
+    "supplierUrl": "https://nr-pet.com/products/ksny9wfa4erw",
+    "supplierName_raw": "강아지 미끄럼방지 매트 1P",
+    "wholesale": 980,
+    "wholesaleByOption": {
+      "아이보리 1P": 980,
+      "그레이 1P": 980
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 2000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-adwm9fjbz5nn",
+    "productId": "nr-adwm9fjbz5nn",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "adwm9fjbz5nn",
+    "supplierUrl": "https://nr-pet.com/products/adwm9fjbz5nn",
+    "supplierName_raw": "강아지 배변패드 2Size",
+    "wholesale": 5460,
+    "wholesaleByOption": {
+      "M(50매)": 5460,
+      "XL(20매)": 5460
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 13000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-nqlugsz84hd9",
+    "productId": "nr-nqlugsz84hd9",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "nqlugsz84hd9",
+    "supplierUrl": "https://nr-pet.com/products/nqlugsz84hd9",
+    "supplierName_raw": "강아지 반자동 급수식기",
+    "wholesale": 5110,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 13000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-9zmwuyd7p3vk",
+    "productId": "nr-9zmwuyd7p3vk",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "9zmwuyd7p3vk",
+    "supplierUrl": "https://nr-pet.com/products/9zmwuyd7p3vk",
+    "supplierName_raw": "강아지 원목 밥그릇",
+    "wholesale": 5320,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 12000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-zvslmsnkp9wm",
+    "productId": "nr-zvslmsnkp9wm",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "zvslmsnkp9wm",
+    "supplierUrl": "https://nr-pet.com/products/zvslmsnkp9wm",
+    "supplierName_raw": "강아지 방석",
+    "wholesale": 4410,
+    "wholesaleByOption": {
+      "아이보리 / XS": 4410,
+      "아이보리 / S": 6020,
+      "아이보리 / M": 8050,
+      "아이보리 / L": 10010,
+      "브라운 / XS": 4410,
+      "브라운 / S": 6020,
+      "브라운 / M": 8050,
+      "브라운 / L": 10010
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 12000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-ksuypqjsbw4p",
+    "productId": "nr-ksuypqjsbw4p",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "ksuypqjsbw4p",
+    "supplierUrl": "https://nr-pet.com/products/ksuypqjsbw4p",
+    "supplierName_raw": "강아지 하네스+리드줄",
+    "wholesale": 10780,
+    "wholesaleByOption": {
+      "화이트 / S": 10780,
+      "화이트 / M": 11130,
+      "화이트 / L": 11480,
+      "화이트 / XL": 11830,
+      "블랙 / S": 10780,
+      "블랙 / M": 11130,
+      "블랙 / L": 11480,
+      "블랙 / XL": 11830
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 25000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-f5shengfqtva",
+    "productId": "nr-f5shengfqtva",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "f5shengfqtva",
+    "supplierUrl": "https://nr-pet.com/products/f5shengfqtva",
+    "supplierName_raw": "강아지 배변봉투 1P",
+    "wholesale": 217,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 500,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-gtyxa3ag5saj",
+    "productId": "nr-gtyxa3ag5saj",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "gtyxa3ag5saj",
+    "supplierUrl": "https://nr-pet.com/products/gtyxa3ag5saj",
+    "supplierName_raw": "강아지 배변봉투 고급가방",
+    "wholesale": 7770,
+    "wholesaleByOption": {
+      "화이트": 7770,
+      "브라운": 7770
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 20000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-uaw92xms6y2a",
+    "productId": "nr-uaw92xms6y2a",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "uaw92xms6y2a",
+    "supplierUrl": "https://nr-pet.com/products/uaw92xms6y2a",
+    "supplierName_raw": "강아지 배변봉투 가방",
+    "wholesale": 1890,
+    "wholesaleByOption": {
+      "블랙": 1890,
+      "핑크": 1890,
+      "베이지": 1890,
+      "블루": 1890
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 5000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-5kw7ejt6uvus",
+    "productId": "nr-5kw7ejt6uvus",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "5kw7ejt6uvus",
+    "supplierUrl": "https://nr-pet.com/products/5kw7ejt6uvus",
+    "supplierName_raw": "강아지 자동 리드줄 5M",
+    "wholesale": 7980,
+    "wholesaleByOption": {
+      "블랙": 7980,
+      "그레이": 7980,
+      "핑크": 7980
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 20000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-84qvwe6kxhh2",
+    "productId": "nr-84qvwe6kxhh2",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "84qvwe6kxhh2",
+    "supplierUrl": "https://nr-pet.com/products/84qvwe6kxhh2",
+    "supplierName_raw": "강아지 맥주병 장난감",
+    "wholesale": 2380,
+    "wholesaleByOption": {
+      "브라운": 2380,
+      "그린": 2380,
+      "블랙": 2380
+    },
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 6000,
+    "collectedAt": "2026-11-09"
+  },
+  {
+    "id": "nr-ythpm5lf6l23",
+    "productId": "nr-ythpm5lf6l23",
+    "supplier": "nr-pet",
+    "supplierName": "후회없개B2B",
+    "supplierProductId": "ythpm5lf6l23",
+    "supplierUrl": "https://nr-pet.com/products/ythpm5lf6l23",
+    "supplierName_raw": "강아지 노즈워크 장난감",
+    "wholesale": 8680,
+    "wholesaleByOption": {},
+    "supplierShipping": {
+      "method": "택배",
+      "fee": 3000
+    },
+    "supplierListPrice": 18000,
+    "collectedAt": "2026-11-09"
+  }
+]

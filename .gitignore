@@ -47,3 +47,8 @@ app.*.map.json
 # Firebase client configs — local only, never commit (see CLAUDE.md).
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+
+# 쇼핑 상품 가져오기 도구 — 서비스 계정 키·node 모듈은 절대 커밋하지 않는다
+serviceAccount*.json
+tool/shop_import/node_modules/
+tool/shop_import/package-lock.json
