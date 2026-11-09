@@ -150,6 +150,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const Divider(height: 24),
               _TotalsRow(label: '상품 합계', value: summary.itemsTotal),
               _TotalsRow(label: '배송비 합계', value: summary.shippingTotal),
+              ..._bulkyFeeNote(summary),
               const SizedBox(height: 6),
               _TotalsRow(label: '총 결제금액', value: summary.grandTotal, emphasize: true),
               const SizedBox(height: AppSpacing.section),
@@ -165,7 +166,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 onChanged: (v) => setState(() => _agreeDataShare = v ?? false),
                 controlAffinity: ListTileControlAffinity.leading,
                 contentPadding: EdgeInsets.zero,
-                title: const Text('개인정보 판매자 제공 동의', style: TextStyle(fontSize: 13)),
+                // TODO(법률): 최종 문구·제공받는 자 목록은 개인정보처리방침 개정과 함께 교체
+                title: const Text('배송을 위한 개인정보 제3자 제공 동의 (상품 공급업체)', style: TextStyle(fontSize: 13)),
               ),
             ],
           ),
@@ -220,6 +222,23 @@ class _AddressField extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 배송비 합계 아래 회색 작은 글씨 — 따로 배송(bulky) 상품 몫을 보여줘 합계가
+/// 어떻게 나왔는지 알 수 있게 한다. 없으면 아무것도 그리지 않는다.
+List<Widget> _bulkyFeeNote(CartSummary summary) {
+  final kinds = summary.sellerGroups.fold<int>(0, (sum, g) => sum + g.bulkyKinds);
+  final fee = summary.sellerGroups.fold<int>(0, (sum, g) => sum + g.bulkyFee);
+  if (kinds == 0) return const [];
+  return [
+    Padding(
+      padding: const EdgeInsets.only(left: 8, bottom: 3),
+      child: Text(
+        '· 따로 배송 상품 $kinds종 ${NumberFormat('#,###').format(fee)}원',
+        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+      ),
+    ),
+  ];
 }
 
 class _OrderSummaryGroup extends StatelessWidget {

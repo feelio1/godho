@@ -114,15 +114,19 @@ class _CategoryChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(shopCategoryFilterProvider);
+    // 상품이 있는 카테고리만(불러오는 중·실패 땐 "전체"만). 지금 고른
+    // 카테고리는 상품이 사라져도 칩을 남겨 선택을 풀 수 있게 한다.
+    final available = ref.watch(availableShopCategoriesProvider).value ?? const <ProductCategory>{};
+    final categories = visibleShopCategories({...available, ?selected});
     return SizedBox(
       height: 40,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
-        itemCount: ProductCategory.values.length + 1,
+        itemCount: categories.length + 1,
         separatorBuilder: (context, i) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
-          final category = i == 0 ? null : ProductCategory.values[i - 1];
+          final category = i == 0 ? null : categories[i - 1];
           return ChoiceChip(
             label: Text(category?.label ?? '전체'),
             selected: selected == category,

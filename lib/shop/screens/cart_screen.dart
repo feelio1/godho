@@ -175,7 +175,10 @@ class _CartLineTile extends ConsumerWidget {
                   children: [
                     IconButton(
                       visualDensity: VisualDensity.compact,
-                      onPressed: uid == null ? null : () => repo.updateCartQuantity(uid, line.cartItemId, line.quantity - 1),
+                      // 최소 주문 수량 아래로는 줄이지 않는다(빼려면 삭제 버튼).
+                      onPressed: uid == null || line.quantity <= line.product.minQty
+                          ? null
+                          : () => repo.updateCartQuantity(uid, line.cartItemId, line.quantity - 1),
                       icon: const Icon(Icons.remove_circle_outline, size: 20),
                     ),
                     Text('${line.quantity}', style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -186,6 +189,11 @@ class _CartLineTile extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (line.quantity < line.product.minQty)
+                  Text(
+                    '${line.product.minQty}개부터 주문할 수 있어요',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
               ],
             ),
           ),

@@ -13,11 +13,12 @@ import '../pricing.dart';
 import '../providers/shop_providers.dart';
 import 'checkout_screen.dart';
 
-const String _brokerNotice = '펫클은 통신판매중개자이며 거래 당사자가 아닙니다. 상품·배송·교환·반품에 대한 책임은 각 판매자에게 있습니다.';
+const String _directSaleNotice =
+    '이 상품의 판매자는 아깽이상점입니다. 상품은 공급업체에서 직접 발송되며, 주문·교환·반품 문의는 아깽이상점 고객센터로 접수해 주세요.';
 
 /// 상품 상세("쇼핑 기초" 지시서 5-2) — 이미지·가격·옵션·수량, 설명/상품정보
-/// 제공고시/배송·반품 안내/판매자 정보를 접이식으로, 하단에 중개자 고지를
-/// 고정 표시한다. 상품 보기는 게스트도 할 수 있고, 장바구니/바로구매부터
+/// 제공고시/배송·반품 안내/판매자 정보를 접이식으로, 하단에 직판 고지(판매자
+/// = 아깽이상점, 공급업체가 직접 발송)를 고정 표시한다. 상품 보기는 게스트도 할 수 있고, 장바구니/바로구매부터
 /// 로그인이 필요하다(CLAUDE.md 게이팅 — 보기는 열어두고 쓰기만 막는다).
 class ProductDetailScreen extends ConsumerWidget {
   final String productId;
@@ -53,11 +54,13 @@ class _ProductDetailBody extends ConsumerStatefulWidget {
 
 class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
   ProductOption? _selectedOption;
-  int _quantity = 1;
+  late int _quantity;
 
   @override
   void initState() {
     super.initState();
+    // 최소 주문 수량부터 시작하고, 그 아래로는 줄일 수 없다.
+    _quantity = widget.product.minQty;
     final options = widget.product.options;
     if (options.isNotEmpty) {
       _selectedOption = options.firstWhere((o) => !o.soldOut, orElse: () => options.first);
@@ -128,6 +131,7 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
                       '${NumberFormat('#,###').format(product.displayPrice)}원',
                       style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                     ),
+                    ..._purchaseNotes(product, sellerAsync.value),
                     if (product.status == ProductStatus.soldout) ...[
                       const SizedBox(height: 8),
                       Container(
@@ -158,7 +162,7 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
                     Row(
                       children: [
                         IconButton(
-                          onPressed: _quantity > 1 ? () => setState(() => _quantity--) : null,
+                          onPressed: _quantity > product.minQty ? () => setState(() => _quantity--) : null,
                           icon: const Icon(Icons.remove_circle_outline),
                         ),
                         Text('$_quantity', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
@@ -196,20 +200,7 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, 16),
-                      child: Column(
-                        children: product.notice.entries
-                            .map((e) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 6),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      SizedBox(width: 96, child: Text(e.key, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5))),
-                                      Expanded(child: Text(e.value, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary))),
-                                    ],
-                                  ),
-                                ))
-                            .toList(),
-                      ),
+                      child: _NoticeTable(notice: product.notice),
                     ),
                   ],
                 ),
@@ -244,7 +235,7 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
               const Divider(height: 1),
               const Padding(
                 padding: EdgeInsets.all(AppSpacing.page),
-                child: Text(_brokerNotice, style: TextStyle(fontSize: 11.5, color: AppColors.textPlaceholder, height: 1.5)),
+                child: Text(_directSaleNotice, style: TextStyle(fontSize: 11.5, color: AppColors.textPlaceholder, height: 1.5)),
               ),
             ],
           ),
@@ -273,6 +264,85 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 가격 아래 회색 정보 — 따로 배송·최소 수량·판매 종료 예정(해당할 때만).
+  /// 압박 문구·빨강/주황은 쓰지 않는다.
+  List<Widget> _purchaseNotes(Product product, Seller? seller) {
+    final notes = <String>[
+      if (product.isBulky)
+        seller != null && seller.shipping.bulkyFee > 0
+            ? '다른 상품과 따로 배송돼요 · 배송비 ${NumberFormat('#,###').format(seller.shipping.bulkyFee)}원'
+            : '다른 상품과 따로 배송돼요',
+      if (product.minQty > 1) '${product.minQty}개부터 주문할 수 있어요',
+    ];
+    return [
+      for (final note in notes) ...[
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            const Icon(Icons.info_outline, size: 14, color: AppColors.textSecondary),
+            const SizedBox(width: 4),
+            Expanded(child: Text(note, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary))),
+          ],
+        ),
+      ],
+      if (product.isDiscontinuing) ...[
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(color: AppColors.neutralBg, borderRadius: BorderRadius.circular(AppRadius.pill)),
+          child: const Text('재고 소진 시 판매 종료', style: TextStyle(fontSize: 12, color: AppColors.neutral)),
+        ),
+      ],
+    ];
+  }
+}
+
+/// 상품정보제공고시 — 키가 길어("법에 의한 인증·허가 사항" 등) 좁은 폭에서
+/// 라벨이 세로로 쪼개지지 않도록, 넓을 때만 라벨·값 2칸, 좁으면 라벨 위·값
+/// 아래 2줄로 놓는다. 값이 "확인 필요"여도 숨기지 않는다.
+class _NoticeTable extends StatelessWidget {
+  final Map<String, String> notice;
+
+  const _NoticeTable({required this.notice});
+
+  static const _labelStyle = TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5);
+  static const _valueStyle = TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 420;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final e in notice.entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: wide
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(width: 150, child: Text(e.key, style: _labelStyle)),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(e.value, style: _valueStyle)),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(e.key, style: _labelStyle),
+                          const SizedBox(height: 2),
+                          Text(e.value, style: _valueStyle),
+                        ],
+                      ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -322,6 +392,8 @@ class _ShippingReturnInfo extends StatelessWidget {
     final rows = <String>[
       '배송비: ${NumberFormat('#,###').format(shipping.baseFee)}원'
           '${shipping.freeOver != null ? ' (${NumberFormat('#,###').format(shipping.freeOver)}원 이상 무료)' : ''}',
+      if (shipping.bulkyFee > 0)
+        '따로 배송 상품(배변판·켄넬 등) 배송비: 상품 1종마다 ${NumberFormat('#,###').format(shipping.bulkyFee)}원 (무료배송과 별도)',
       if (shipping.extraJejuFee > 0) '제주/도서 추가 배송비: ${NumberFormat('#,###').format(shipping.extraJejuFee)}원',
       if (shipping.carrier != null && shipping.carrier!.isNotEmpty) '택배사: ${shipping.carrier}',
       '발송 소요: ${shipping.dispatchDays}일 이내',

@@ -52,6 +52,17 @@ final productsProvider = FutureProvider.autoDispose<ProductPage>((ref) {
   return repo.fetchProducts(category: category);
 });
 
+/// 상품이 1개 이상 있는 카테고리 — 스토어 홈 칩이 빈 결과를 보여주지 않게
+/// 한다. 직판 카탈로그가 작아(수십 개) 상태 필터만 건 한 번의 조회로 센다.
+final availableShopCategoriesProvider = FutureProvider.autoDispose<Set<ProductCategory>>((ref) async {
+  final page = await ref.watch(shopRepositoryProvider).fetchProducts(limit: 500);
+  return {for (final p in page.products) p.category};
+});
+
+/// 칩 순서 — 전체 다음, 카테고리 선언 순서(옷은 간식 다음) 중 상품이 있는 것만.
+List<ProductCategory> visibleShopCategories(Set<ProductCategory> available) =>
+    [for (final c in ProductCategory.values) if (available.contains(c)) c];
+
 final productProvider = FutureProvider.autoDispose.family<Product?, String>((ref, productId) {
   return ref.watch(shopRepositoryProvider).fetchProduct(productId);
 });
