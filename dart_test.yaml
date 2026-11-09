@@ -1,0 +1,7 @@
+# 골든 스크린샷(test/shop/screenshots)은 폰트·플랫폼 차이로 픽셀이 달라져
+# 기본 `flutter test`에서는 건너뛴다(skip). 찍을 때만 --run-skipped로:
+#   flutter test --run-skipped --tags screenshots --update-goldens test/shop/screenshots
+# (exclude_tags로 빼면 --tags로도 다시 켤 수 없어 skip을 쓴다.)
+tags:
+  screenshots:
+    skip: "골든 스크린샷 — 찍을 때만: flutter test --run-skipped --tags screenshots --update-goldens test/shop/screenshots"
