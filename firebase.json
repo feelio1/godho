@@ -2,5 +2,12 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "legal_site/public",
+    "cleanUrls": true,
+    "ignore": [
+      "**/.*"
+    ]
   }
 }
