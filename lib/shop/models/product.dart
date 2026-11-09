@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum ProductCategory {
   food,
   treat,
+  apparel,
   supplement,
   hygiene,
   toy,
@@ -19,6 +20,7 @@ enum ProductCategory {
   String get label => switch (this) {
         ProductCategory.food => '사료',
         ProductCategory.treat => '간식',
+        ProductCategory.apparel => '옷',
         ProductCategory.supplement => '영양제',
         ProductCategory.hygiene => '위생용품',
         ProductCategory.toy => '장난감',
@@ -71,6 +73,22 @@ enum ProductStatus {
       );
 }
 
+/// 배송 구분 — `bulky`(배변판·켄넬 등 부피 큰 상품)는 공급사가 다른 상품과
+/// 따로 발송해 별도 배송비([ShippingPolicy.bulkyFee])가 붙는다. 값이 없거나
+/// 모르는 값이면 `standard`.
+enum ShippingClass {
+  standard,
+  bulky;
+
+  static ShippingClass fromFirestore(String? value) => ShippingClass.values.firstWhere(
+        (e) => e.name == value,
+        orElse: () => ShippingClass.standard,
+      );
+}
+
+/// 상품 태그 — 지금은 재고 소진 후 판매 종료 예정 표시 하나만 쓴다.
+const String kProductTagDiscontinuing = 'discontinuing';
+
 /// 단일 옵션 축(색상/용량 등 — 처음엔 단순하게 하나의 목록으로만 둔다).
 class ProductOption {
   final String id;
@@ -121,6 +139,11 @@ class Product {
   final Map<String, String> notice;
   final ProductStatus status;
   final int sortOrder;
+  final ShippingClass shippingClass;
+
+  /// 최소 주문 수량(1 미만 값은 1로 보정).
+  final int minQty;
+  final List<String> tags;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -141,6 +164,9 @@ class Product {
     this.notice = const {},
     this.status = ProductStatus.draft,
     this.sortOrder = 0,
+    this.shippingClass = ShippingClass.standard,
+    this.minQty = 1,
+    this.tags = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -151,6 +177,11 @@ class Product {
   bool get isOnSale => salePrice != null && salePrice! < price;
 
   bool get isPurchasable => status == ProductStatus.active;
+
+  bool get isBulky => shippingClass == ShippingClass.bulky;
+
+  /// 재고 소진 후 판매 종료 예정 — 상세에서만 회색 칩으로 알린다.
+  bool get isDiscontinuing => tags.contains(kProductTagDiscontinuing);
 
   factory Product.fromFirestore(String id, Map<String, dynamic> data) => Product(
         id: id,
@@ -177,6 +208,9 @@ class Product {
         notice: (data['notice'] as Map<String, dynamic>? ?? const {}).map((k, v) => MapEntry(k, v as String)),
         status: ProductStatus.fromFirestore(data['status'] as String?),
         sortOrder: (data['sortOrder'] as num?)?.toInt() ?? 0,
+        shippingClass: ShippingClass.fromFirestore(data['shippingClass'] as String?),
+        minQty: _atLeastOne((data['minQty'] as num?)?.toInt()),
+        tags: (data['tags'] as List<dynamic>? ?? const []).whereType<String>().toList(),
         createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
@@ -197,7 +231,12 @@ class Product {
         'notice': notice,
         'status': status.name,
         'sortOrder': sortOrder,
+        'shippingClass': shippingClass.name,
+        'minQty': minQty,
+        'tags': tags,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
 }
+
+int _atLeastOne(int? value) => value == null || value < 1 ? 1 : value;

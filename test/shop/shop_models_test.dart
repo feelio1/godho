@@ -32,7 +32,7 @@ void main() {
         address: '서울시 강남구',
         csPhone: '02-1234-5678',
         csEmail: 'cs@example.com',
-        shipping: ShippingPolicy(baseFee: 3000, freeOver: 50000, extraJejuFee: 5000, carrier: 'CJ대한통운', dispatchDays: 2),
+        shipping: ShippingPolicy(baseFee: 3000, freeOver: 50000, extraJejuFee: 5000, bulkyFee: 4000, carrier: 'CJ대한통운', dispatchDays: 2),
         returnPolicy: ReturnPolicy(returnFee: 3000, exchangeFee: 6000, returnAddress: '서울시 강남구', note: '단순 변심 7일'),
         status: SellerStatus.active,
       );
@@ -46,6 +46,7 @@ void main() {
       expect(restored.shipping.baseFee, 3000);
       expect(restored.shipping.freeOver, 50000);
       expect(restored.shipping.extraJejuFee, 5000);
+      expect(restored.shipping.bulkyFee, 4000);
       expect(restored.returnPolicy.returnFee, 3000);
       expect(restored.status, SellerStatus.active);
     });
@@ -59,6 +60,7 @@ void main() {
       expect(restored.status, SellerStatus.paused);
       expect(restored.shipping.baseFee, 0);
       expect(restored.shipping.freeOver, isNull);
+      expect(restored.shipping.bulkyFee, 0);
       expect(restored.returnPolicy.note, '');
     });
   });
@@ -137,6 +139,54 @@ void main() {
 
       expect(restored.category, ProductCategory.etc);
       expect(restored.status, ProductStatus.draft);
+    });
+
+    test('직판형 새 필드(배송 구분·최소 수량·태그)가 없는 문서는 standard/1/[]', () async {
+      final ref = await firestore.collection('products').add({'name': '예전 상품'});
+      final doc = await ref.get();
+      final restored = Product.fromFirestore(doc.id, doc.data()!);
+
+      expect(restored.shippingClass, ShippingClass.standard);
+      expect(restored.isBulky, isFalse);
+      expect(restored.minQty, 1);
+      expect(restored.tags, isEmpty);
+      expect(restored.isDiscontinuing, isFalse);
+    });
+
+    test('옷(apparel)·bulky·최소 수량·판매 종료 예정 태그가 왕복에서 보존된다', () async {
+      final now = DateTime(2026, 11, 1);
+      final product = Product(
+        id: 'ignored',
+        sellerId: 'aggaeng',
+        name: '양털 조끼패딩',
+        category: ProductCategory.apparel,
+        price: 25000,
+        status: ProductStatus.active,
+        shippingClass: ShippingClass.bulky,
+        minQty: 10,
+        tags: const [kProductTagDiscontinuing],
+        createdAt: now,
+        updatedAt: now,
+      );
+      final ref = await firestore.collection('products').add(product.toFirestore());
+      final doc = await ref.get();
+      final restored = Product.fromFirestore(doc.id, doc.data()!);
+
+      expect(restored.category, ProductCategory.apparel);
+      expect(restored.category.label, '옷');
+      expect(restored.shippingClass, ShippingClass.bulky);
+      expect(restored.minQty, 10);
+      expect(restored.isDiscontinuing, isTrue);
+    });
+
+    test('minQty 0·음수는 1로, 모르는 배송 구분은 standard로 보정한다', () {
+      final now = DateTime(2026, 1, 1);
+      for (final minQty in [0, -3]) {
+        final p = Product.fromFirestore('x', {'minQty': minQty, 'shippingClass': 'freight', 'createdAt': null});
+        expect(p.minQty, 1);
+        expect(p.shippingClass, ShippingClass.standard);
+      }
+      expect(Product(id: 'y', sellerId: 's', name: 'n', price: 1, createdAt: now, updatedAt: now).minQty, 1);
     });
   });
 

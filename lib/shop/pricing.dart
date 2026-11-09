@@ -12,26 +12,39 @@ class CartLine {
 
   /// 품절(상품 자체 soldout 상태 또는 고른 옵션이 soldOut)이면 결제 대상이
   /// 아니다("쇼핑 기초" 지시서 4 — "품절 제외").
-  bool get isPurchasable => product.isPurchasable && (option == null || !option!.soldOut);
+  /// 최소 주문 수량([Product.minQty])에 못 미쳐도 결제 대상이 아니다.
+  bool get isPurchasable =>
+      product.isPurchasable && (option == null || !option!.soldOut) && quantity >= product.minQty;
 
   int get unitPrice => product.displayPrice + (option?.extraPrice ?? 0);
 
   int get lineTotal => unitPrice * quantity;
 }
 
-/// 판매자(브랜드) 한 곳 묶음의 소계·배송비·합계.
+/// 판매자 한 곳 묶음의 소계·배송비·합계.
 class SellerCartGroup {
   final String sellerId;
   final List<CartLine> lines;
   final int subtotal;
   final int shippingFee;
 
+  /// [shippingFee] 중 따로 배송(bulky) 상품 몫 — 주문서 내역 표시용.
+  final int bulkyFee;
+
+  /// 따로 배송(bulky) 상품 종류 수.
+  final int bulkyKinds;
+
   const SellerCartGroup({
     required this.sellerId,
     required this.lines,
     required this.subtotal,
     required this.shippingFee,
+    this.bulkyFee = 0,
+    this.bulkyKinds = 0,
   });
+
+  /// [shippingFee] 중 일반 배송 몫(제주 추가 배송비 포함).
+  int get standardFee => shippingFee - bulkyFee;
 
   int get total => subtotal + shippingFee;
 }
@@ -53,16 +66,35 @@ class CartSummary {
   static const empty = CartSummary(sellerGroups: [], itemsTotal: 0, shippingTotal: 0, grandTotal: 0);
 }
 
-/// 판매자 한 곳의 배송비 — 소계가 무료배송 기준([ShippingPolicy.freeOver])
-/// 이상이면 기본 배송비는 면제되지만, 제주 추가 배송비([extraJejuFee])는
-/// 무료배송 여부와 무관하게 그대로 더해진다(제주는 도선료 성격이라
-/// 별도라고 보는 통상적인 정책).
-int sellerShippingFee(ShippingPolicy shipping, int subtotal, {bool isJeju = false}) {
-  final freeOver = shipping.freeOver;
-  final isFree = freeOver != null && subtotal >= freeOver;
-  var fee = isFree ? 0 : shipping.baseFee;
-  if (isJeju) fee += shipping.extraJejuFee;
-  return fee;
+/// 판매자 한 곳의 배송비 계산 결과.
+class SellerShipping {
+  final int total;
+  final int bulkyFee;
+  final int bulkyKinds;
+
+  const SellerShipping({required this.total, this.bulkyFee = 0, this.bulkyKinds = 0});
+}
+
+/// 판매자 한 곳의 배송비(직판형 — 판매자 = 아깽이상점, 공급사 위탁배송):
+/// - 일반(standard) 줄이 있으면: 일반 줄 소계만으로 무료배송 기준
+///   ([ShippingPolicy.freeOver])을 판정해, 넘으면 0, 아니면 기본 배송비.
+/// - 따로 배송(bulky) 상품: 서로 다른 상품 1종마다 [ShippingPolicy.bulkyFee]
+///   (같은 상품 여러 개는 1회), 무료배송 기준과 무관하게 항상 부과.
+/// - 제주면 그룹당 [ShippingPolicy.extraJejuFee]를 1회만 더한다 — 실제로는
+///   따로 가는 상자마다 붙을 수 있지만, 지금은 단순화해 한 번만 받는다.
+SellerShipping sellerShipping(ShippingPolicy shipping, List<CartLine> lines, {bool isJeju = false}) {
+  final standardLines = lines.where((l) => !l.product.isBulky).toList();
+  var standardFee = 0;
+  if (standardLines.isNotEmpty) {
+    final standardSubtotal = standardLines.fold<int>(0, (sum, l) => sum + l.lineTotal);
+    final freeOver = shipping.freeOver;
+    final isFree = freeOver != null && standardSubtotal >= freeOver;
+    standardFee = isFree ? 0 : shipping.baseFee;
+  }
+  final bulkyKinds = lines.where((l) => l.product.isBulky).map((l) => l.product.id).toSet().length;
+  final bulkyFee = bulkyKinds * shipping.bulkyFee;
+  final jejuFee = isJeju ? shipping.extraJejuFee : 0;
+  return SellerShipping(total: standardFee + bulkyFee + jejuFee, bulkyFee: bulkyFee, bulkyKinds: bulkyKinds);
 }
 
 /// 장바구니(또는 "바로 구매" 한 줄)를 판매자별로 묶어 소계·배송비·총액을
@@ -92,9 +124,17 @@ CartSummary summarizeCart(
     final sellerLines = entry.value;
     final subtotal = sellerLines.fold<int>(0, (sum, l) => sum + l.lineTotal);
     final seller = sellersById[sellerId];
-    final fee = seller != null ? sellerShippingFee(seller.shipping, subtotal, isJeju: isJeju) : 0;
+    final shipping = seller != null ? sellerShipping(seller.shipping, sellerLines, isJeju: isJeju) : null;
+    final fee = shipping?.total ?? 0;
 
-    groups.add(SellerCartGroup(sellerId: sellerId, lines: sellerLines, subtotal: subtotal, shippingFee: fee));
+    groups.add(SellerCartGroup(
+      sellerId: sellerId,
+      lines: sellerLines,
+      subtotal: subtotal,
+      shippingFee: fee,
+      bulkyFee: shipping?.bulkyFee ?? 0,
+      bulkyKinds: shipping?.bulkyKinds ?? 0,
+    ));
     itemsTotal += subtotal;
     shippingTotal += fee;
   }

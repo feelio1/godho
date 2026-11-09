@@ -10,6 +10,8 @@ Product _product({
   int price = 10000,
   int? salePrice,
   ProductStatus status = ProductStatus.active,
+  ShippingClass shippingClass = ShippingClass.standard,
+  int minQty = 1,
 }) {
   final now = DateTime(2026, 1, 1);
   return Product(
@@ -19,15 +21,17 @@ Product _product({
     price: price,
     salePrice: salePrice,
     status: status,
+    shippingClass: shippingClass,
+    minQty: minQty,
     createdAt: now,
     updatedAt: now,
   );
 }
 
-Seller _seller(String id, {int baseFee = 3000, int? freeOver, int extraJejuFee = 0}) => Seller(
+Seller _seller(String id, {int baseFee = 3000, int? freeOver, int extraJejuFee = 0, int bulkyFee = 0}) => Seller(
       id: id,
       name: '판매자 $id',
-      shipping: ShippingPolicy(baseFee: baseFee, freeOver: freeOver, extraJejuFee: extraJejuFee),
+      shipping: ShippingPolicy(baseFee: baseFee, freeOver: freeOver, extraJejuFee: extraJejuFee, bulkyFee: bulkyFee),
       status: SellerStatus.active,
     );
 
@@ -137,6 +141,85 @@ void main() {
       final summary = summarizeCart(const [], sellersById: const {});
       expect(summary.sellerGroups, isEmpty);
       expect(summary.grandTotal, 0);
+    });
+  });
+
+  group('직판형 배송비 — 아깽이상점(기본 3,000 · 30,000 이상 무료 · 따로 배송 4,000 · 제주 +3,000)', () {
+    final aggaeng = _seller('aggaeng', baseFee: 3000, freeOver: 30000, extraJejuFee: 3000, bulkyFee: 4000);
+    Product standard(String id, int price) => _product(id: id, sellerId: 'aggaeng', price: price);
+    Product bulky(String id, {int price = 20000}) =>
+        _product(id: id, sellerId: 'aggaeng', price: price, shippingClass: ShippingClass.bulky);
+    SellerCartGroup group(List<CartLine> lines, {bool isJeju = false}) =>
+        summarizeCart(lines, sellersById: {'aggaeng': aggaeng}, isJeju: isJeju).sellerGroups.single;
+
+    test('일반 상품만 29,000원 → 3,000 / 30,000원 → 무료', () {
+      expect(group([CartLine(product: standard('a', 29000), quantity: 1)]).shippingFee, 3000);
+      expect(group([CartLine(product: standard('a', 30000), quantity: 1)]).shippingFee, 0);
+    });
+
+    test('일반 30,000 + 따로 배송 1종 → 4,000(일반은 무료, 따로 배송은 부과)', () {
+      final g = group([
+        CartLine(product: standard('a', 30000), quantity: 1),
+        CartLine(product: bulky('kennel'), quantity: 1),
+      ]);
+      expect(g.shippingFee, 4000);
+      expect(g.bulkyFee, 4000);
+      expect(g.bulkyKinds, 1);
+      expect(g.standardFee, 0);
+    });
+
+    test('무료배송 기준은 일반 상품 소계만으로 판정한다(따로 배송 상품 금액은 넣지 않음)', () {
+      final g = group([
+        CartLine(product: standard('a', 10000), quantity: 1),
+        CartLine(product: bulky('kennel', price: 50000), quantity: 1),
+      ]);
+      expect(g.shippingFee, 3000 + 4000);
+      expect(g.standardFee, 3000);
+    });
+
+    test('따로 배송 상품만: 같은 상품 2개는 1회(4,000), 서로 다른 2종은 8,000', () {
+      final same = group([CartLine(product: bulky('kennel'), quantity: 2)]);
+      expect(same.shippingFee, 4000);
+      expect(same.standardFee, 0);
+      final two = group([
+        CartLine(product: bulky('kennel'), quantity: 1),
+        CartLine(product: bulky('pad'), quantity: 1),
+      ]);
+      expect(two.shippingFee, 8000);
+      expect(two.bulkyKinds, 2);
+    });
+
+    test('제주면 위 경우마다 그룹당 3,000을 한 번만 더한다', () {
+      expect(group([CartLine(product: standard('a', 29000), quantity: 1)], isJeju: true).shippingFee, 6000);
+      expect(group([CartLine(product: standard('a', 30000), quantity: 1)], isJeju: true).shippingFee, 3000);
+      expect(
+        group([
+          CartLine(product: standard('a', 30000), quantity: 1),
+          CartLine(product: bulky('kennel'), quantity: 1),
+        ], isJeju: true)
+            .shippingFee,
+        7000,
+      );
+      expect(
+        group([
+          CartLine(product: bulky('kennel'), quantity: 1),
+          CartLine(product: bulky('pad'), quantity: 1),
+        ], isJeju: true)
+            .shippingFee,
+        11000,
+      );
+    });
+
+    test('최소 수량 10 상품: 9개는 결제 대상에서 빠지고 10개는 들어간다', () {
+      final bags = _product(id: 'bags', sellerId: 'aggaeng', price: 500, minQty: 10);
+      final nine = CartLine(product: bags, quantity: 9);
+      final ten = CartLine(product: bags, quantity: 10);
+      expect(nine.isPurchasable, isFalse);
+      expect(ten.isPurchasable, isTrue);
+      expect(summarizeCart([nine], sellersById: {'aggaeng': aggaeng}).sellerGroups, isEmpty);
+      final g = group([ten]);
+      expect(g.subtotal, 5000);
+      expect(g.shippingFee, 3000);
     });
   });
 }

@@ -18,6 +18,9 @@ class ShippingPolicy {
   final int baseFee;
   final int? freeOver;
   final int extraJejuFee;
+
+  /// 부피 큰(`bulky`) 상품 1종마다 붙는 별도 배송비 — 무료배송 기준과 무관.
+  final int bulkyFee;
   final String? carrier;
   final int dispatchDays;
 
@@ -25,6 +28,7 @@ class ShippingPolicy {
     this.baseFee = 0,
     this.freeOver,
     this.extraJejuFee = 0,
+    this.bulkyFee = 0,
     this.carrier,
     this.dispatchDays = 2,
   });
@@ -35,6 +39,7 @@ class ShippingPolicy {
       baseFee: (data['baseFee'] as num?)?.toInt() ?? 0,
       freeOver: (data['freeOver'] as num?)?.toInt(),
       extraJejuFee: (data['extraJejuFee'] as num?)?.toInt() ?? 0,
+      bulkyFee: (data['bulkyFee'] as num?)?.toInt() ?? 0,
       carrier: data['carrier'] as String?,
       dispatchDays: (data['dispatchDays'] as num?)?.toInt() ?? 2,
     );
@@ -44,6 +49,7 @@ class ShippingPolicy {
         'baseFee': baseFee,
         'freeOver': freeOver,
         'extraJejuFee': extraJejuFee,
+        'bulkyFee': bulkyFee,
         'carrier': carrier,
         'dispatchDays': dispatchDays,
       };

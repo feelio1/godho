@@ -14,6 +14,8 @@ rules_version = '2';
 // 나중에 관리자 전용 도구). orders는 본인 것만 읽고, 생성은 본인 uid +
 // status: pendingPayment로만 가능하며, 생성 뒤 상태 변경·삭제는 전부
 // 막는다(결제 승인·배송 처리 등은 서버/관리자 몫 — 지시서 0).
+// 직판형 전환: 판매자 = 아깽이상점(sellers/aggaeng), supplier_items(공급사
+// 원가·링크)는 관리자(Admin SDK) 전용 — 클라이언트 읽기·쓰기 모두 거부.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
@@ -54,6 +56,10 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if resource.data.status in ['active', 'soldout'];
       allow write: if false;
+    }
+
+    match /supplier_items/{id} {
+      allow read, write: if false;   // 공급사 원가 — 관리자(Admin SDK) 전용
     }
 
     match /orders/{orderId} {
