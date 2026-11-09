@@ -21,7 +21,7 @@
          받아 flutter_local_notifications가 저장해 둔 예약을 다시 건다. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
-        android:label="Petcli"
+        android:label="펫클"
         android:name=".MainApplication"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -118,7 +118,7 @@ class ExternalLinks {
     await SharePlus.instance.share(
       ShareParams(
         text: '${hospital.name}\n${hospital.roadAddr}\n'
-            'Petcli에서 공개된 인허가 정보를 확인해보세요.',
+            '펫클에서 공개된 인허가 정보를 확인해보세요.',
       ),
     );
   }

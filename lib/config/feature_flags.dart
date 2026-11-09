@@ -22,3 +22,7 @@ const bool kEnableShopCode = true;
 /// 늘 숨겨진다. 실제로 열고 닫는 건 콘솔의 `config/book.enabled`로 한다
 /// (`diaryBookEnabledProvider`, fail-closed).
 const bool kEnableDiaryBookCode = true;
+
+/// 홈의 펫보험 카드([AffiliateFeeCard]) — v1에서는 숨긴다(실제 파트너·링크가
+/// 아직 없다). 코드는 남겨 두고, 켤 때 이 값만 true로 바꾼다.
+const bool kEnableInsuranceCard = false;

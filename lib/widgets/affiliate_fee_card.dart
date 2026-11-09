@@ -5,10 +5,11 @@ import '../theme/app_dimens.dart';
 
 /// 펫보험 제휴(CPA) 카드("출시 전 마무리" 지시서 A-1) — 아직 실제 제휴
 /// 파트너·링크가 없어 탭하면 "준비 중" 안내만 한다(다른 준비 중 기능과
-/// 같은 관례 — 없는 걸 있는 것처럼 보이지 않게). "제휴 링크" 라벨과
-/// 수수료 고지를 항상 함께 두어, 이 카드가 시세 데이터와는 무관한
+/// 같은 관례 — 없는 걸 있는 것처럼 보이지 않게). "광고" 라벨과 "보험 등
+/// 금융상품 광고" 고지를 항상 함께 두어, 이 카드가 시세 데이터와는 무관한
 /// 별도 수익 구조임을 분명히 한다(CLAUDE.md: 병원에게 과금하지 않되,
-/// 이용자 대상 제휴는 투명하게 고지).
+/// 이용자 대상 광고는 투명하게 고지). v1에서는 `kEnableInsuranceCard`로
+/// 홈에서 숨긴다.
 class AffiliateFeeCard extends StatelessWidget {
   const AffiliateFeeCard({super.key});
 
@@ -40,7 +41,7 @@ class AffiliateFeeCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: const Text(
-                '제휴 링크',
+                '광고',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
               ),
             ),
@@ -55,7 +56,7 @@ class AffiliateFeeCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '이 링크로 가입하면 펫클이 수수료를 받을 수 있어요. 시세 데이터에는 영향이 없어요.',
+                    '보험 등 금융상품 광고예요. 시세 데이터에는 영향이 없어요.',
                     style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary, height: 1.4),
                   ),
                 ],

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../ads/global_banner_ad.dart';
+import '../config/feature_flags.dart';
 import '../diary/screens/on_this_day_diary_card.dart';
 import '../diary/screens/today_diary_row.dart';
 import '../models/region_filter.dart';
@@ -171,8 +172,11 @@ class _HomeBody extends ConsumerWidget {
         // 제휴 카드는 병원 데이터 카드(FeeSummaryCard)와 붙지 않게 쇼핑 추천
         // 뒤에 둔다 — 쇼핑이 꺼져 위 섹션이 비어도 위아래 간격이 두 번
         // 겹쳐 병원 영역과 충분히 떨어진다(CLAUDE.md 광고 배치 원칙).
-        const SizedBox(height: AppSpacing.section),
-        const AffiliateFeeCard(),
+        // v1에서는 펫보험 카드를 숨긴다(kEnableInsuranceCard) — 코드는 그대로.
+        if (kEnableInsuranceCard) ...[
+          const SizedBox(height: AppSpacing.section),
+          const AffiliateFeeCard(),
+        ],
         const SizedBox(height: AppSpacing.section),
         const GlobalBannerAd(inline: true),
       ],
