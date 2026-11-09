@@ -1,4 +1,4 @@
-/// 입점 브랜드(판매자) 상태 — `paused`면 그 브랜드의 상품은 더 이상
+/// 판매자 상태 — `paused`면 그 판매자의 상품은 더 이상
 /// 새로 노출하지 않는다("쇼핑 기초" 지시서 2 — 판매자는 `active`일 때만
 /// 읽기 허용, `firestore.rules` 참고).
 enum SellerStatus {
@@ -12,7 +12,7 @@ enum SellerStatus {
 }
 
 /// 배송 정책 — `freeOver`는 그 금액(원) 이상 주문 시 무료배송 기준이다.
-/// 브랜드가 무료배송 기준을 두지 않으면(필드 누락) `null` — "배송비 항상
+/// 판매자가 무료배송 기준을 두지 않으면(필드 누락) `null` — "배송비 항상
 /// 부과"를 뜻한다. `baseFee`/`extraJejuFee`는 원 단위.
 class ShippingPolicy {
   final int baseFee;
@@ -55,7 +55,7 @@ class ShippingPolicy {
       };
 }
 
-/// 반품/교환 정책 — 배송비와 별개로 편도 회수비를 브랜드가 각각 정한다.
+/// 반품/교환 정책 — 배송비와 별개로 편도 회수비를 판매자가 정한다.
 class ReturnPolicy {
   final int returnFee;
   final int exchangeFee;
@@ -87,9 +87,10 @@ class ReturnPolicy {
       };
 }
 
-/// `sellers/{sellerId}` 문서 — 입점 브랜드("쇼핑 기초" 지시서 0: 펫클은
-/// 통신판매중개자, 판매자가 거래 당사자). 정산·계좌 정보는 여기 두지
-/// 않는다(나중에 관리자 전용 비공개 컬렉션에 — 지시서 2).
+/// `sellers/{sellerId}` 문서 — 판매자 정보. 직판형 전환 뒤 판매자는
+/// 아깽이상점 한 곳(`sellers/aggaeng`)이 거래 당사자이고, 상품은 공급사가
+/// 위탁배송한다. 정산·계좌·공급사 원가 정보는 여기 두지 않는다(공급사 원가는
+/// 관리자 전용 `supplier_items` — 앱은 읽지 않는다).
 class Seller {
   final String id;
   final String name;

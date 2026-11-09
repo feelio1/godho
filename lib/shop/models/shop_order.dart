@@ -137,8 +137,8 @@ class PaymentInfo {
       };
 }
 
-/// 브랜드별 송장 — 한 주문에 여러 브랜드가 섞일 수 있어 `sellerId`별로
-/// 따로 둔다.
+/// 판매자별 송장 — `sellerId`별로 따로 둔다(직판형에선 판매자가 한
+/// 곳이지만, 따로 배송 상품은 공급사가 별도 발송한다).
 class ShipmentInfo {
   final String? carrier;
   final String? trackingNo;

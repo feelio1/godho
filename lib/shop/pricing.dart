@@ -49,7 +49,7 @@ class SellerCartGroup {
   int get total => subtotal + shippingFee;
 }
 
-/// 장바구니 전체 합계 — 브랜드별 묶음 + 상품 합계·배송비 합계·총액.
+/// 장바구니 전체 합계 — 판매자별 묶음 + 상품 합계·배송비 합계·총액.
 class CartSummary {
   final List<SellerCartGroup> sellerGroups;
   final int itemsTotal;
