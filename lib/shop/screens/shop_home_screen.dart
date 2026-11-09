@@ -86,17 +86,29 @@ class ShopHomeScreen extends ConsumerWidget {
                         child: Text('아직 등록된 상품이 없어요', style: TextStyle(color: AppColors.textSecondary)),
                       ),
                     )
-                  : GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: page.products.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                        childAspectRatio: 0.72,
-                      ),
-                      itemBuilder: (context, index) => _ProductCard(product: page.products[index]),
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        // 카드 높이 = 카드 폭(정사각 이미지) + 글자 영역 — 비율로
+                        // 정하면 좁은 폭에서 글자 영역이 모자라 넘친다.
+                        const spacing = 14.0;
+                        final cardWidth = (constraints.maxWidth - spacing) / 2;
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: page.products.length,
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: spacing,
+                            crossAxisSpacing: spacing,
+                            mainAxisExtent: cardWidth +
+                                _ProductCard.textAreaHeight(
+                                  context,
+                                  withStrikePrice: page.products.any((p) => p.isOnSale),
+                                ),
+                          ),
+                          itemBuilder: (context, index) => _ProductCard(product: page.products[index]),
+                        );
+                      },
                     ),
             ),
           ),
@@ -153,7 +165,7 @@ class _RecommendedSection extends StatelessWidget {
           child: Text('우리 아이에게 맞는', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
         ),
         SizedBox(
-          height: 210,
+          height: 150 + _ProductCard.textAreaHeight(context, withStrikePrice: products.any((p) => p.isOnSale)),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
@@ -171,6 +183,41 @@ class _ProductCard extends StatelessWidget {
   final Product product;
 
   const _ProductCard({required this.product});
+
+  static const _textPadding = 10.0;
+  static const _nameGap = 6.0;
+  static const _strikeGap = 2.0;
+  static const _nameStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary);
+  static const _priceStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary);
+  static const _strikeStyle =
+      TextStyle(fontSize: 11.5, color: AppColors.textPlaceholder, decoration: TextDecoration.lineThrough);
+
+  /// 이미지 아래 글자 영역 높이 — 상품명 2줄 + 가격 1줄(+ 할인 전 가격 줄) +
+  /// 여백을 실제 글꼴·글자 크기 설정으로 재서 정한다(카드 높이를 이 값으로
+  /// 고정하므로 어떤 폭·글꼴에서도 넘치지 않는다).
+  static double textAreaHeight(BuildContext context, {bool withStrikePrice = false}) {
+    final base = DefaultTextStyle.of(context).style;
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    double lines(TextStyle style, int count) {
+      final painter = TextPainter(
+        text: TextSpan(text: List.filled(count, '가g').join('\n'), style: base.merge(style)),
+        textDirection: direction,
+        textScaler: scaler,
+      )..layout();
+      final height = painter.height;
+      painter.dispose();
+      return height;
+    }
+
+    return _textPadding * 2 +
+        lines(_nameStyle, 2) +
+        _nameGap +
+        (withStrikePrice ? lines(_strikeStyle, 1) + _strikeGap : 0) +
+        lines(_priceStyle, 1) +
+        // 테두리(위·아래 1px)와 반올림 여유.
+        4;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +257,7 @@ class _ProductCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(_textPadding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -218,19 +265,19 @@ class _ProductCard extends StatelessWidget {
                     product.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                    style: _nameStyle,
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: _nameGap),
                   if (product.isOnSale) ...[
                     Text(
                       '${NumberFormat('#,###').format(product.price)}원',
-                      style: const TextStyle(fontSize: 11.5, color: AppColors.textPlaceholder, decoration: TextDecoration.lineThrough),
+                      style: _strikeStyle,
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: _strikeGap),
                   ],
                   Text(
                     '${NumberFormat('#,###').format(product.displayPrice)}원',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                    style: _priceStyle,
                   ),
                 ],
               ),

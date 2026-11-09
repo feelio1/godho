@@ -125,8 +125,15 @@ class AppTheme {
         side: BorderSide.none,
         backgroundColor: AppColors.closedBg,
         selectedColor: AppColors.primarySoft,
-        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textLabel),
+        // 칩 라벨도 앱 기본 글꼴로(지정하지 않으면 기기 시스템 글꼴로 대체된다).
+        labelStyle: const TextStyle(
+          fontFamily: 'IBM Plex Sans KR',
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textLabel,
+        ),
         secondaryLabelStyle: const TextStyle(
+          fontFamily: 'IBM Plex Sans KR',
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: AppColors.primaryTextTone,

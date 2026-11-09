@@ -81,7 +81,9 @@ final cartProvider = StreamProvider.autoDispose<List<CartItem>>((ref) {
 
 final cartItemCountProvider = Provider.autoDispose<int>((ref) {
   final items = ref.watch(cartProvider).value ?? const [];
-  return items.fold<int>(0, (total, item) => total + item.quantity);
+  // 수량 합계가 아니라 장바구니 줄 수(상품·옵션 조합 수) — 배변봉투 10개가
+  // 배지를 10으로 부풀리지 않게.
+  return items.length;
 });
 
 /// "우리 아이에게 맞는" 추천 — 로그인 + 반려동물이 있을 때만. 종·체중·

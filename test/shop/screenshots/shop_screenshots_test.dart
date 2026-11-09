@@ -82,19 +82,6 @@ Future<void> _loadFonts() async {
   await icons.load();
 }
 
-/// 앱 테마 그대로 — 단, 칩 라벨(`chipTheme.labelStyle`)은 글꼴이 지정돼 있지
-/// 않아 기기에선 시스템 한글 글꼴로 대체돼 그려지는데, 테스트에는 대체 글꼴이
-/// 없어 네모가 된다. 스크린샷에서만 그 자리를 IBM Plex로 채운다(기기의 칩
-/// 글자 모양과는 조금 다를 수 있다). 앱 코드는 바꾸지 않는다.
-ThemeData _screenshotTheme() {
-  final theme = AppTheme.light();
-  return theme.copyWith(
-    chipTheme: theme.chipTheme.copyWith(
-      labelStyle: (theme.chipTheme.labelStyle ?? const TextStyle()).copyWith(fontFamily: 'IBM Plex Sans KR'),
-    ),
-  );
-}
-
 void main() {
   late FakeFirebaseFirestore firestore;
   late Map<String, Product> products;
@@ -168,7 +155,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(
       overrides: overrides(),
-      child: MaterialApp(debugShowCheckedModeBanner: false, theme: _screenshotTheme(), home: home),
+      child: MaterialApp(debugShowCheckedModeBanner: false, theme: AppTheme.light(), home: home),
     ));
     await tester.pumpAndSettle();
   }
