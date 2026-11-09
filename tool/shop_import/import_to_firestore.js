@@ -13,7 +13,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 
 const [, , keyPath, flag] = process.argv;
 if (!keyPath) {
@@ -22,12 +23,12 @@ if (!keyPath) {
 }
 const WRITE = flag === '--write';
 
-admin.initializeApp({ credential: admin.credential.cert(require(path.resolve(keyPath))) });
-const db = admin.firestore();
+initializeApp({ credential: cert(require(path.resolve(keyPath))) });
+const db = getFirestore();
 const load = (f) => JSON.parse(fs.readFileSync(path.join(__dirname, 'out', f), 'utf8'));
 
 async function put(collection, docs) {
-  const now = admin.firestore.FieldValue.serverTimestamp();
+  const now = FieldValue.serverTimestamp();
   let batch = db.batch();
   let n = 0;
   for (const { id, ...data } of docs) {
