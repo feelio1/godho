@@ -27,13 +27,13 @@ void main() {
   }
 
   group('config/shop 문서가 없거나 꺼져 있으면(닫힘) 기존 준비 중 화면 그대로다', () {
-    testWidgets('문서가 없을 때: 제목·본문·입점 문의 버튼이 보이고, 미끼 요소(가격·사전예약 등)는 없다', (tester) async {
+    testWidgets('문서가 없을 때: 제목·본문·상품 공급·제휴 문의 버튼이 보이고, 미끼 요소(가격·사전예약 등)는 없다', (tester) async {
       await pumpWith(tester, FakeFirebaseFirestore());
 
       expect(find.text('쇼핑'), findsOneWidget);
       expect(find.text('펫클 쇼핑, 곧 열려요'), findsOneWidget);
       expect(find.text('펫클이 직접 고른 반려용품과 간식을 준비하고 있어요.'), findsOneWidget);
-      expect(find.text('브랜드 입점 문의'), findsOneWidget);
+      expect(find.text('상품 공급·제휴 문의'), findsOneWidget);
       expect(find.byType(ShopHomeScreen), findsNothing);
 
       expect(find.textContaining('사전 예약'), findsNothing);

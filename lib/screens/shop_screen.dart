@@ -70,12 +70,12 @@ class _ShopComingSoon extends StatelessWidget {
                   onTap: () => ExternalLinks.emailContact(
                     context,
                     _shopInquiryEmail,
-                    subject: '[펫클 쇼핑] 입점 문의',
+                    subject: '[펫클 쇼핑] 상품 공급·제휴 문의',
                   ),
                   child: const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     child: Text(
-                      '브랜드 입점 문의',
+                      '상품 공급·제휴 문의',
                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primary),
                     ),
                   ),
