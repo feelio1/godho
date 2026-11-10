@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -378,15 +379,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   label: const Text('1분 뒤 테스트 알림 보내기'),
                 ),
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _sendImmediateTestNotification(context),
-                  icon: const Icon(Icons.bolt_outlined),
-                  label: const Text('즉시 테스트 알림 보내기'),
+              // 개발 확인용 — 릴리스 빌드에서는 숨긴다.
+              if (kDebugMode) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _sendImmediateTestNotification(context),
+                    icon: const Icon(Icons.bolt_outlined),
+                    label: const Text('즉시 테스트 알림 보내기'),
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 12),
               const Divider(height: 1),
               SwitchListTile(

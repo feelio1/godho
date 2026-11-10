@@ -12,11 +12,9 @@ import '../config/kakao_map_config.dart';
 import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../models/hospital_status.dart';
-import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
-import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/map_clustering.dart';
@@ -32,8 +30,7 @@ import 'search_result_screen.dart';
 /// 이미지로 자동 교체된다(`_assetExists`가 성공하기 시작하므로).
 const String _markerAssetPath = 'assets/mascot/marker.png';
 
-/// 서울시청 — 위치 권한도, 선택 지역에 좌표 있는 병원도 없을 때의 최종 기본
-/// 지도 중심.
+/// 서울시청 — 위치를 모를 때(권한이 없거나 아직 확인 전)의 기본 지도 중심.
 const LatLng _defaultCenter = LatLng(37.5665, 126.9780);
 
 /// 지도 위 마커 성능을 위한 상한. 필터·검색 결과 자체를 줄이는 것이 아니라
@@ -88,6 +85,12 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   /// 마커가 계속 깜빡여 산만하므로, 지시서가 말한 "'이 지역 병원 검색'
   /// 버튼 = 현재 위치로 재조회" 패턴을 그대로 따른다.
   bool _showResearchButton = false;
+
+  /// 첫 위치 맞춤 — 지도를 띄운 뒤에 위치가 확인되면(이미 권한이 있던 경우
+  /// 조용한 확인이 조금 늦게 끝남) 한 번만 그 위치로 옮긴다. 그 전에 사용자가
+  /// 지도를 직접 움직였으면 옮기지 않는다.
+  bool _centeredOnLocation = false;
+  bool _userMovedCamera = false;
 
   @override
   void initState() {
@@ -566,15 +569,13 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     );
   }
 
-  static LatLng _centroidOrDefault(List<Hospital> hospitalsWithCoords) {
-    if (hospitalsWithCoords.isEmpty) return _defaultCenter;
-    var latSum = 0.0;
-    var lngSum = 0.0;
-    for (final h in hospitalsWithCoords) {
-      latSum += h.lat!;
-      lngSum += h.lng!;
-    }
-    return LatLng(latSum / hospitalsWithCoords.length, lngSum / hospitalsWithCoords.length);
+  Future<void> _centerOnLocationOnce(LatLng target) async {
+    final controller = _controller;
+    if (controller == null || _centeredOnLocation || _userMovedCamera) return;
+    _centeredOnLocation = true;
+    _currentZoom = 15;
+    await controller.moveCamera(CameraUpdate.newCenterPosition(target, zoomLevel: 15));
+    _recomputeCandidates(target);
   }
 
   @override
@@ -587,25 +588,20 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     ref.listen<AsyncValue<Position?>>(locationProvider, (previous, next) {
       final position = next.value;
       if (position != null) {
-        _updateMyLocationMarker(LatLng(position.latitude, position.longitude));
+        final target = LatLng(position.latitude, position.longitude);
+        _updateMyLocationMarker(target);
+        _centerOnLocationOnce(target);
       }
     });
 
-    final repo = ref.watch(repositoryProvider);
     final location = ref.watch(locationProvider).value;
-    final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
 
-    // 지도가 뜨기 전 카메라 시작 위치를 정할 때만 선택된 지역을 참고한다
-    // (위치 정보가 없을 때의 대략적인 중심) — 마커 조회 자체는 더 이상
-    // 지역으로 좁히지 않는다. 좌표 없는 병원(약 347곳)은 지도에서만
-    // 제외되고 검색·상세는 정상 제공된다(위치 기반 지도 표시 지시서 2-1:
-    // "선택된 구로 필터하지 말 것" — 검색결과·저장 화면의 구 스코프는
-    // 그대로 둔다).
-    final initialTarget = location != null
-        ? LatLng(location.latitude, location.longitude)
-        : _centroidOrDefault(
-            repo.filterByRegion(repo.all, region).where((h) => h.hasCoordinates).toList(),
-          );
+    // 카메라 시작 위치: 이미 확인된 위치가 있으면 현재 위치, 없으면 서울시청.
+    // 마커 조회는 선택된 지역으로 좁히지 않는다 — 좌표 없는 병원(약 347곳)은
+    // 지도에서만 제외되고 검색·상세는 정상 제공된다(위치 기반 지도 표시
+    // 지시서 2-1: "선택된 구로 필터하지 말 것" — 검색결과·저장 화면의 구
+    // 스코프는 그대로 둔다). 위치 권한 요청 시점은 기존 그대로(initState).
+    final initialTarget = location != null ? LatLng(location.latitude, location.longitude) : _defaultCenter;
     final initialZoom = location != null ? 15 : 12;
 
     return Scaffold(
@@ -620,7 +616,16 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
               _hospitalStyle = await _buildHospitalStyle();
               _recomputeCandidates(initialTarget);
               if (location != null) {
+                _centeredOnLocation = true;
                 await _updateMyLocationMarker(LatLng(location.latitude, location.longitude));
+              } else {
+                // 지도가 뜨는 사이 위치가 확인됐으면 그쪽으로 한 번 옮긴다.
+                final latest = ref.read(locationProvider).value;
+                if (latest != null) {
+                  final target = LatLng(latest.latitude, latest.longitude);
+                  await _updateMyLocationMarker(target);
+                  await _centerOnLocationOnce(target);
+                }
               }
             },
             onCameraMoveEnd: (position, gestureType) {
@@ -633,6 +638,7 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
               // 병원 검색"을 보여준다(지시서: 조용히 자동 재조회하면
               // 패닝 중 마커가 계속 바뀌어 산만하다 — 그렇다고 살짝
               // 흔들릴 때마다 버튼이 뜨는 것도 번잡하다).
+              if (gestureType != GestureType.unknown) _userMovedCamera = true;
               if (gestureType != GestureType.unknown && !_showResearchButton) {
                 final center = _queryCenter;
                 final movedKm = center == null

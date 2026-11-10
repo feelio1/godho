@@ -13,6 +13,7 @@ import '../providers/saved_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/external_links.dart';
+import '../utils/phone_format.dart';
 import '../widgets/compare_floating_bar.dart';
 import '../widgets/fee_hospital_section.dart';
 import '../widgets/guest_gate.dart';
@@ -350,7 +351,7 @@ void _showReservationComingSoonSheet(BuildContext context) {
             ),
             const SizedBox(height: 8),
             Text(
-              '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. Petcli는 특정 병원과 '
+              '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. 펫클은 특정 병원과 '
               '제휴하거나 거래 관계를 맺지 않으며, 추후 전화·외부 예약 링크 연결 등의 기능을 '
               '검토하고 있습니다.',
               style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(height: 1.5),
@@ -397,7 +398,8 @@ class _OperatingInfoSection extends StatelessWidget {
             _InfoRow('개설신고일', _fmt(hospital.openDate), mono: true),
             _InfoRow('상태', hospital.status.label),
             _InfoRow('운영기간', hospitalOperatingLabel(hospital)),
-            if (hospital.phone != null) _InfoRow('전화', hospital.phone!, mono: true),
+            // 표시만 하이픈 형식으로 — 전화 걸기는 저장된 원래 값으로.
+            if (hospital.phone != null) _InfoRow('전화', formatPhoneNumber(hospital.phone!), mono: true),
             _InfoRow('출처', source),
             _InfoRow('최종갱신', _fmt(generatedAt), mono: true, last: true),
             const SizedBox(height: 12),
@@ -408,7 +410,7 @@ class _OperatingInfoSection extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '운영기간은 공개된 인허가 기록상 계속 등록된 시점(continuousSince)을 기준으로 계산한 값이며, '
+                '운영기간은 공개된 인허가 기록상 계속 등록된 시점을 기준으로 계산한 값이며, '
                 '병원의 신뢰도나 진료 품질과는 관련이 없습니다.',
                 style: textTheme.bodySmall?.copyWith(color: AppColors.neutral, height: 1.4),
               ),
@@ -476,7 +478,7 @@ class _ExternalLinksSection extends StatelessWidget {
             Text('외부 링크', style: textTheme.titleSmall),
             const SizedBox(height: 2),
             Text(
-              '네이버·카카오 리뷰로 바로 이동합니다. Petcli는 평가·별점을 자체적으로 제공하지 않습니다.',
+              '네이버·카카오 리뷰로 바로 이동합니다. 펫클은 평가·별점을 자체적으로 제공하지 않습니다.',
               style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 4),
