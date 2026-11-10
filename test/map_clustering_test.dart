@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petcliniccheck/models/hospital.dart';
 import 'package:petcliniccheck/models/hospital_status.dart';
@@ -202,6 +204,72 @@ void main() {
         individualCap: 3,
       );
       expect(candidates.map((h) => h.id), ['h0', 'h1', 'h2']);
+    });
+  });
+
+  group('화면 픽셀 기준 클러스터(실기기: 서울시청 줌 12에서 원끼리 겹침)', () {
+    // 줌 12 서울 근처를 흉내: 가로 1픽셀 ≈ 경도 0.0009도.
+    const degPerPx = 0.0009;
+
+    double pxDistance(MarkerGroup a, MarkerGroup b) {
+      final cosLat = math.cos(a.position.lat * math.pi / 180);
+      final dx = (a.position.lng - b.position.lng) / degPerPx;
+      final dy = (a.position.lat - b.position.lat) / (degPerPx * cosLat);
+      return math.sqrt(dx * dx + dy * dy);
+    }
+
+    test('어떤 두 그룹(클러스터·개별 마커)도 화면에서 최소 간격보다 가깝지 않다', () {
+      final rnd = math.Random(7);
+      final hospitals = [
+        for (var i = 0; i < 600; i++)
+          _hospitalAt('h$i', 37.45 + rnd.nextDouble() * 0.2, 126.85 + rnd.nextDouble() * 0.25),
+      ];
+      final groups = clusterHospitals(hospitals, 12, degreesPerPixel: degPerPx);
+      expect(groups.expand((g) => g.hospitals).length, hospitals.length);
+      for (var i = 0; i < groups.length; i++) {
+        for (var j = i + 1; j < groups.length; j++) {
+          expect(pxDistance(groups[i], groups[j]), greaterThanOrEqualTo(kMarkerMinSeparationPx - 1e-6),
+              reason: '그룹 $i·$j가 겹친다');
+        }
+      }
+    });
+
+    test('화면에서 30px 떨어진 두 병원은 묶이고, 200px 떨어지면 따로 보인다', () {
+      final near = clusterHospitals(
+        [_hospitalAt('a', 37.5665, 126.9780), _hospitalAt('b', 37.5665, 126.9780 + 30 * degPerPx)],
+        12,
+        degreesPerPixel: degPerPx,
+      );
+      expect(near, hasLength(1));
+      expect(near.single.isCluster, isTrue);
+
+      final far = clusterHospitals(
+        [_hospitalAt('a', 37.5665, 126.9780), _hospitalAt('b', 37.5665, 126.9780 + 200 * degPerPx)],
+        12,
+        degreesPerPixel: degPerPx,
+      );
+      expect(far, hasLength(2));
+      expect(far.every((g) => !g.isCluster), isTrue);
+    });
+
+    test('격자 칸 경계 양쪽에 붙은 두 병원도 한 그룹이 된다', () {
+      const sep = kMarkerMinSeparationPx * degPerPx;
+      final boundary = (126.9780 / sep).ceil() * sep;
+      final groups = clusterHospitals(
+        [_hospitalAt('a', 37.5665, boundary - 2 * degPerPx), _hospitalAt('b', 37.5665, boundary + 2 * degPerPx)],
+        12,
+        degreesPerPixel: degPerPx,
+      );
+      expect(groups, hasLength(1));
+    });
+
+    test('개별 마커 줌에서는 픽셀 정보가 있어도 묶지 않는다', () {
+      final groups = clusterHospitals(
+        [_hospitalAt('a', 37.5665, 126.9780), _hospitalAt('b', 37.5665, 126.9781)],
+        14,
+        degreesPerPixel: 0.00005,
+      );
+      expect(groups, hasLength(2));
     });
   });
 }

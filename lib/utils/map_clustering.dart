@@ -61,10 +61,6 @@ double cellSizeForZoom(int zoomLevel, {int clusterDisabledZoom = 14}) {
   return _baseCellSize * math.pow(_cellGrowthFactor, steps);
 }
 
-/// Buckets [hospitals] (all assumed to have coordinates) into a lat/lng
-/// grid sized by [zoomLevel]. Every hospital appears in exactly one group,
-/// regardless of zoom — there is no zoom level at which a non-empty input
-/// produces an empty result.
 /// 지도 마커 후보를 고를 때 쓰는 "카메라 중심에서 몇 km 안을 보여줄지"
 /// 근사값 — 줌 레벨이 낮을수록(더 멀리 보일수록) 반경을 넓힌다. 카카오
 /// 지도 SDK가 실제 화면 경계(bounds)를 안정적으로 주지 않아, 위치 기반
@@ -82,22 +78,88 @@ double markerSearchRadiusKmForZoom(int zoomLevel) {
   return 40;
 }
 
+/// 화면에서 그룹(클러스터 원·개별 마커) 중심끼리 최소한 이만큼(논리 픽셀)은
+/// 떨어지게 묶는다 — 클러스터 원(52)·병원 마커(44)가 겹쳐 숫자를 가리지 않게
+/// 둘 중 큰 쪽보다 조금 넉넉히 잡는다.
+const double kMarkerMinSeparationPx = 60;
+
+/// 클러스터로 묶이는 줌(< [clusterDisabledZoom])에서는 화면 거리 기준으로
+/// 묶는다: [degreesPerPixel](보이는 영역에서 잰 "가로 1픽셀 = 경도 몇 도")이
+/// 있으면 [minSeparationPx] 픽셀, 없으면 [cellSizeForZoom] 도(度)를 묶는
+/// 거리로 쓴다. 격자로 먼저 나눈 뒤, 중심끼리 그 거리보다 가까운 그룹은
+/// 더 가까운 것이 없을 때까지 합친다 — 그래서 결과의 어떤 두 그룹(묶이지
+/// 않은 개별 마커 포함)도 화면에서 서로 겹치지 않는다. 개별 마커 줌에서는
+/// 모두 따로 둔다. 어느 줌이든 모든 병원이 정확히 한 그룹에 들어간다.
 List<MarkerGroup> clusterHospitals(
   List<Hospital> hospitals,
   int zoomLevel, {
   int clusterDisabledZoom = 14,
+  double? degreesPerPixel,
+  double minSeparationPx = kMarkerMinSeparationPx,
 }) {
-  final cellSize = cellSizeForZoom(zoomLevel, clusterDisabledZoom: clusterDisabledZoom);
-  if (cellSize <= 0) {
+  if (zoomLevel >= clusterDisabledZoom) {
     return hospitals.map((h) => MarkerGroup([h])).toList();
   }
+  if (hospitals.isEmpty) return const [];
+  final sepLng = degreesPerPixel != null && degreesPerPixel > 0
+      ? degreesPerPixel * minSeparationPx
+      : cellSizeForZoom(zoomLevel, clusterDisabledZoom: clusterDisabledZoom);
+  // 메르카토르 지도에서 화면 세로 1픽셀의 위도 폭은 가로(경도) 폭 × cos(위도).
+  final meanLat = hospitals.fold<double>(0, (sum, h) => sum + h.lat!) / hospitals.length;
+  final sepLat = sepLng * math.cos(meanLat * math.pi / 180).abs().clamp(0.05, 1.0);
+
+  // 1) 묶는 거리 크기의 격자로 먼저 나눈다(빠른 1차 묶음).
   final buckets = <String, List<Hospital>>{};
   for (final h in hospitals) {
-    final cellLat = (h.lat! / cellSize).floor();
-    final cellLng = (h.lng! / cellSize).floor();
-    buckets.putIfAbsent('$cellLat:$cellLng', () => []).add(h);
+    final key = '${(h.lat! / sepLat).floor()}:${(h.lng! / sepLng).floor()}';
+    buckets.putIfAbsent(key, () => []).add(h);
   }
-  return buckets.values.map((list) => MarkerGroup(list)).toList();
+  final groups = [for (final list in buckets.values) _Group(list)];
+
+  // 2) 칸 경계 양쪽에 걸쳐 가까이 붙은 그룹을 합친다 — 더 합칠 게 없을 때까지.
+  bool tooClose(_Group a, _Group b) {
+    final dLat = (a.lat - b.lat) / sepLat;
+    final dLng = (a.lng - b.lng) / sepLng;
+    return dLat * dLat + dLng * dLng < 1;
+  }
+
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (var i = 0; i < groups.length; i++) {
+      var j = i + 1;
+      while (j < groups.length) {
+        if (tooClose(groups[i], groups[j])) {
+          groups[i].absorb(groups.removeAt(j));
+          changed = true;
+          j = i + 1; // 합쳐져 중심이 옮겨졌으니 다시 확인한다.
+        } else {
+          j++;
+        }
+      }
+    }
+  }
+  return [for (final g in groups) MarkerGroup(g.hospitals)];
+}
+
+class _Group {
+  final List<Hospital> hospitals;
+  double lat = 0;
+  double lng = 0;
+
+  _Group(List<Hospital> initial) : hospitals = [...initial] {
+    _recenter();
+  }
+
+  void absorb(_Group other) {
+    hospitals.addAll(other.hospitals);
+    _recenter();
+  }
+
+  void _recenter() {
+    lat = hospitals.fold<double>(0, (sum, h) => sum + h.lat!) / hospitals.length;
+    lng = hospitals.fold<double>(0, (sum, h) => sum + h.lng!) / hospitals.length;
+  }
 }
 
 /// 지도에 보이는 영역(위도·경도 사각형) — 마커 후보를 이 안에서 고른다

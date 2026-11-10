@@ -17,6 +17,7 @@ import '../providers/location_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/map_clustering.dart';
+import '../utils/map_first_fix.dart';
 import '../widgets/fee_context_chip.dart';
 import '../widgets/mascot_message.dart';
 import '../widgets/status_badge.dart';
@@ -85,11 +86,14 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   /// 기다리지 않는다.
   bool _mapCreated = false;
 
-  /// 첫 위치 맞춤 — 지도를 띄운 뒤에 위치가 확인되면(이미 권한이 있던 경우
-  /// 조용한 확인이 조금 늦게 끝남) 한 번만 그 위치로 옮긴다. 그 전에 사용자가
-  /// 지도를 직접 움직였으면 옮기지 않는다.
-  bool _centeredOnLocation = false;
-  bool _userMovedCamera = false;
+  /// 첫 위치 맞춤 — 지도를 띄운 뒤에 위치가 확인되면(새로 설치 후 이 탭에서
+  /// 권한을 막 허용한 경우 등) 사용자가 지도를 직접 만지기 전이라면 한 번만
+  /// 그 위치(줌 15)로 옮긴다.
+  final _firstFix = FirstFixCentering();
+
+  /// 지도 화면 영역의 "가로 1픽셀 = 경도 몇 도" — 보이는 영역을 잴 수 있을 때만
+  /// 값이 있다. 클러스터를 화면 픽셀 거리로 묶는 데 쓴다.
+  double? _degreesPerPixel;
 
   @override
   void initState() {
@@ -338,6 +342,7 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
         _markerCandidates,
         _currentZoom,
         clusterDisabledZoom: _clusterDisabledZoom,
+        degreesPerPixel: _degreesPerPixel,
       );
       final newPois = <Poi>[];
       for (final group in groups) {
@@ -418,11 +423,15 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
         debugPrint('[NearbyMap] fromScreenPoint 실패(반경으로 대신): $e');
       }
     }
+    double? degreesPerPixel;
     if (viewport == null || !viewport.contains(center.latitude, center.longitude)) {
       viewport = MapViewport.around(center.latitude, center.longitude, markerSearchRadiusKmForZoom(zoom));
+    } else if (size != null && size.width > 0) {
+      degreesPerPixel = (viewport.east - viewport.west) / size.width;
     }
     if (!mounted || seq != _refreshSeq) return;
 
+    _degreesPerPixel = degreesPerPixel;
     _currentZoom = zoom;
     _markerCandidates = selectMarkerCandidates(
       ref.read(repositoryProvider).all,
@@ -581,11 +590,26 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     );
   }
 
-  Future<void> _centerOnLocationOnce(LatLng target) async {
-    final controller = _controller;
-    if (controller == null || _centeredOnLocation || _userMovedCamera) return;
-    _centeredOnLocation = true;
-    await controller.moveCamera(CameraUpdate.newCenterPosition(target, zoomLevel: 15));
+  /// 첫 위치로 옮긴다 — 시스템 창(위치 권한)에서 막 돌아온 직후처럼 지도가
+  /// 이동 명령을 놓칠 수 있어, 실제 카메라가 그 근처에 갔는지 확인하고 아니면
+  /// 몇 번 더 시도한다(사용자가 그사이 지도를 만지면 멈춘다).
+  Future<void> _moveToFirstFix(({double lat, double lng}) fix) async {
+    final target = LatLng(fix.lat, fix.lng);
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final controller = _controller;
+      if (controller == null || !mounted || _firstFix.userInteracted) return;
+      try {
+        await controller.moveCamera(CameraUpdate.newCenterPosition(target, zoomLevel: 15));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        final camera = await controller.getCameraPosition();
+        final arrived = (camera.position.latitude - fix.lat).abs() < 0.002 &&
+            (camera.position.longitude - fix.lng).abs() < 0.002;
+        if (arrived) break;
+      } catch (e) {
+        debugPrint('[NearbyMap] 첫 위치 이동 실패(다시 시도): $e');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+    }
     await _refreshMarkers();
   }
 
@@ -601,7 +625,8 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
       if (position != null) {
         final target = LatLng(position.latitude, position.longitude);
         _updateMyLocationMarker(target);
-        _centerOnLocationOnce(target);
+        final fix = _firstFix.onLocation(position.latitude, position.longitude, mapReady: _controller != null);
+        if (fix != null) unawaited(_moveToFirstFix(fix));
       }
     });
 
@@ -626,6 +651,7 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
         ),
       );
     }
+    if (!_mapCreated && location != null) _firstFix.startedAtLocation();
     _mapCreated = true;
 
     // 카메라 시작 위치: 이미 확인된 위치가 있으면 현재 위치, 없으면 서울시청.
@@ -643,29 +669,26 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               _mapSize = constraints.biggest;
-              return KakaoMap(
+              // 사용자가 지도를 실제로 만졌는지는 터치로 판단한다(카메라 이벤트의
+              // 제스처 종류는 지도가 자리 잡는 중에도 올 수 있어 믿지 않는다).
+              return Listener(
+                onPointerDown: (_) => _firstFix.markUserInteracted(),
+                child: KakaoMap(
                 option: KakaoMapOption(position: initialTarget, zoomLevel: initialZoom),
                 onMapReady: (controller) async {
                   _controller = controller;
                   _currentZoom = initialZoom;
                   _hospitalStyle = await _buildHospitalStyle();
                   await _refreshMarkers();
-                  if (location != null) {
-                    _centeredOnLocation = true;
-                    await _updateMyLocationMarker(LatLng(location.latitude, location.longitude));
-                  } else {
-                    // 지도가 뜨는 사이 위치가 확인됐으면 그쪽으로 한 번 옮긴다.
-                    final latest = ref.read(locationProvider).value;
-                    if (latest != null) {
-                      final target = LatLng(latest.latitude, latest.longitude);
-                      await _updateMyLocationMarker(target);
-                      await _centerOnLocationOnce(target);
-                    }
+                  // 지도가 뜨는 사이 위치가 확인됐으면 내 위치 표시 + 한 번 옮기기.
+                  final latest = ref.read(locationProvider).value;
+                  if (latest != null) {
+                    await _updateMyLocationMarker(LatLng(latest.latitude, latest.longitude));
                   }
+                  final fix = _firstFix.onMapReady();
+                  if (fix != null) await _moveToFirstFix(fix);
                 },
                 onCameraMoveEnd: (position, gestureType) {
-                  // 사용자가 직접 움직였으면 첫 위치 맞춤을 더는 하지 않는다.
-                  if (gestureType != GestureType.unknown) _userMovedCamera = true;
                   // 옮긴 곳·바뀐 줌의 보이는 영역으로 마커를 다시 고른다.
                   unawaited(_refreshMarkers());
                 },
@@ -676,6 +699,7 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                   debugPrint('[KakaoMap] onMapError: $error');
                   if (mounted) setState(() => _mapFailed = true);
                 },
+              ),
               );
             },
           ),
