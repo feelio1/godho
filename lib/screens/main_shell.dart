@@ -363,9 +363,16 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     }
   }
 
+  /// "병원" 탭(지도)은 처음 열 때 만든다 — [IndexedStack]이 모든 탭을 미리
+  /// 만들면 지도 화면의 위치 권한 요청이 앱 시작(온보딩 직후 홈)에 떠 버리고,
+  /// 위치를 알기 전에 지도가 숨은 채로 만들어져 첫 카메라가 서울시청에 고정된다
+  /// (실기기 2차 보정). 한 번 연 뒤에는 다른 탭처럼 상태를 유지한다.
+  bool _mapTabOpened = false;
+
   @override
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(selectedTabProvider);
+    if (selectedIndex == AppTab.map.index) _mapTabOpened = true;
 
     // 지난 예약 확인 — 데이터가 (뒤늦게) 들어와 확인 대상이 생기면
     // 바로, 백그라운드 복귀 뒤엔 광고 흐름이 끝났다는 신호를 받고서야
@@ -428,12 +435,12 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       child: Scaffold(
         body: IndexedStack(
           index: selectedIndex,
-          children: const [
-            HomeScreen(),
-            NearbyMapScreen(),
-            ShopScreen(),
-            PetTabScreen(),
-            MyInfoScreen(),
+          children: [
+            const HomeScreen(),
+            _mapTabOpened ? const NearbyMapScreen() : const SizedBox.shrink(),
+            const ShopScreen(),
+            const PetTabScreen(),
+            const MyInfoScreen(),
           ],
         ),
         // 스프린트 15 지시서 6: 전역 배너를 걷어내고 홈 화면 안(검색 세트

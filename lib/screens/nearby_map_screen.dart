@@ -9,7 +9,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 import '../config/kakao_map_config.dart';
-import '../data/hospital_repository.dart';
 import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../providers/bundle_provider.dart';
@@ -74,17 +73,17 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
   Poi? _myLocationPoi;
   int _currentZoom = 15;
 
-  /// 마커 후보를 마지막으로 조회한 지도 중심 — "이 지역 병원 검색" 버튼이
-  /// 다시 조회할 때 이 지점을 기준으로 얼마나 멀어졌는지 판단하는 데도
-  /// 쓴다. 위치 기반 지도 표시 지시서 2-1: 마커는 더 이상 선택된 구가
-  /// 아니라 이 중심 기준 반경으로 조회한다.
-  LatLng? _queryCenter;
+  /// 지도 위젯의 화면 크기(논리 픽셀) — 보이는 영역의 모서리 좌표를 구할 때 쓴다.
+  Size? _mapSize;
 
-  /// 사용자가 직접 지도를 움직였을 때만(프로그램에 의한 moveCamera는
-  /// 제외) 보여주는 재조회 버튼 — 매번 자동으로 마커가 바뀌면 패닝 중
-  /// 마커가 계속 깜빡여 산만하므로, 지시서가 말한 "'이 지역 병원 검색'
-  /// 버튼 = 현재 위치로 재조회" 패턴을 그대로 따른다.
-  bool _showResearchButton = false;
+  /// 마커 후보 조회 순번 — 지도를 빨리 연달아 움직이면 늦게 끝난 이전 조회
+  /// 결과가 새 결과를 덮지 않게 한다.
+  int _refreshSeq = 0;
+
+  /// 지도를 실제로 만들었는가 — 처음 열 때 위치 확인이 끝날 때까지만 잠깐
+  /// 기다렸다가(첫 카메라를 현재 위치에서 시작하려고) 만들고, 그 뒤로는 다시
+  /// 기다리지 않는다.
+  bool _mapCreated = false;
 
   /// 첫 위치 맞춤 — 지도를 띄운 뒤에 위치가 확인되면(이미 권한이 있던 경우
   /// 조용한 확인이 조금 늦게 끝남) 한 번만 그 위치로 옮긴다. 그 전에 사용자가
@@ -384,44 +383,57 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     );
   }
 
-  // --- 마커 후보 조회(구 필터 대신 지도 중심 반경 기준) ---
+  // --- 마커 후보 조회(보이는 화면 영역 기준) ---
 
-  /// [center] 기준 [markerSearchRadiusKmForZoom]반경 안의 영업중 병원을
-  /// 후보로 삼는다 — 선택된 구로 좁히지 않으므로 검단에서 봐도 서구
-  /// 남부·김포 접경 병원이 함께 보인다(위치 기반 지도 표시 지시서 2-1).
-  /// 후보가 [_markerCap]을 넘으면 거리순으로 잘라 가까운 쪽을 우선한다
-  /// — 리스트·필터 자체를 바꾸는 게 아니라 지도 렌더링 안전장치일 뿐이다.
-  void _recomputeCandidates(LatLng center) {
-    final repo = ref.read(repositoryProvider);
-    final radiusKm = markerSearchRadiusKmForZoom(_currentZoom);
-    var candidates = repo.all.where((h) {
-      if (!h.hasCoordinates || h.status == HospitalStatus.closed) return false;
-      final distance = HospitalRepository.distanceKm(center.latitude, center.longitude, h.lat, h.lng);
-      return distance != null && distance <= radiusKm;
-    }).toList();
-
-    if (candidates.length > _markerCap) {
-      candidates = repo
-          .sortHospitals(candidates, SortOption.distance, currentLat: center.latitude, currentLng: center.longitude)
-          .take(_markerCap)
-          .toList();
-    }
-
-    _markerCandidates = candidates;
-    _queryCenter = center;
-    if (_showResearchButton) {
-      setState(() => _showResearchButton = false);
-    }
-    _renderMarkers();
-  }
-
-  /// "이 지역 병원 검색" 버튼 — 현재 카메라 중심으로 다시 조회한다.
-  Future<void> _onResearchTap() async {
+  /// 지금 보이는 지도 영역 안의 영업중 병원으로 마커를 다시 그린다 — 지도가
+  /// 멈출 때마다(사용자 이동·프로그램 이동 모두) 부른다. 선택된 구로 좁히지
+  /// 않는다(위치 기반 지도 표시 지시서 2-1). 영역은 화면 두 모서리를 좌표로
+  /// 바꿔 구하고, 변환이 안 되거나 이상하면 줌 기준 반경으로 대신한다. 줌이
+  /// 멀면 [clusterHospitals]가 클러스터로 묶는다.
+  Future<void> _refreshMarkers() async {
     final controller = _controller;
     if (controller == null) return;
-    final cameraPosition = await controller.getCameraPosition();
-    _currentZoom = cameraPosition.zoomLevel;
-    _recomputeCandidates(cameraPosition.position);
+    final seq = ++_refreshSeq;
+    final camera = await controller.getCameraPosition();
+    final center = camera.position;
+    final zoom = camera.zoomLevel;
+
+    MapViewport? viewport;
+    final size = _mapSize;
+    if (size != null && mounted) {
+      final dpr = MediaQuery.devicePixelRatioOf(context);
+      try {
+        final topLeft = await controller.fromScreenPoint(0, 0);
+        final bottomRight =
+            await controller.fromScreenPoint((size.width * dpr).round(), (size.height * dpr).round());
+        if (topLeft != null && bottomRight != null) {
+          viewport = MapViewport.fromCorners(
+            topLeft.latitude,
+            topLeft.longitude,
+            bottomRight.latitude,
+            bottomRight.longitude,
+          );
+        }
+      } catch (e) {
+        debugPrint('[NearbyMap] fromScreenPoint 실패(반경으로 대신): $e');
+      }
+    }
+    if (viewport == null || !viewport.contains(center.latitude, center.longitude)) {
+      viewport = MapViewport.around(center.latitude, center.longitude, markerSearchRadiusKmForZoom(zoom));
+    }
+    if (!mounted || seq != _refreshSeq) return;
+
+    _currentZoom = zoom;
+    _markerCandidates = selectMarkerCandidates(
+      ref.read(repositoryProvider).all,
+      viewport: viewport.expanded(0.25),
+      centerLat: center.latitude,
+      centerLng: center.longitude,
+      zoomLevel: zoom,
+      clusterDisabledZoom: _clusterDisabledZoom,
+      individualCap: _markerCap,
+    );
+    await _renderMarkers();
   }
 
   // --- 내 위치 ---
@@ -573,9 +585,8 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
     final controller = _controller;
     if (controller == null || _centeredOnLocation || _userMovedCamera) return;
     _centeredOnLocation = true;
-    _currentZoom = 15;
     await controller.moveCamera(CameraUpdate.newCenterPosition(target, zoomLevel: 15));
-    _recomputeCandidates(target);
+    await _refreshMarkers();
   }
 
   @override
@@ -594,7 +605,28 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
       }
     });
 
-    final location = ref.watch(locationProvider).value;
+    final locationAsync = ref.watch(locationProvider);
+    final location = locationAsync.value;
+
+    // 처음 열 때 위치 확인(이미 권한이 있으면 조용히, 없으면 권한 창)이 아직
+    // 끝나지 않았으면 잠깐 기다린다 — 지도를 먼저 만들면 첫 카메라가
+    // 서울시청에 고정된다. 확인이 끝나면(위치가 없어도) 바로 지도를 만든다.
+    if (!_mapCreated && location == null && locationAsync.isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('주변 병원')),
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('위치 확인 중', style: TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      );
+    }
+    _mapCreated = true;
 
     // 카메라 시작 위치: 이미 확인된 위치가 있으면 현재 위치, 없으면 서울시청.
     // 마커 조회는 선택된 지역으로 좁히지 않는다 — 좌표 없는 병원(약 347곳)은
@@ -608,56 +640,43 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
       appBar: AppBar(title: const Text('주변 병원')),
       body: Stack(
         children: [
-          KakaoMap(
-            option: KakaoMapOption(position: initialTarget, zoomLevel: initialZoom),
-            onMapReady: (controller) async {
-              _controller = controller;
-              _currentZoom = initialZoom;
-              _hospitalStyle = await _buildHospitalStyle();
-              _recomputeCandidates(initialTarget);
-              if (location != null) {
-                _centeredOnLocation = true;
-                await _updateMyLocationMarker(LatLng(location.latitude, location.longitude));
-              } else {
-                // 지도가 뜨는 사이 위치가 확인됐으면 그쪽으로 한 번 옮긴다.
-                final latest = ref.read(locationProvider).value;
-                if (latest != null) {
-                  final target = LatLng(latest.latitude, latest.longitude);
-                  await _updateMyLocationMarker(target);
-                  await _centerOnLocationOnce(target);
-                }
-              }
-            },
-            onCameraMoveEnd: (position, gestureType) {
-              _currentZoom = position.zoomLevel;
-              _renderMarkers();
-              // moveCamera로 프로그램이 직접 옮긴 경우(마커 탭, 내 위치
-              // FAB 등)는 GestureType.unknown이라 재조회 버튼을 띄우지
-              // 않는다 — 사용자가 직접 지도를 움직였을 때만, 그것도
-              // 마지막 조회 지점에서 어느 정도 벗어났을 때만 "이 지역
-              // 병원 검색"을 보여준다(지시서: 조용히 자동 재조회하면
-              // 패닝 중 마커가 계속 바뀌어 산만하다 — 그렇다고 살짝
-              // 흔들릴 때마다 버튼이 뜨는 것도 번잡하다).
-              if (gestureType != GestureType.unknown) _userMovedCamera = true;
-              if (gestureType != GestureType.unknown && !_showResearchButton) {
-                final center = _queryCenter;
-                final movedKm = center == null
-                    ? double.infinity
-                    : (HospitalRepository.distanceKm(
-                            center.latitude, center.longitude, position.position.latitude, position.position.longitude) ??
-                        double.infinity);
-                final threshold = markerSearchRadiusKmForZoom(_currentZoom) * 0.3;
-                if (movedKm > threshold) {
-                  setState(() => _showResearchButton = true);
-                }
-              }
-            },
-            onMapError: (error) {
-              // 전엔 에러 객체를 그냥 버려서, 실기기에서 "왜 안 뜨는지"를
-              // logcat으로도 확인할 수 없었다("지도 수정" 지시서 2) —
-              // 네이티브 키 인증 실패 등 대표적인 원인이 여기로 들어온다.
-              debugPrint('[KakaoMap] onMapError: $error');
-              if (mounted) setState(() => _mapFailed = true);
+          LayoutBuilder(
+            builder: (context, constraints) {
+              _mapSize = constraints.biggest;
+              return KakaoMap(
+                option: KakaoMapOption(position: initialTarget, zoomLevel: initialZoom),
+                onMapReady: (controller) async {
+                  _controller = controller;
+                  _currentZoom = initialZoom;
+                  _hospitalStyle = await _buildHospitalStyle();
+                  await _refreshMarkers();
+                  if (location != null) {
+                    _centeredOnLocation = true;
+                    await _updateMyLocationMarker(LatLng(location.latitude, location.longitude));
+                  } else {
+                    // 지도가 뜨는 사이 위치가 확인됐으면 그쪽으로 한 번 옮긴다.
+                    final latest = ref.read(locationProvider).value;
+                    if (latest != null) {
+                      final target = LatLng(latest.latitude, latest.longitude);
+                      await _updateMyLocationMarker(target);
+                      await _centerOnLocationOnce(target);
+                    }
+                  }
+                },
+                onCameraMoveEnd: (position, gestureType) {
+                  // 사용자가 직접 움직였으면 첫 위치 맞춤을 더는 하지 않는다.
+                  if (gestureType != GestureType.unknown) _userMovedCamera = true;
+                  // 옮긴 곳·바뀐 줌의 보이는 영역으로 마커를 다시 고른다.
+                  unawaited(_refreshMarkers());
+                },
+                onMapError: (error) {
+                  // 전엔 에러 객체를 그냥 버려서, 실기기에서 "왜 안 뜨는지"를
+                  // logcat으로도 확인할 수 없었다("지도 수정" 지시서 2) —
+                  // 네이티브 키 인증 실패 등 대표적인 원인이 여기로 들어온다.
+                  debugPrint('[KakaoMap] onMapError: $error');
+                  if (mounted) setState(() => _mapFailed = true);
+                },
+              );
             },
           ),
           Positioned(
@@ -673,13 +692,6 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
               ),
             ),
           ),
-          if (_showResearchButton)
-            Positioned(
-              top: 70,
-              left: 0,
-              right: 0,
-              child: Center(child: _ResearchAreaButton(onTap: _onResearchTap)),
-            ),
           Positioned(
             right: 16,
             bottom: 16,
@@ -690,40 +702,6 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// "이 지역 병원 검색" 재조회 버튼(위치 기반 지도 표시 지시서 2-1) —
-/// 사용자가 지도를 직접 움직이면 나타나, 누르면 현재 지도 중심 기준으로
-/// 다시 조회한다.
-class _ResearchAreaButton extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _ResearchAreaButton({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.primary,
-      borderRadius: BorderRadius.circular(AppRadius.pill),
-      elevation: 3,
-      shadowColor: const Color(0x330F172A),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.refresh, size: 16, color: Colors.white),
-              SizedBox(width: 6),
-              Text('이 지역 병원 검색', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            ],
-          ),
-        ),
       ),
     );
   }

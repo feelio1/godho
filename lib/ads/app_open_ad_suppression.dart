@@ -11,10 +11,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 위젯 initState/dispose 안에서 바꿔도 "빌드 중 provider 수정" 오류가
 /// 나지 않는다.
 class AppOpenAdSuppression {
+  /// 억제가 풀린 직후 이 시간 안의 복귀도 건너뛴다 — 권한 요청·사진 선택
+  /// 같은 시스템 창은 결과(Future)가 앱 복귀(resumed) 알림보다 먼저 끝나
+  /// 억제가 막 풀린 상태에서 복귀를 받을 수 있다.
+  static const releaseGrace = Duration(seconds: 2);
+
+  final DateTime Function() _clock;
+
+  AppOpenAdSuppression({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+
   int _count = 0;
+  DateTime? _lastReleasedAt;
 
   int get count => _count;
   bool get isSuppressed => _count > 0;
+
+  /// 마지막 억제가 [releaseGrace] 안에 풀렸는가.
+  bool get recentlyReleased {
+    final last = _lastReleasedAt;
+    return last != null && _clock().difference(last) < releaseGrace;
+  }
 
   void acquire() => _count++;
 
@@ -22,10 +38,11 @@ class AppOpenAdSuppression {
   /// 일은 없게 0에서 멈춘다.
   void release() {
     if (_count > 0) _count--;
+    _lastReleasedAt = _clock();
   }
 
   /// [action]이 도는 동안만 억제한다 — 예외로 끝나도 finally에서 반드시
-  /// 내린다(사진 선택·카메라, 회원 탈퇴처럼 화면이 아닌 흐름용).
+  /// 내린다(사진 선택·카메라, 위치 권한 요청, 회원 탈퇴처럼 화면이 아닌 흐름용).
   Future<T> during<T>(Future<T> Function() action) async {
     acquire();
     try {

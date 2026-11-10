@@ -112,4 +112,96 @@ void main() {
       expect(radius, greaterThanOrEqualTo(markerSearchRadiusKmForZoom(zoom + 1)), reason: 'zoom=$zoom');
     }
   });
+
+  group('보이는 영역 기준 마커 후보(실기기 2차 보정)', () {
+    test('MapViewport.fromCorners: 모서리 순서와 무관, 비정상 값은 null', () {
+      final v = MapViewport.fromCorners(37.60, 126.90, 37.50, 127.05)!;
+      expect(v.south, 37.50);
+      expect(v.north, 37.60);
+      expect(v.west, 126.90);
+      expect(v.east, 127.05);
+      expect(MapViewport.fromCorners(37.5, 127, 37.5, 127.1), isNull); // 넓이 0
+      expect(MapViewport.fromCorners(double.nan, 127, 37.6, 127.1), isNull);
+      expect(MapViewport.fromCorners(10, 100, 40, 140), isNull); // 비정상적으로 넓음
+    });
+
+    test('around·expanded·contains', () {
+      final v = MapViewport.around(37.5665, 126.9780, 11.1);
+      expect(v.contains(37.5665, 126.9780), isTrue);
+      expect(v.contains(37.66, 126.978), isTrue); // 북쪽 약 10km
+      expect(v.contains(37.70, 126.978), isFalse); // 북쪽 약 15km
+      expect(v.expanded(0.5).contains(37.70, 126.978), isTrue);
+    });
+
+    test('서울시청 줌 12: 화면 안 영업중 병원은 모두 후보(클러스터 줌이라 자르지 않음), 폐업·영역 밖·좌표 없음 제외', () {
+      final viewport = MapViewport.around(37.5665, 126.9780, 16);
+      final hospitals = [
+        for (var i = 0; i < 500; i++) _hospitalAt('in$i', 37.50 + (i % 25) * 0.005, 126.90 + (i ~/ 25) * 0.008),
+        _hospitalAt('far', 37.45, 126.66), // 인천 쪽 — 화면 밖
+        Hospital(
+          id: 'closed',
+          name: '폐업',
+          status: HospitalStatus.closed,
+          sido: '서울',
+          sigungu: '중구',
+          roadAddr: '',
+          jibunAddr: '',
+          lat: 37.5665,
+          lng: 126.9780,
+        ),
+        const Hospital(
+          id: 'nocoord',
+          name: '좌표 없음',
+          status: HospitalStatus.open,
+          sido: '서울',
+          sigungu: '중구',
+          roadAddr: '',
+          jibunAddr: '',
+          lat: null,
+          lng: null,
+        ),
+      ];
+      final candidates = selectMarkerCandidates(
+        hospitals,
+        viewport: viewport,
+        centerLat: 37.5665,
+        centerLng: 126.9780,
+        zoomLevel: 12,
+        individualCap: 300,
+      );
+      expect(candidates.length, 500);
+      expect(candidates.map((h) => h.id), isNot(contains('far')));
+      expect(candidates.map((h) => h.id), isNot(contains('closed')));
+      expect(candidates.map((h) => h.id), isNot(contains('nocoord')));
+      // 줌이 멀면 클러스터로 묶여 화면에 뭔가는 반드시 보인다.
+      final groups = clusterHospitals(candidates, 12);
+      expect(groups, isNotEmpty);
+      expect(groups.any((g) => g.isCluster), isTrue);
+    });
+
+    test('지도를 옮기면 옮긴 곳의 병원이 후보가 된다(검단)', () {
+      final hospitals = [_hospitalAt('seoul', 37.5665, 126.9780), _hospitalAt('geomdan', 37.5960, 126.6730)];
+      final atGeomdan = selectMarkerCandidates(
+        hospitals,
+        viewport: MapViewport.around(37.5960, 126.6730, 4),
+        centerLat: 37.5960,
+        centerLng: 126.6730,
+        zoomLevel: 15,
+      );
+      expect(atGeomdan.map((h) => h.id), ['geomdan']);
+    });
+
+    test('개별 마커 줌에서는 상한까지 중심에 가까운 순으로 자른다', () {
+      final hospitals = [for (var i = 0; i < 10; i++) _hospitalAt('h$i', 37.5 + i * 0.001, 127.0)];
+      final candidates = selectMarkerCandidates(
+        hospitals.reversed,
+        viewport: MapViewport.around(37.5, 127.0, 5),
+        centerLat: 37.5,
+        centerLng: 127.0,
+        zoomLevel: 15,
+        individualCap: 3,
+      );
+      expect(candidates.map((h) => h.id), ['h0', 'h1', 'h2']);
+    });
+  });
 }

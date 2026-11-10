@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/hospital.dart';
+import '../models/hospital_status.dart';
 
 /// Same-cell hospitals for the 주변 병원 map — 1 hospital renders as an
 /// individual marker, 2+ renders as a single cluster badge showing the
@@ -97,4 +98,76 @@ List<MarkerGroup> clusterHospitals(
     buckets.putIfAbsent('$cellLat:$cellLng', () => []).add(h);
   }
   return buckets.values.map((list) => MarkerGroup(list)).toList();
+}
+
+/// 지도에 보이는 영역(위도·경도 사각형) — 마커 후보를 이 안에서 고른다
+/// (실기기 2차 보정: 중심 반경만 보던 방식은 지도를 옮긴 곳에 마커가 없었다).
+class MapViewport {
+  final double south;
+  final double west;
+  final double north;
+  final double east;
+
+  const MapViewport({required this.south, required this.west, required this.north, required this.east});
+
+  /// 화면 두 모서리의 좌표로 만든다 — 값이 비정상이면(무한대·넓이 0·한
+  /// 변이 [maxSpanDegrees]보다 큼) null. 카카오 SDK의 화면→좌표 변환이
+  /// 늘 믿을 만하지는 않아, 이상하면 호출부가 줌 기준 반경으로 대신한다.
+  static MapViewport? fromCorners(double lat1, double lng1, double lat2, double lng2, {double maxSpanDegrees = 20}) {
+    if (![lat1, lng1, lat2, lng2].every((v) => v.isFinite)) return null;
+    final south = math.min(lat1, lat2);
+    final north = math.max(lat1, lat2);
+    final west = math.min(lng1, lng2);
+    final east = math.max(lng1, lng2);
+    if (north - south <= 0 || east - west <= 0) return null;
+    if (north - south > maxSpanDegrees || east - west > maxSpanDegrees) return null;
+    return MapViewport(south: south, west: west, north: north, east: east);
+  }
+
+  /// [lat],[lng] 중심 [radiusKm] 정사각형(근사) — 화면 좌표 변환을 못 쓸 때.
+  factory MapViewport.around(double lat, double lng, double radiusKm) {
+    final dLat = radiusKm / 111.0;
+    final cosLat = math.cos(lat * math.pi / 180).abs().clamp(0.01, 1.0);
+    final dLng = radiusKm / (111.0 * cosLat);
+    return MapViewport(south: lat - dLat, west: lng - dLng, north: lat + dLat, east: lng + dLng);
+  }
+
+  bool contains(double lat, double lng) => lat >= south && lat <= north && lng >= west && lng <= east;
+
+  /// 가장자리에 걸친 병원이 패닝 중 갑자기 생기지 않게 사방으로 [ratio]만큼 넓힌다.
+  MapViewport expanded(double ratio) {
+    final dLat = (north - south) * ratio;
+    final dLng = (east - west) * ratio;
+    return MapViewport(south: south - dLat, west: west - dLng, north: north + dLat, east: east + dLng);
+  }
+}
+
+/// 지도 마커 후보 — [viewport] 안의 좌표 있는 영업중 병원. 클러스터로 묶이는
+/// 줌(< [clusterDisabledZoom])에서는 모두 넘겨 클러스터 개수가 실제와 맞게
+/// 하고, 개별 마커로 그리는 줌에서만 [individualCap]개까지 [centerLat]/
+/// [centerLng]에 가까운 순으로 자른다(지도 렌더링 안전장치 — 검색·목록은
+/// 그대로).
+List<Hospital> selectMarkerCandidates(
+  Iterable<Hospital> hospitals, {
+  required MapViewport viewport,
+  required double centerLat,
+  required double centerLng,
+  required int zoomLevel,
+  int clusterDisabledZoom = 14,
+  int individualCap = 300,
+}) {
+  var candidates = [
+    for (final h in hospitals)
+      if (h.hasCoordinates && h.status != HospitalStatus.closed && viewport.contains(h.lat!, h.lng!)) h,
+  ];
+  if (zoomLevel >= clusterDisabledZoom && candidates.length > individualCap) {
+    double d(Hospital h) {
+      final dLat = h.lat! - centerLat;
+      final dLng = h.lng! - centerLng;
+      return dLat * dLat + dLng * dLng;
+    }
+    candidates.sort((a, b) => d(a).compareTo(d(b)));
+    candidates = candidates.take(individualCap).toList();
+  }
+  return candidates;
 }

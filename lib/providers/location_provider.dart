@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../ads/app_open_ad_suppression.dart';
+
 /// Current device location.
 ///
 /// [build] only ever performs a silent, non-prompting check: if permission
@@ -39,8 +41,15 @@ class LocationNotifier extends AsyncNotifier<Position?> {
     return _fetchPosition();
   }
 
+  /// 위치 권한이 없으면 OS 권한 창을 띄우고(병원 탭 지도·진료비 시세 등 그
+  /// 기능 진입 시에만 부른다), 좌표를 다시 받는다. 이미 알고 있는 좌표가
+  /// 있으면 다시 받는 동안 그 값을 지우지 않는다 — 로딩으로 바꿔 버리면 그
+  /// 사이에 처음 뜨는 화면(지도 첫 카메라 등)이 위치를 모른다고 판단한다.
+  /// 권한 창은 [adSuppressionProvider]로 감싸 그 창에서 돌아올 때 앱 오프닝
+  /// 광고가 뜨지 않게 한다.
   Future<void> requestAndFetch() async {
-    state = const AsyncValue.loading();
+    final previous = state.value;
+    if (previous == null) state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       _log('requestAndFetch(): 위치 서비스 활성화=$serviceEnabled');
@@ -49,7 +58,7 @@ class LocationNotifier extends AsyncNotifier<Position?> {
       var permission = await Geolocator.checkPermission();
       _log('requestAndFetch(): 권한 상태(요청 전)=$permission');
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        permission = await ref.read(adSuppressionProvider).during(Geolocator.requestPermission);
         _log('requestAndFetch(): 권한 상태(요청 후)=$permission');
       }
       if (permission == LocationPermission.denied ||
@@ -58,7 +67,7 @@ class LocationNotifier extends AsyncNotifier<Position?> {
         return null;
       }
 
-      return _fetchPosition();
+      return await _fetchPosition() ?? previous;
     });
   }
 

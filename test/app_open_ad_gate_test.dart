@@ -37,6 +37,17 @@ const _emptyBundle = HospitalBundle(
   timelines: {},
 );
 
+/// 억제 해제 직후 유예(2초)를 테스트가 넘길 수 있게 하는 시계.
+DateTime _now = DateTime(2026, 11, 10, 12);
+void _advance(Duration d) => _now = _now.add(d);
+
+/// 권한 요청 같은 시스템 창 왕복 — 앱은 inactive까지만 갔다가 돌아온다.
+Future<void> _systemDialogRoundTrip(WidgetTester tester) async {
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+  tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  await tester.pump();
+}
+
 /// 백그라운드에 갔다가 돌아오는 실제 생명주기 순서를 흉내 낸다.
 Future<void> _backgroundAndResume(WidgetTester tester) async {
   for (final state in const [
@@ -53,12 +64,17 @@ Future<void> _backgroundAndResume(WidgetTester tester) async {
 }
 
 /// [shellChild]는 MainShell 자리에 놓인다 — 게이트와 같은 (홈) 라우트.
-Future<_FakeAppOpenAdManager> _pumpGate(WidgetTester tester, {Widget? shellChild}) async {
+/// [warmUp]이면 "앱 실행 후 첫 복귀(건너뜀)"를 미리 한 번 지나고 흐름 종료
+/// 신호 수를 0으로 되돌려, 각 테스트가 그다음 복귀부터 보게 한다.
+Future<_FakeAppOpenAdManager> _pumpGate(WidgetTester tester, {Widget? shellChild, bool warmUp = true}) async {
   final manager = _FakeAppOpenAdManager();
   final bundle = Completer<HospitalBundle>();
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [bundleProvider.overrideWith((ref) => bundle.future)],
+      overrides: [
+        bundleProvider.overrideWith((ref) => bundle.future),
+        adSuppressionProvider.overrideWith((ref) => AppOpenAdSuppression(clock: () => _now)),
+      ],
       child: MaterialApp(
         home: AppOpenAdGate(
           manager: manager,
@@ -98,6 +114,11 @@ Future<_FakeAppOpenAdManager> _pumpGate(WidgetTester tester, {Widget? shellChild
   // 번들 로딩이 끝나야 게이트가 복귀 광고를 고려한다(콜드 스타트 경쟁 방지).
   bundle.complete(_emptyBundle);
   await tester.pump();
+  if (warmUp) {
+    await _backgroundAndResume(tester);
+    expect(manager.showCalls, 0, reason: '앱 실행 후 첫 복귀는 건너뛴다');
+    _container(tester).read(appOpenAdFlowSettledProvider.notifier).state = 0;
+  }
   return manager;
 }
 
@@ -114,6 +135,20 @@ void main() {
       expect(shouldTryAppOpenAd(shellIsTopRoute: true, suppressionCount: 1), isFalse);
       expect(shouldTryAppOpenAd(shellIsTopRoute: false, suppressionCount: 2), isFalse);
     });
+
+    test('시스템 창 왕복·앱 실행 후 첫 복귀·방금 풀린 억제는 건너뛴다', () {
+      bool tryWith({bool background = true, bool first = false, bool recent = false}) => shouldTryAppOpenAd(
+            shellIsTopRoute: true,
+            suppressionCount: 0,
+            returnedFromBackground: background,
+            firstReturnSinceLaunch: first,
+            recentlySuppressed: recent,
+          );
+      expect(tryWith(), isTrue);
+      expect(tryWith(background: false), isFalse);
+      expect(tryWith(first: true), isFalse);
+      expect(tryWith(recent: true), isFalse);
+    });
   });
 
   group('AppOpenAdSuppression', () {
@@ -127,6 +162,20 @@ void main() {
         throwsStateError,
       );
       expect(suppression.count, 0);
+    });
+
+    test('억제가 풀린 뒤 2초 동안은 "방금 풀림"으로 본다', () {
+      var now = DateTime(2026, 11, 10);
+      final suppression = AppOpenAdSuppression(clock: () => now);
+      expect(suppression.recentlyReleased, isFalse);
+      suppression
+        ..acquire()
+        ..release();
+      expect(suppression.recentlyReleased, isTrue);
+      now = now.add(const Duration(milliseconds: 1999));
+      expect(suppression.recentlyReleased, isTrue);
+      now = now.add(const Duration(milliseconds: 2));
+      expect(suppression.recentlyReleased, isFalse);
     });
 
     test('짝이 맞지 않는 release는 0 아래로 내려가지 않는다', () {
@@ -189,6 +238,7 @@ void main() {
       expect(_container(tester).read(appOpenAdFlowSettledProvider), 1);
 
       suppression.release();
+      _advance(const Duration(seconds: 3));
       await _backgroundAndResume(tester);
       expect(manager.showCalls, 1);
     });
@@ -212,6 +262,50 @@ void main() {
       await tester.pump();
       expect(_container(tester).read(adSuppressionProvider).count, 0);
 
+      _advance(const Duration(seconds: 3));
+      await _backgroundAndResume(tester);
+      expect(manager.showCalls, 1);
+    });
+
+    testWidgets('앱 실행 후 첫 복귀는 건너뛰고(신호는 올림), 다음 복귀부터 광고를 시도한다', (tester) async {
+      final manager = await _pumpGate(tester, warmUp: false);
+
+      await _backgroundAndResume(tester);
+      expect(manager.showCalls, 0);
+      expect(_container(tester).read(appOpenAdFlowSettledProvider), 1);
+
+      await _backgroundAndResume(tester);
+      expect(manager.showCalls, 1);
+    });
+
+    testWidgets('권한 창 같은 시스템 창 왕복(inactive→resumed)은 복귀로 치지 않는다', (tester) async {
+      final manager = await _pumpGate(tester);
+
+      await _systemDialogRoundTrip(tester);
+      await _systemDialogRoundTrip(tester);
+      expect(manager.showCalls, 0);
+      expect(_container(tester).read(appOpenAdFlowSettledProvider), 2);
+    });
+
+    testWidgets('콜드 스타트 직후 권한 창에서 돌아와도 광고가 뜨지 않는다', (tester) async {
+      final manager = await _pumpGate(tester, warmUp: false);
+      final suppression = _container(tester).read(adSuppressionProvider);
+
+      // 권한 요청(during)이 끝난 직후 복귀 알림이 온다 — 실기기에서 광고가 뜬 순서.
+      await suppression.during(() async {});
+      await _backgroundAndResume(tester);
+      expect(manager.showCalls, 0);
+    });
+
+    testWidgets('억제가 풀린 지 2초 안의 복귀는 건너뛰고, 그 뒤 복귀는 시도한다', (tester) async {
+      final manager = await _pumpGate(tester);
+      final suppression = _container(tester).read(adSuppressionProvider);
+
+      await suppression.during(() async {});
+      await _backgroundAndResume(tester);
+      expect(manager.showCalls, 0);
+
+      _advance(const Duration(seconds: 3));
       await _backgroundAndResume(tester);
       expect(manager.showCalls, 1);
     });
