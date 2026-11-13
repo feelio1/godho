@@ -35,6 +35,8 @@ async function put(collection, docs) {
     const ref = db.collection(collection).doc(id);
     const exists = WRITE ? (await ref.get()).exists : false;
     const payload = { ...data, updatedAt: now, ...(exists ? {} : { createdAt: now }) };
+    // 이미지는 upload_images.js 가 따로 채운다 — 빈 배열로 덮어써서 지우지 않게 뺀다.
+    if (Array.isArray(payload.images) && payload.images.length === 0) delete payload.images;
     console.log(`${WRITE ? 'WRITE' : 'DRY  '} ${collection}/${id}  ${data.name || data.supplierName_raw || ''}`);
     if (WRITE) {
       batch.set(ref, payload, { merge: true });

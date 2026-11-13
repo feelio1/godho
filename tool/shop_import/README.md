@@ -11,7 +11,9 @@
 | `out/review.csv` | 옵션별 도매가·판매가·마진 검토표 | 내부 |
 | `raw_nrpet.txt` | 원본 수집 데이터 | 내부 |
 | `build_catalog.py` | raw → out 변환 (가격 규칙 바꾸면 다시 실행) | — |
-| `import_to_firestore.js` | Firestore에 쓰기 (기본은 미리보기) | — |
+| `import_to_firestore.js` | Firestore에 쓰기 (기본은 미리보기). 빈 `images`는 쓰지 않아 업로드한 사진을 지우지 않음 | — |
+| `images/<상품id>/<n>.jpg` | 상품 대표 사진(공급사 드라이브 `대표1~4`, 긴 변 1200px·JPEG 85·EXIF 제거) | 앱 공개 |
+| `upload_images.js` | `images/`를 Storage `product_images/`에 올리고 `products.images` 채움 | — |
 
 ## 가격 규칙
 - 판매가 = 공급사 공개 소비자가(도매가 ÷ 0.7)를 100원 단위 반올림 → 대체로 **도매가 대비 30% 마진**.
@@ -30,7 +32,8 @@
 6. `pricing.dart`: bulky 상품은 별도 배송비(4,000) 계산, 무료배송 기준은 standard 상품에만.
 
 ## 오픈 전 반드시
-- [ ] 공급사에 **자사 앱 판매 + 이미지/상세 사용 허락** 확인 → 이미지 다운로드 게시판에서 받아 Storage 업로드 → `images` 채우기
+- [x] 공급사 이미지 사용 허락 → 드라이브 "후회없개 제품 사진+상세"(2026-11-13)에서 대표 사진 수집 → `images/`
+- [ ] `node upload_images.js ./serviceAccount.json ./images --write` 실행 (져키 3종은 상품 사진 1장 + 3종 묶음 사진 1장)
 - [ ] `notice`(상품정보제공고시) — 공급사 상세 이미지에서 판독해 채움(`gosi_nrpet.json`). 남은 빈칸·이상한 값은 `out/gosi_todo.md`
 - [ ] A/S 칸의 【전화번호】 채우기 (gosi_nrpet.json `_common.as`) 후 `python3 build_catalog.py` 다시 실행
 - [ ] `sellers.json` 【】 칸 채우기 (사업자번호·통신판매업 번호 등)
