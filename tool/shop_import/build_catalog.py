@@ -145,8 +145,8 @@ def build_notice(sid: str, name: str, cat: str) -> dict:
             "치수": g.get("치수", TODO),
             "제조자(수입자)": f"{c['importer']} (수입)",
             "제조국": g.get("제조국", "중국"),
-            "세탁방법 및 취급시 주의사항": TODO,
-            "제조연월": TODO,
+            "세탁방법 및 취급시 주의사항": g.get("세탁방법", "제품에 부착된 케어라벨 참조"),
+            "제조연월": g.get("제조연월", "입고 시기별 상이 (확인이 필요하면 고객센터로 문의)"),
             "품질보증기준": c["warranty"],
             "A/S 책임자와 전화번호": c["as"],
         }
@@ -159,7 +159,7 @@ def build_notice(sid: str, name: str, cat: str) -> dict:
         if k in g:
             notice[k] = g[k]
     notice.update({
-        "법에 의한 인증·허가 사항": TODO,
+        "법에 의한 인증·허가 사항": g.get("인증", "해당사항 없음"),
         "제조국": g.get("제조국", TODO),
         "제조자(수입자)": f"{c['importer']} (수입)",
         "품질보증기준": c["warranty"],
