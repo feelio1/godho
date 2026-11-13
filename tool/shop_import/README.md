@@ -35,8 +35,8 @@
 - [x] 공급사 이미지 사용 허락 → 드라이브 "후회없개 제품 사진+상세"(2026-11-13)에서 대표 사진 수집 → `images/`
 - [ ] `node upload_images.js ./serviceAccount.json ./images --write` 실행 (져키 3종은 상품 사진 1장 + 3종 묶음 사진 1장)
 - [ ] `notice`(상품정보제공고시) — 공급사 상세 이미지에서 판독해 채움(`gosi_nrpet.json`). 남은 빈칸·이상한 값은 `out/gosi_todo.md`
-- [ ] A/S 칸의 【전화번호】 채우기 (gosi_nrpet.json `_common.as`) 후 `python3 build_catalog.py` 다시 실행
-- [ ] `sellers.json` 【】 칸 채우기 (사업자번호·통신판매업 번호 등)
+- [x] A/S 칸의 【전화번호】 채우기 (gosi_nrpet.json `_common.as`) 후 `python3 build_catalog.py` 다시 실행
+- [x] `sellers.json` 【】 칸 채우기 (사업자번호·통신판매업 번호 등)
 - [ ] 양털 조끼패딩 **카키**: 공급사 데이터상 사이즈별 가격이 모두 같음(다른 색은 사이즈별 상승) → 공급사 확인
 - [ ] 단종예정 져키 2종: 재고 소진 시 `hidden`
-- [ ] 개인정보처리방침에 "배송을 위한 공급업체(후회없개) 제공" 추가
+- [x] 개인정보처리방침에 "배송을 위한 공급업체(후회없개) 제공" 추가 (2026-11-13, 위탁으로 표기)
