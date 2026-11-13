@@ -1923,7 +1923,7 @@
     },
     "shippingClass": "standard",
     "minQty": 1,
-    "status": "soldout",
+    "status": "hidden",
     "sortOrder": 290,
     "tags": []
   }

@@ -6,7 +6,7 @@
 import pathlib
 import markdown
 
-PRIVACY_DATE = "2026년 10월 30일"
+PRIVACY_DATE = "2026년 11월 13일"
 TERMS_DATE = "2026년 11월 20일"   # ← 실제 Play 출시일(프로덕션 공개일)로 맞출 것
 
 ROOT = pathlib.Path(__file__).parent

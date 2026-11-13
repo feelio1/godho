@@ -35,6 +35,9 @@ NOTICE = {
     "_default": ["품명 및 모델명", "법에 의한 인증·허가 등을 받았음을 확인할 수 있는 경우 그에 대한 사항",
                  "제조국 또는 원산지", "제조자(수입자)", "A/S 책임자와 전화번호"],
 }
+HOLD = {   # 판매 보류(앱에서 숨김) — 확인되면 여기서 지우고 다시 실행
+    "nr-ythpm5lf6l23": "노즈워크 장난감: 포장 디자인이 유명 초콜릿바 상표와 비슷 → 공급사 라이선스 확인 중",
+}
 MIN_QTY = {"f5shengfqtva": 10}   # 배변봉투 1P: 낱개 판매는 배송비보다 싸서 10개 단위
 
 
@@ -192,7 +195,9 @@ def main():
                     "soldOut": lab in it["outOpts"],
                 })
 
-        if it["out"] and discontinuing:
+        if pid in HOLD:
+            status = "hidden"
+        elif it["out"] and discontinuing:
             status = "hidden"
         elif it["out"]:
             status = "soldout"
