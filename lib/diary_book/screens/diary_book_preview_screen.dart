@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,12 @@ import '../book_layout_engine.dart';
 import '../book_spec.dart';
 import '../diary_book_pdf_service.dart';
 import '../diary_book_source.dart';
+
+/// 미리보기 화면에만 겹쳐 그리는 워터마크 문구 — PDF(인쇄 파일)에는 그리지
+/// 않는다. 캡처본을 인쇄 주문 없이 쓰기 어렵게 하되, 자기 일기를 보여주는 건
+/// 막지 않는다(캡처 차단은 하지 않음). "펫클" 표기는 넣지 않는다(책 내지 규칙).
+const String kPreviewWatermarkCaption = '미리보기 · 인쇄본에는 표시되지 않아요';
+const String kPreviewWatermarkDiagonal = '미리보기';
 
 /// 쪽 묶음 — 한쪽 보기는 쪽마다, 펼침면은 표지·뒷면을 홑으로 두고 그 사이를
 /// 둘씩(2–3, 4–5, …) 묶는다. 값은 0부터 세는 쪽 인덱스.
@@ -51,6 +58,9 @@ class DiaryBookPreviewScreen extends ConsumerStatefulWidget {
 }
 
 class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen> {
+  // 캡처본을 인쇄에 쓰기 어렵게 하려는 상한 — 올리지 말 것. 인쇄용 고해상도는
+  // 주문 시 별도 생성. 확대(InteractiveViewer)해도 더 높은 dpi로 다시 그리지
+  // 않고, 미리보기 PDF(앱 캐시)를 공유·저장·외부 열기로 내보내는 경로도 없다.
   static const _pageDpi = 110.0;
   static const _thumbDpi = 24.0;
   static const _maxCachedPages = 8;
@@ -214,10 +224,17 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
                         Flexible(
                           child: AspectRatio(
                             aspectRatio: aspect,
-                            child: _PageImage(
-                              key: ValueKey('page-$pageIndex'),
-                              future: _pageImage(pageIndex),
-                              label: layout.pages[pageIndex].displayName,
+                            // 워터마크는 쪽 위에 겹쳐 쪽과 함께 확대·이동된다.
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _PageImage(
+                                  key: ValueKey('page-$pageIndex'),
+                                  future: _pageImage(pageIndex),
+                                  label: layout.pages[pageIndex].displayName,
+                                ),
+                                _PreviewWatermark(spec: widget.spec),
+                              ],
                             ),
                           ),
                         ),
@@ -306,6 +323,76 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 쪽 위 워터마크 — (a) 하단 가운데 작은 안내 1줄, (b) 가운데 아주 옅은 대각선
+/// "미리보기". 크기는 쪽 너비에 비례해 확대해도 쪽과 같은 비율로 보인다. 안내
+/// 줄은 쪽 아래 안전 여백 띠(쪽 번호 아래) 가운데에 둬 원고지·쪽 번호를 가리지
+/// 않는다. 중립 회색만 쓰고(빨강·주황 금지), 제스처는 막지 않는다.
+class _PreviewWatermark extends StatelessWidget {
+  final BookSpec spec;
+
+  const _PreviewWatermark({required this.spec});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final h = constraints.maxHeight;
+          final bottomBand = h * spec.safeMm / spec.heightMm;
+          return Stack(
+            children: [
+              Center(
+                child: Transform.rotate(
+                  angle: -30 * math.pi / 180,
+                  child: Opacity(
+                    opacity: 0.07,
+                    child: Text(
+                      kPreviewWatermarkDiagonal,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                      style: TextStyle(
+                        fontFamily: 'IBM Plex Sans KR',
+                        fontSize: w * 0.22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: w * spec.safeMm / spec.widthMm,
+                right: w * spec.safeMm / spec.widthMm,
+                bottom: 0,
+                height: bottomBand,
+                child: Center(
+                  child: Opacity(
+                    opacity: 0.55,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        kPreviewWatermarkCaption,
+                        maxLines: 1,
+                        style: TextStyle(
+                          fontFamily: 'IBM Plex Sans KR',
+                          fontSize: w * 0.026,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

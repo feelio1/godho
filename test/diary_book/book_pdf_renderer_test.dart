@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -9,6 +10,8 @@ import 'package:petcliniccheck/diary_book/book_layout_engine.dart';
 import 'package:petcliniccheck/diary_book/book_spec.dart';
 import 'package:petcliniccheck/diary_book/diary_book_pdf_service.dart';
 import 'package:petcliniccheck/diary_book/render/book_pdf_renderer.dart';
+import 'package:petcliniccheck/diary_book/screens/diary_book_preview_screen.dart'
+    show kPreviewWatermarkCaption, kPreviewWatermarkDiagonal;
 
 /// 렌더러 스모크 — 작은 BookLayout → 유효한 PDF 바이트, 쪽 수 일치.
 BookRenderFonts _fonts() => BookRenderFonts(
@@ -89,4 +92,44 @@ void main() {
     expect(pages.last, layout.pageCount);
     expect(File('$out.part').existsSync(), isFalse);
   });
+
+  test('인쇄 파일(PDF)에는 미리보기 워터마크가 없다 — 워터마크는 화면 오버레이 전용', () async {
+    final layout = _layout();
+    final bytes = await renderBookPdf(
+      layout,
+      spec: BookSpec.a5,
+      fonts: _fonts(),
+      loadPhoto: (_) => null,
+    );
+
+    // 렌더러가 그리는 글은 전부 레이아웃에서 온다 — 그 어디에도 워터마크 문구가 없다.
+    final drawnTexts = <String>[
+      for (final page in layout.pages) ...switch (page) {
+        CoverPage() => [page.title, page.periodLabel],
+        DiaryEntryPage() => [page.dateLabel, page.activityText, ...page.grid.cells.expand((r) => r)],
+        ContinuationPage() => [page.dateLabel, ...page.grid.cells.expand((r) => r)],
+        SummaryPage() => [page.periodLabel, ...page.topActivities.map((a) => a.label)],
+        MemoPage() => const <String>[],
+      },
+      for (final page in layout.pages) ?page.pageLabel,
+    ];
+    expect(drawnTexts.join('\n'), isNot(contains(kPreviewWatermarkDiagonal)));
+
+    // PDF 바이트에도 그 문구가 어떤 인코딩으로도 없다. 같은 방법으로 문서 제목
+    // ("구름이의 그림일기", PDF 정보 사전)은 찾아지는지 확인해 검사가 헛돌지 않게 한다.
+    bool containsText(Uint8List pdf, String text) {
+      final latin = String.fromCharCodes(pdf);
+      final utf16 = [0xFE, 0xFF, for (final u in text.codeUnits) ...[u >> 8, u & 0xFF]];
+      final hex = utf16.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      return latin.contains(String.fromCharCodes(utf16)) ||
+          latin.toLowerCase().contains(hex) ||
+          latin.contains(String.fromCharCodes(utf8Encode(text)));
+    }
+
+    expect(containsText(bytes, '구름이의 그림일기'), isTrue, reason: '검사 방법 자체 확인(문서 제목)');
+    expect(containsText(bytes, kPreviewWatermarkDiagonal), isFalse);
+    expect(containsText(bytes, kPreviewWatermarkCaption), isFalse);
+  });
 }
+
+List<int> utf8Encode(String text) => const Utf8Encoder().convert(text);

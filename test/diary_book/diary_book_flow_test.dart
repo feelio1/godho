@@ -241,6 +241,22 @@ void main() {
       expect(find.text('사진 2장은 아직 올라가는 중이라 이번 미리보기에서 빠졌어요'), findsOneWidget);
     });
 
+    testWidgets('쪽 위에 워터마크 두 문구가 보이고(제스처는 막지 않음), 썸네일에는 없다', (tester) async {
+      await pumpPreview(tester, missing: 0);
+      final caption = find.text(kPreviewWatermarkCaption);
+      final diagonal = find.text(kPreviewWatermarkDiagonal);
+      expect(caption, findsWidgets);
+      expect(diagonal, findsWidgets);
+      // 쪽과 함께 확대·이동되도록 InteractiveViewer 안에, 터치는 통과.
+      expect(find.ancestor(of: caption.first, matching: find.byType(InteractiveViewer)), findsOneWidget);
+      expect(find.ancestor(of: caption.first, matching: find.byType(IgnorePointer)), findsWidgets);
+      // 썸네일 목록(가로 ListView)에는 넣지 않는다.
+      final thumbs = find.byWidgetPredicate((w) => w is ListView && w.scrollDirection == Axis.horizontal);
+      expect(find.descendant(of: thumbs, matching: caption), findsNothing);
+      // "펫클" 표기 없음.
+      expect(find.textContaining('펫클'), findsNothing);
+    });
+
     testWidgets('빠진 사진이 없으면 안내하지 않는다', (tester) async {
       await pumpPreview(tester, missing: 0);
       expect(find.textContaining('아직 올라가는 중'), findsNothing);

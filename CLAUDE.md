@@ -75,6 +75,7 @@
 - 폰트: 손글씨 **나눔손글씨 펜**(Nanum Pen Script, SIL OFL 1.1 — `assets/fonts/nanum_pen_script/`에 `OFL.txt` 동봉, 폰트와 함께 배포해야 한다), 칸 제목 라벨은 IBM Plex Sans KR. 날씨 아이콘·테두리·원고지는 벡터 도형으로 직접 그리고 이모지 글꼴은 쓰지 않는다.
 - 생성: 쓰이는 사진만 순차 준비(올라간 사진은 이미지 디스크 캐시 재사용, 업로드 대기 중은 로컬 파일), 그리기는 별도 isolate(`renderDiaryBookInIsolate`)에서 "그림일기 만드는 중 (n/m쪽)". 결과는 **앱 캐시 폴더**(`diary_book_preview/`)에 임시 저장 — 같은 내용(일기 글·사진·제목·표지·판형·렌더러 버전 해시)이면 재사용, 새로 만들면 이전 파일 삭제, **로그아웃·회원 탈퇴 시 전부 삭제**(`clearDiaryBookCache`). 그리는 방식이 바뀌면 `kBookRendererVersion`을 올린다.
 - 일기는 **읽기만** 한다 — 기존 월 단위 조회를 달마다 불러 모으며, 일기·사진 원본을 고치거나 사진을 다시 올리지 않는다.
+- 미리보기 화면에만 워터마크 오버레이(하단 '미리보기 · 인쇄본에는 표시되지 않아요' + 가운데 옅은 대각선 '미리보기')와 110dpi 래스터 상한 — PDF(인쇄 파일)에는 그리지 않는다. 캡처 차단(FLAG_SECURE)은 하지 않는다.
 
 ## 일기 사진 파이프라인
 - 원본: 네이티브 압축(`flutter_image_compress`)으로 **긴 변 2048px, JPEG 품질 82**. 썸네일: **긴 변 480px, 품질 75**. 둘 다 EXIF 제거(위치 정보 포함). 긴 변 계산은 짧은 변 기준으로 동작하는 네이티브 압축기의 실제 동작을 보정한 값이라, `minWidth`/`minHeight`에 긴 변 값을 그대로 넣지 않는다(`lib/diary/diary_photo_processor.dart`의 `targetDiaryPhotoSize`).
