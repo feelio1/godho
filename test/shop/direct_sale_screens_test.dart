@@ -159,6 +159,26 @@ void main() {
     });
   });
 
+  testWidgets('상품정보제공고시는 noticeKeys 순서대로 위에서 아래로 보인다', (tester) async {
+    final product = Product.fromFirestore('p1', {
+      'sellerId': 'aggaeng',
+      'name': '후드티',
+      'price': 9600,
+      'status': 'active',
+      'notice': {'품명': '후드티', '제조국': '중국', '소재': '면'},
+      'noticeKeys': ['소재', '제조국', '품명'],
+    });
+    await tester.pumpWidget(_app([product], const ProductDetailScreen(productId: 'p1')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('상품정보제공고시'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('상품정보제공고시'));
+    await tester.pumpAndSettle();
+
+    double y(String text) => tester.getTopLeft(find.text(text)).dy;
+    expect(y('소재'), lessThan(y('제조국')));
+    expect(y('제조국'), lessThan(y('품명')));
+  });
+
   group('주문서', () {
     testWidgets('따로 배송 상품이 있으면 배송비 합계 아래에 내역을, 동의 문구는 공급업체 제공', (tester) async {
       final lines = [

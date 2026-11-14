@@ -24,6 +24,11 @@ void main() {
     expect(products.where((p) => p.minQty == 10).length, 1);
     expect(products.where((p) => p.isDiscontinuing), isNotEmpty);
     expect(products.any((p) => p.category == ProductCategory.etc), isFalse);
+    // 고시는 데이터의 noticeKeys 순서 그대로 보인다.
+    for (final (i, p) in products.indexed) {
+      final keys = (raw[i] as Map<String, dynamic>)['noticeKeys'] as List<dynamic>;
+      expect(p.orderedNotice.map((e) => e.key).toList(), keys, reason: p.name);
+    }
   });
 
   test('sellers.json 아깽이상점 배송 정책(3,000 / 30,000 / 따로 배송 4,000 / 제주 3,000)', () {

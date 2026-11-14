@@ -179,6 +179,29 @@ void main() {
       expect(restored.isDiscontinuing, isTrue);
     });
 
+    test('상품정보제공고시는 noticeKeys 순서로, 없으면 notice 순서, 빠진 키는 뒤에', () async {
+      final ref = await firestore.collection('products').add({
+        'name': '고시 순서',
+        'notice': {'품명': '후드티', '제조국': '중국', '소재': '면', '세탁방법': '손세탁'},
+        'noticeKeys': ['소재', '품명', '없는 키', '소재', '제조국'],
+      });
+      final doc = await ref.get();
+      final restored = Product.fromFirestore(doc.id, doc.data()!);
+      expect(restored.noticeKeys, ['소재', '품명', '없는 키', '소재', '제조국']);
+      // 값 없는 키·중복은 건너뛰고, noticeKeys에 없던 '세탁방법'은 뒤에.
+      expect(restored.orderedNotice.map((e) => e.key), ['소재', '품명', '제조국', '세탁방법']);
+      expect(restored.orderedNotice.first.value, '면');
+
+      final noKeys = Product.fromFirestore('x', {
+        'notice': {'가': '1', '나': '2'},
+      });
+      expect(noKeys.noticeKeys, isEmpty);
+      expect(noKeys.orderedNotice.map((e) => e.key), ['가', '나']);
+
+      final roundTrip = Product.fromFirestore('y', restored.toFirestore());
+      expect(roundTrip.orderedNotice.map((e) => e.key), ['소재', '품명', '제조국', '세탁방법']);
+    });
+
     test('minQty 0·음수는 1로, 모르는 배송 구분은 standard로 보정한다', () {
       final now = DateTime(2026, 1, 1);
       for (final minQty in [0, -3]) {

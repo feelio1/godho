@@ -200,7 +200,7 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, 16),
-                      child: _NoticeTable(notice: product.notice),
+                      child: _NoticeTable(entries: product.orderedNotice),
                     ),
                   ],
                 ),
@@ -304,9 +304,10 @@ class _ProductDetailBodyState extends ConsumerState<_ProductDetailBody> {
 /// 라벨이 세로로 쪼개지지 않도록, 넓을 때만 라벨·값 2칸, 좁으면 라벨 위·값
 /// 아래 2줄로 놓는다. 값이 "확인 필요"여도 숨기지 않는다.
 class _NoticeTable extends StatelessWidget {
-  final Map<String, String> notice;
+  /// 표시 순서대로 정렬된 고시 항목([Product.orderedNotice]).
+  final List<MapEntry<String, String>> entries;
 
-  const _NoticeTable({required this.notice});
+  const _NoticeTable({required this.entries});
 
   static const _labelStyle = TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5);
   static const _valueStyle = TextStyle(fontSize: 12.5, color: AppColors.textSecondary, height: 1.4);
@@ -319,7 +320,7 @@ class _NoticeTable extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final e in notice.entries)
+            for (final e in entries)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: wide

@@ -137,6 +137,10 @@ class Product {
   final String description;
   final List<ProductOption> options;
   final Map<String, String> notice;
+
+  /// [notice]를 보여줄 순서 — Firestore 맵은 키 순서를 보존하지 않아 따로
+  /// 저장한다. 비어 있으면 [notice] 키 순서 그대로. [orderedNotice] 참고.
+  final List<String> noticeKeys;
   final ProductStatus status;
   final int sortOrder;
   final ShippingClass shippingClass;
@@ -162,6 +166,7 @@ class Product {
     this.description = '',
     this.options = const [],
     this.notice = const {},
+    this.noticeKeys = const [],
     this.status = ProductStatus.draft,
     this.sortOrder = 0,
     this.shippingClass = ShippingClass.standard,
@@ -179,6 +184,18 @@ class Product {
   bool get isPurchasable => status == ProductStatus.active;
 
   bool get isBulky => shippingClass == ShippingClass.bulky;
+
+  /// 상품정보제공고시를 표시 순서대로 — [noticeKeys] 순서를 따르고(값이
+  /// 없는 키는 건너뜀), [noticeKeys]에 없고 [notice]에만 있는 키는 뒤에 붙인다.
+  List<MapEntry<String, String>> get orderedNotice {
+    final seen = <String>{};
+    return [
+      for (final key in noticeKeys)
+        if (notice.containsKey(key) && seen.add(key)) MapEntry(key, notice[key]!),
+      for (final entry in notice.entries)
+        if (seen.add(entry.key)) entry,
+    ];
+  }
 
   /// 재고 소진 후 판매 종료 예정 — 상세에서만 회색 칩으로 알린다.
   bool get isDiscontinuing => tags.contains(kProductTagDiscontinuing);
@@ -206,6 +223,7 @@ class Product {
             .map((e) => ProductOption.fromFirestore(e as Map<String, dynamic>))
             .toList(),
         notice: (data['notice'] as Map<String, dynamic>? ?? const {}).map((k, v) => MapEntry(k, v as String)),
+        noticeKeys: (data['noticeKeys'] as List<dynamic>? ?? const []).whereType<String>().toList(),
         status: ProductStatus.fromFirestore(data['status'] as String?),
         sortOrder: (data['sortOrder'] as num?)?.toInt() ?? 0,
         shippingClass: ShippingClass.fromFirestore(data['shippingClass'] as String?),
@@ -229,6 +247,7 @@ class Product {
         'description': description,
         'options': options.map((e) => e.toFirestore()).toList(),
         'notice': notice,
+        'noticeKeys': noticeKeys,
         'status': status.name,
         'sortOrder': sortOrder,
         'shippingClass': shippingClass.name,

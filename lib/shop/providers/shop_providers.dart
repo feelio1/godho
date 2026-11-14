@@ -43,13 +43,18 @@ Stream<bool> _watchShopEnabled(FirebaseFirestore firestore) async* {
 /// 스토어 홈의 카테고리 칩 선택 상태.
 final shopCategoryFilterProvider = StateProvider<ProductCategory?>((ref) => null);
 
-/// 스토어 홈 첫 페이지(20개, 카테고리 필터 적용) — 더 보기(페이지네이션)는
-/// 화면이 직접 [ShopRepository.fetchProducts]를 커서와 함께 다시 불러
-/// 처리한다(이 provider는 "처음 진입/필터 바뀜" 경로만 맡는다).
+/// 스토어 홈 상품 목록 한 번에 불러올 최대 개수 — 직판 카탈로그는 수십 개
+/// 규모라 페이지를 나누지 않고 한 번에 다 보여준다(예전 기본값 20개로는 27개
+/// 중 7개가 안 보였다). 카탈로그가 이 수를 넘게 커지면 커서로 이어 붙이는
+/// 무한 스크롤로 바꾼다.
+const int kShopCatalogLimit = 100;
+
+/// 스토어 홈 상품 목록(카테고리 필터 적용, 최대 [kShopCatalogLimit]개) —
+/// 처음 진입할 때와 카테고리 칩을 바꿀 때 다시 불러온다.
 final productsProvider = FutureProvider.autoDispose<ProductPage>((ref) {
   final repo = ref.watch(shopRepositoryProvider);
   final category = ref.watch(shopCategoryFilterProvider);
-  return repo.fetchProducts(category: category);
+  return repo.fetchProducts(category: category, limit: kShopCatalogLimit);
 });
 
 /// 상품이 1개 이상 있는 카테고리 — 스토어 홈 칩이 빈 결과를 보여주지 않게
