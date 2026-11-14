@@ -225,7 +225,8 @@ def main():
             "images": [],                       # 이미지 사용 허락 후 업로드 (공급사 이미지 다운로드 게시판)
             "description": "\n".join(desc_lines),
             "options": options,
-            "notice": build_notice(it["id"], name, cat),
+            "notice": (notice := build_notice(it["id"], name, cat)),
+            "noticeKeys": list(notice),         # Firestore 맵은 키 순서를 보존하지 않음 → 표시 순서
             "shippingClass": "bulky" if bulky else "standard",
             "minQty": MIN_QTY.get(it["id"], 1),
             "status": status,
