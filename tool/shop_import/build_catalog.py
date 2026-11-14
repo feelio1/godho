@@ -210,7 +210,7 @@ def main():
         if axes_desc:
             desc_lines.append(f"옵션: {axes_desc}")
         if cat == "apparel":
-            desc_lines.append("사이즈는 상세 이미지의 실측표를 확인해 주세요.")
+            desc_lines.append("사이즈별 치수는 아래 상품정보제공고시의 '치수'를 확인해 주세요.")
         if bulky:
             desc_lines.append("부피가 큰 상품이라 다른 상품과 따로 배송됩니다.")
 
