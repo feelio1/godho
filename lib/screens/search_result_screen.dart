@@ -132,7 +132,7 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(AppSpacing.page, 4, AppSpacing.page, 0),
             child: SearchSetCard(
-              hintText: '병원명 또는 주소로 검색',
+              hintText: '동 이름이나 병원 이름으로 검색',
               controller: _controller,
               // 진입 시 지역 목록을 바로 보여주는 것이 우선이라(스프린트 4
               // 지시서 1), 자동으로 키보드를 띄워 목록을 가리지 않는다.
@@ -181,6 +181,28 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
               ],
             ),
           ),
+          // 가까운 순인데 위치를 모를 때 — 권한 창은 이 버튼을 눌렀을 때만 뜬다.
+          if (sort == SortOption.distance && location == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.page, 8, AppSpacing.page, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, size: 15, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text(
+                      '위치를 켜면 가까운 순으로 볼 수 있어요',
+                      style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => ref.read(locationProvider.notifier).requestAndFetch(),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    child: const Text('위치 켜기'),
+                  ),
+                ],
+              ),
+            ),
           const SizedBox(height: 8),
           if (region.isNationwide && results.length > _regionHintThreshold)
             _NarrowRegionHint(onTap: _changeRegion, count: results.length),

@@ -142,16 +142,17 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.inputFill,
+        // 입력칸이 페이지 배경(연회색)과 구분되게 흰 바탕 + 1px 테두리.
+        fillColor: isDark ? AppColors.inputFill : AppColors.surfaceLight,
         hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textPlaceholder),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.field),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.borderInput),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.field),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.borderInput),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.field),

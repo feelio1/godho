@@ -89,6 +89,10 @@ class PetClinicCheckApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
+      // 임시로 밝은 화면에 고정 — 화면들이 밝은 색(AppColors의 글자·배경색)을
+      // 직접 써서 다크 모드에서 글자가 안 보인다. 정식 지원 전까지 고정하고,
+      // darkTheme 코드는 그때 쓰려고 남겨 둔다.
+      themeMode: ThemeMode.light,
       // 전체가 한국어 앱이라 시간 선택 등 Flutter 기본 위젯(TimeOfDay.format
       // 등)도 "오후 9:27" 같은 한국어 표기를 쓰게 로케일을 고정한다 — 지역화
       // 델리게이트가 없으면 영어 "9:27 PM"로 표시돼 화면 전체 톤과 어긋난다.

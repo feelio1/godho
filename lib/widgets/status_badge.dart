@@ -4,6 +4,8 @@ import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../theme/app_colors.dart';
 
+const String kOperationUnconfirmedLabel = '현재 영업 여부 확인 안 됨';
+
 /// 운영기간 표기 — 뭉뚱그린 구간(운영 X년 이상)이 아니라 정확한 "운영
 /// N년차"(영업중)/"YYYY–YYYY 운영"(폐업 — 개설~폐업 연도 범위)으로
 /// 보여준다. 신규/정보 부족(continuousSince 없거나 1년 미만)은 CLAUDE.md
@@ -16,7 +18,15 @@ import '../theme/app_colors.dart';
 /// `continuousSince`(병합 구간을 반영한 실제 연속 운영 시작)를 쓴다 —
 /// `operatingYears`도 같은 값을 기준으로 계산하므로 두 표기가 서로
 /// 어긋나지 않는다.
+///
+/// 영업 여부를 알 수 없는(status unknown) 병원은 "운영 N년차"로 계산해 보이지
+/// 않는다(CLAUDE.md 원칙 5 — 확인 안 된 것을 추정하지 않는다). 지금도
+/// 영업 중인지 모르므로, 개설 기록이 있으면 그 연도만 사실대로 적는다.
 String hospitalOperatingLabel(Hospital hospital) {
+  if (hospital.status == HospitalStatus.unknown) {
+    final openDate = hospital.openDate;
+    return openDate != null ? '${openDate.year}년 개설 기록 · $kOperationUnconfirmedLabel' : kOperationUnconfirmedLabel;
+  }
   final years = hospital.operatingYears;
   if (years == null || years == 0) return '공개 데이터가 적어요';
   if (hospital.status == HospitalStatus.closed) {
@@ -58,8 +68,9 @@ class StatusBadge extends StatelessWidget {
 ///   (CLAUDE.md 원칙 2).
 /// - 운영기간을 알 수 없으면(신규/데이터 부족): 중립 회색 칩으로 "공개
 ///   데이터가 적어요"를 그대로 보여준다 — 평가가 아니라 안내.
-/// - 폐업(closed)/정보부족(unknown) 상태: 기존 중립 [StatusBadge]를 그대로
-///   유지한다 — 헛걸음 방지를 위해 폐업은 반드시 구분되어야 한다.
+/// - 폐업(closed)/영업 여부 확인 안 됨(unknown) 상태: 중립 회색 [StatusBadge]
+///   ('폐업' / '영업 여부 확인 안 됨') — 헛걸음 방지를 위해 반드시 구분한다.
+///   unknown은 운영 N년차를 계산해 보이지 않는다(원칙 5).
 class HospitalStatusTag extends StatelessWidget {
   final Hospital hospital;
 
@@ -89,16 +100,24 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 글자 길이만큼만 차지한다 — Container에 alignment를 주면 부모 폭만큼
+    // 늘어나 칩이 가로로 꽉 찼다. 폭이 모자라면 말줄임.
     return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      alignment: Alignment.center,
       decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(6)),
-      child: Text(
-        label,
-        overflow: TextOverflow.ellipsis,
-        maxLines: 1,
-        style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w500),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
       ),
     );
   }

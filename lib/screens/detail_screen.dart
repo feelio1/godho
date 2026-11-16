@@ -196,7 +196,7 @@ class _Header extends ConsumerWidget {
           style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
         ),
         const SizedBox(height: 4),
-        Text(hospital.roadAddr, style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
+        Text(hospital.displayAddr, style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
         const SizedBox(height: 10),
         HospitalMiniMap(hospital: hospital),
         if (hospital.hasCoordinates) const SizedBox(height: 10),
@@ -221,7 +221,7 @@ class _Header extends ConsumerWidget {
     ref.read(designatedHospitalsProvider.notifier).toggle(hospital.id);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(isDesignated ? '지정 병원에서 해제했습니다.' : '지정 병원으로 등록했습니다. 홈 상단에서 바로 볼 수 있어요.'),
+        content: Text(isDesignated ? '지정 병원에서 해제했어요.' : '지정 병원으로 등록했어요. 진료기록·예약을 쓸 때 맨 위에 나와요.'),
       ),
     );
   }

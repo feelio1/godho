@@ -209,7 +209,7 @@ class _SearchEntry extends StatelessWidget {
             const Icon(Icons.search, size: 20, color: AppColors.primary),
             const SizedBox(width: 10),
             Text(
-              '병원 이름 또는 지역 검색',
+              '동 이름이나 병원 이름으로 검색',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
             ),
           ],

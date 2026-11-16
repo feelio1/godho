@@ -75,7 +75,8 @@ class CompareScreen extends ConsumerWidget {
                       label: '운영기간',
                       tooltip: '계속 등록된 기간을 나타내는 값으로, 신뢰도나 진료 품질과는 관련이 없습니다.',
                       hospitals: hospitals,
-                      valueBuilder: (h) => h.operatingPeriodLabel,
+                      // 카드·상세·지도 시트와 같은 표기(영업 여부를 모르면 계산하지 않음).
+                      valueBuilder: hospitalOperatingLabel,
                     ),
                     _CompareRow(
                       label: '개설일',

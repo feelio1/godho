@@ -30,7 +30,8 @@ void main() {
       expect(narrowed.length, lessThan(allOpenNationwide.length));
       expect(
         narrowed.every(
-          (h) => h.name.toLowerCase().contains('서울') || h.roadAddr.toLowerCase().contains('서울'),
+          // 이름·도로명·지번·시도·시군구 중 어딘가에 검색어가 들어 있다.
+          (h) => [h.name, h.roadAddr, h.jibunAddr, h.sido, h.sigungu].any((v) => v.contains('서울')),
         ),
         isTrue,
       );

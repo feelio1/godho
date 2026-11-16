@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../ads/global_banner_ad.dart';
 import '../config/feature_flags.dart';
 import '../shop/providers/shop_providers.dart';
 import '../shop/screens/shop_home_screen.dart';
@@ -83,8 +82,8 @@ class _ShopComingSoon extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: AppSpacing.section),
-          const GlobalBannerAd(inline: true),
+          // 준비 중(콘텐츠 없는) 화면에는 광고를 두지 않는다 — 구글 게시자 정책.
+          // 열린 스토어 홈(shop_home_screen.dart)의 배너는 그대로.
         ],
       ),
     );

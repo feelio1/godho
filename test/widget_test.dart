@@ -27,7 +27,7 @@ void main() {
     // 진입 + 3개 바로가기만 있고, 예전의 세로 리스트 섹션들은 없다
     // ("디자인 2단계" 지시서, 사용자 확인하에 제거).
     expect(find.text('펫클'), findsOneWidget);
-    expect(find.text('병원 이름 또는 지역 검색'), findsOneWidget);
+    expect(find.text('동 이름이나 병원 이름으로 검색'), findsOneWidget);
     expect(find.text('주변 병원'), findsOneWidget);
     expect(find.text('진료비 시세'), findsOneWidget);
     expect(find.text('저장한 병원'), findsOneWidget);

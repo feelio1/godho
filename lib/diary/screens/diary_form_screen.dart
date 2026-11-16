@@ -471,7 +471,11 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
                 borderRadius: BorderRadius.circular(AppRadius.field),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                  decoration: BoxDecoration(color: AppColors.inputFill, borderRadius: BorderRadius.circular(AppRadius.field)),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceLight,
+                    border: Border.all(color: AppColors.borderInput),
+                    borderRadius: BorderRadius.circular(AppRadius.field),
+                  ),
                   child: Row(
                     children: [
                       const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textPlaceholder),

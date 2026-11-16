@@ -63,6 +63,10 @@ class Hospital {
 
   bool get hasCoordinates => lat != null && lng != null;
 
+  /// 화면·공유·길찾기에 쓰는 주소 — 도로명주소가 비어 있으면(번들에 38곳)
+  /// 지번주소로 대신한다.
+  String get displayAddr => roadAddr.trim().isNotEmpty ? roadAddr : jibunAddr;
+
   /// Full years of continuous registration, ending at `closeDate` for
   /// closed hospitals or today for open ones. Null when `continuousSince`
   /// is not available in the public data — never estimated.

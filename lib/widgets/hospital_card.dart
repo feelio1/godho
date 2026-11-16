@@ -91,7 +91,7 @@ class HospitalCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          hospital.roadAddr,
+                          hospital.displayAddr,
                           style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
                           overflow: TextOverflow.ellipsis,
                         ),

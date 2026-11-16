@@ -330,7 +330,8 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 decoration: BoxDecoration(
-                  color: AppColors.inputFill,
+                  color: AppColors.surfaceLight,
+                  border: Border.all(color: AppColors.borderInput),
                   borderRadius: BorderRadius.circular(AppRadius.field),
                 ),
                 child: Row(
@@ -375,7 +376,8 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 decoration: BoxDecoration(
-                  color: AppColors.inputFill,
+                  color: AppColors.surfaceLight,
+                  border: Border.all(color: AppColors.borderInput),
                   borderRadius: BorderRadius.circular(AppRadius.field),
                 ),
                 child: Row(

@@ -487,7 +487,8 @@ class _DateTimeField extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: AppColors.inputFill,
+              color: AppColors.surfaceLight,
+              border: Border.all(color: AppColors.borderInput),
               borderRadius: BorderRadius.circular(AppRadius.field),
             ),
             child: Row(

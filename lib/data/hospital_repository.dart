@@ -61,14 +61,23 @@ class HospitalRepository {
   static String _normalize(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'\s+'), '');
 
+  /// 검색어에서 빼는 단어 — 거의 모든 병원 이름에 들어 있어 거르는 힘이
+  /// 없고, "강남구 동물병원"처럼 지역 + 일반어로 찾을 때 방해만 된다.
+  static const _searchStopWords = {'동물병원', '병원'};
+
+  /// 검색어를 공백으로 나눠 **모든 단어**가 이름·도로명·지번·시도·시군구 중
+  /// 어딘가에 들어 있는 병원("종로 월드펫", "역삼동"). 각 단어는 소문자·공백
+  /// 제거 후 비교하고, "동물병원"/"병원"은 뺀다 — 빼고 남는 단어가 없으면
+  /// 원래 검색어 전체로 찾는다. 결과 순서는 번들 순서 그대로(평가성 정렬 없음).
   List<Hospital> search(String query) {
-    final needle = _normalize(query);
-    if (needle.isEmpty) return const [];
-    return bundle.hospitals
-        .where((h) =>
-            _normalize(h.name).contains(needle) ||
-            _normalize(h.roadAddr).contains(needle))
-        .toList();
+    final words = query.trim().split(RegExp(r'\s+')).map(_normalize).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return const [];
+    var needles = words.where((w) => !_searchStopWords.contains(w)).toList();
+    if (needles.isEmpty) needles = [_normalize(query)];
+    return bundle.hospitals.where((h) {
+      final haystack = [h.name, h.roadAddr, h.jibunAddr, h.sido, h.sigungu].map(_normalize).join('\n');
+      return needles.every(haystack.contains);
+    }).toList();
   }
 
   List<Hospital> filterByRegion(List<Hospital> hospitals, RegionFilter region) {

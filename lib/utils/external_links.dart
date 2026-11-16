@@ -56,7 +56,7 @@ class ExternalLinks {
             '&dname=${Uri.encodeComponent(hospital.name)}'
             '&appname=$_naverMapAppName')
         : Uri.parse('nmap://search'
-            '?query=${Uri.encodeComponent(hospital.roadAddr)}'
+            '?query=${Uri.encodeComponent(hospital.displayAddr)}'
             '&appname=$_naverMapAppName');
 
     if (await canLaunchUrl(appUri)) {
@@ -64,7 +64,7 @@ class ExternalLinks {
       return;
     }
 
-    final query = hospital.roadAddr.isNotEmpty ? hospital.roadAddr : hospital.name;
+    final query = hospital.displayAddr.isNotEmpty ? hospital.displayAddr : hospital.name;
     await launchUrl(
       Uri.parse('https://map.naver.com/p/search/${Uri.encodeComponent(query)}'),
       mode: LaunchMode.externalApplication,
@@ -72,7 +72,7 @@ class ExternalLinks {
   }
 
   static Future<void> openNaverMapReviews(Hospital hospital) async {
-    final query = '${hospital.name} ${hospital.roadAddr}';
+    final query = '${hospital.name} ${hospital.displayAddr}';
     await launchUrl(
       Uri.parse('https://map.naver.com/p/search/${Uri.encodeComponent(query)}'),
       mode: LaunchMode.externalApplication,
@@ -80,7 +80,7 @@ class ExternalLinks {
   }
 
   static Future<void> openKakaoMapReviews(Hospital hospital) async {
-    final query = '${hospital.name} ${hospital.roadAddr}';
+    final query = '${hospital.name} ${hospital.displayAddr}';
     await launchUrl(
       Uri.parse('https://map.kakao.com/?q=${Uri.encodeComponent(query)}'),
       mode: LaunchMode.externalApplication,
@@ -117,7 +117,7 @@ class ExternalLinks {
   static Future<void> shareHospital(Hospital hospital) async {
     await SharePlus.instance.share(
       ShareParams(
-        text: '${hospital.name}\n${hospital.roadAddr}\n'
+        text: '${hospital.name}\n${hospital.displayAddr}\n'
             '펫클에서 공개된 인허가 정보를 확인해보세요.',
       ),
     );

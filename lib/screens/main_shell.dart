@@ -410,7 +410,9 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     ref.listen<AsyncValue<Position?>>(locationProvider, (previous, next) {
       if (next.isLoading) return;
       applyDetectedRegionFromPosition(ref, next.value);
-      if (!ref.read(sortManuallySetProvider)) {
+      // 좌표를 실제로 얻었을 때만 가까운 순으로 — 위치가 없는데 정렬만
+      // "가까운 순"이면 거리 없이 이름순처럼 보여 헷갈린다(지금 정렬 유지).
+      if (next.value != null && !ref.read(sortManuallySetProvider)) {
         ref.read(sortOptionProvider.notifier).state = SortOption.distance;
       }
     });

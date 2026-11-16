@@ -376,7 +376,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: OutlinedButton.icon(
                   onPressed: () => _sendTestNotification(context),
                   icon: const Icon(Icons.notifications_active_outlined),
-                  label: const Text('1분 뒤 테스트 알림 보내기'),
+                  label: const Text('알림이 잘 오는지 확인하기'),
                 ),
               ),
               // 개발 확인용 — 릴리스 빌드에서는 숨긴다.

@@ -528,8 +528,8 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                           // 중복 표기하지 않는다(스프린트 16) — 폐업/정보부족은
                           // 주소 옆에 운영기간을 함께 보여준다.
                           hospital.status == HospitalStatus.open
-                              ? hospital.roadAddr
-                              : [hospital.roadAddr, hospitalOperatingLabel(hospital)].join(' · '),
+                              ? hospital.displayAddr
+                              : [hospital.displayAddr, hospitalOperatingLabel(hospital)].join(' · '),
                           style: Theme.of(sheetContext)
                               .textTheme
                               .bodySmall
@@ -761,7 +761,7 @@ class _MapSearchBar extends StatelessWidget {
                     const Icon(Icons.search, size: 20, color: AppColors.textPlaceholder),
                     const SizedBox(width: 8),
                     Text(
-                      '병원명 또는 주소로 검색',
+                      '동 이름이나 병원 이름으로 검색',
                       style: TextStyle(color: AppColors.textPlaceholder, fontWeight: FontWeight.w600),
                     ),
                   ],

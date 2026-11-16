@@ -321,7 +321,7 @@ class _PickerSection extends StatelessWidget {
             dense: true,
             title: Text(h.name, style: const TextStyle(fontWeight: FontWeight.w700)),
             subtitle: Text(
-              h.roadAddr,
+              h.displayAddr,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: AppColors.textSecondary),
             ),
