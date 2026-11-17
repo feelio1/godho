@@ -38,3 +38,8 @@ Future<void> persistPetTabView(PetTabView view) async {
 /// 캘린더 화면([PetCalendarBody])이 스스로 갱신하고, 다른 화면은 읽기만
 /// 한다.
 final petTabCalendarSelectedDayProvider = StateProvider<DateTime>((ref) => dateOnly(DateTime.now()));
+
+/// "우리 아이" 탭에 반려동물 등록 화면을 열어 달라는 1회성 요청 — 값이 바뀔
+/// 때마다 탭이 등록 화면을 연다(가입 완료 화면의 "반려동물 등록하기"처럼,
+/// 요청한 화면이 이미 닫힌 뒤에 열어야 할 때 쓴다).
+final petRegistrationRequestProvider = StateProvider<int>((ref) => 0);

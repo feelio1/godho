@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -28,8 +29,14 @@ void main() {
     // ("디자인 2단계" 지시서, 사용자 확인하에 제거).
     expect(find.text('펫클'), findsOneWidget);
     expect(find.text('동 이름이나 병원 이름으로 검색'), findsOneWidget);
+    // 2차 업데이트 F — 지역이 "전체"면 우리 동네 카드가 위에 뜨고,
+    // 바로가기는 진료비 시세 카드 아래로 내려갔다(스크롤해서 확인).
+    expect(find.text('동물병원 가기 전에\n확인하세요'), findsOneWidget);
+    expect(find.text('문 연 날 · 영업 등록 상태 · 동네 진료비'), findsOneWidget);
+    expect(find.text('우리 동네를 알려주세요'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('저장한 병원'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('주변 병원'), findsOneWidget);
-    expect(find.text('진료비 시세'), findsOneWidget);
+    expect(find.text('진료비 시세'), findsWidgets);
     expect(find.text('저장한 병원'), findsOneWidget);
 
     expect(find.text('내 주변 가까운 병원'), findsNothing);

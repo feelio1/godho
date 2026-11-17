@@ -18,6 +18,7 @@ import '../utils/external_links.dart';
 import '../widgets/inline_error_message.dart';
 import 'account_pet_actions.dart';
 import 'account_ui.dart';
+import 'basic_info_screen.dart';
 import 'info_screens.dart';
 import 'login_screen.dart';
 import 'saved_screen.dart';
@@ -235,6 +236,8 @@ class _LoggedInBody extends ConsumerWidget {
         // 그림일기 — config/book 스위치가 열렸을 때만(fail-closed).
         if (ref.watch(diaryBookVisibleProvider))
           _MenuRow(title: '내 그림일기', onTap: () => _push(context, const DiaryBookSetupScreen())),
+        // 가입 때 선택으로 바뀐 성별·연령대를 나중에 입력·수정(2차 업데이트 B).
+        _MenuRow(title: '기본 정보(성별·연령대)', onTap: () => _push(context, const BasicInfoScreen())),
         _MenuRow(title: '설정', onTap: () => _push(context, const SettingsScreen())),
         const SizedBox(height: AppSpacing.section),
         const _SectionHeader('안내'),
@@ -363,7 +366,7 @@ class _PetRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final name = pet.name?.trim().isNotEmpty == true ? pet.name!.trim() : pet.species.label;
-    final subtitle = '${pet.species.label} · ${pet.breed} · ${pet.weightKg}kg · ${pet.birth}';
+    final subtitle = pet.summary;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page, vertical: 8),

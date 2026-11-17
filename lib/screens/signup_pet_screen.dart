@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../ads/app_open_ad_suppression.dart';
+import '../diary/screens/diary_form_screen.dart';
 import '../models/app_user.dart';
 import '../providers/auth_provider.dart';
+import '../providers/nav_provider.dart';
+import '../providers/pet_tab_provider.dart';
 import '../providers/signup_flow_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -11,10 +14,10 @@ import '../utils/network_error.dart';
 import 'account_pet_form_screen.dart';
 import 'signup_done_screen.dart';
 
-/// 가입 플로우 2단계(필수, 펫클 2단계 지시서 3-2) — 기존 반려동물 등록
-/// 화면(05)의 항목을 재사용하되, 여기서는 종류/품종/체중/생년월이
-/// 필수다(로컬 [Pet] 등록 화면과 달리). 최소 1마리부터 "완료"가
-/// 활성화되고, "반려동물 추가"로 여러 마리를 등록할 수 있다.
+/// 가입 플로우 마지막 단계 — 반려동물 등록은 **선택**이다(2차 업데이트
+/// 결정 2). "반려동물 추가"로 여러 마리를 등록하고 "완료"하거나, "나중에
+/// 등록할게요"로 0마리인 채 가입을 끝낼 수 있다(처음 필요한 순간 — 일기·
+/// 진료기록·예약을 쓸 때 — 에 등록을 묻는다).
 ///
 /// 실제 입력 폼은 [AccountPetFormScreen](펫클 "계정 반려동물 추가/수정"
 /// 지시서에서 공용 화면으로 뺌)을 그대로 쓴다 — 가입 중엔 아직 uid로
@@ -57,13 +60,6 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
 
   Future<void> _complete() async {
     final state = ref.read(signupFlowProvider);
-    if (state.pets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('반려동물을 1마리 이상 등록해주세요.')),
-      );
-      return;
-    }
-
     final firebaseUser = ref.read(authRepositoryProvider).currentUser;
     if (firebaseUser == null) {
       // 세션이 끊긴 드문 경우 — 처음부터 다시 로그인하게 한다.
@@ -92,8 +88,10 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
           updatedAt: now,
         ),
       );
+      String? firstPetId;
       for (final pending in state.pets) {
         final petId = await userRepo.addPet(firebaseUser.uid, pending.pet);
+        firstPetId ??= petId;
         // 가입 중 사진을 고른 경우: 문서가 생긴 뒤에야 저장 경로(petId)를
         // 알 수 있어 순서가 항상 생성 → 업로드 → URL 갱신이다.
         if (pending.photoFile != null) {
@@ -105,10 +103,34 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
       }
       ref.read(signupFlowProvider.notifier).reset();
       if (!mounted) return;
-      await Navigator.of(context).push(
+      // 완료 화면의 버튼은 가입 화면들을 다 닫은 뒤에 움직이므로, 이 화면의
+      // ref 대신 앱 전체 컨테이너·루트 내비게이터를 미리 잡아 둔다.
+      final navigator = Navigator.of(context);
+      final container = ProviderScope.containerOf(context, listen: false);
+      void backToMain(AppTab tab) {
+        navigator.popUntil((route) => route.isFirst);
+        container.read(selectedTabProvider.notifier).state = tab.index;
+      }
+
+      await navigator.push(
         MaterialPageRoute(
           builder: (_) => SignupDoneScreen(
-            onDone: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            hasPets: firstPetId != null,
+            onHome: () => backToMain(AppTab.home),
+            onPrimary: () {
+              if (firstPetId != null) {
+                // 첫 일기 쓰기 — 우리 아이 탭(일기)으로 가서 바로 작성 화면.
+                backToMain(AppTab.pet);
+                container.read(petTabViewProvider.notifier).state = PetTabView.diary;
+                navigator.push(
+                  MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: ['account:$firstPetId'])),
+                );
+              } else {
+                // 반려동물 등록하기 — 우리 아이 탭이 등록 화면을 연다.
+                backToMain(AppTab.pet);
+                container.read(petRegistrationRequestProvider.notifier).state++;
+              }
+            },
           ),
         ),
       );
@@ -140,7 +162,7 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
                 padding: const EdgeInsets.all(AppSpacing.page),
                 children: [
                   const Text(
-                    '최소 1마리는 등록해야 다음으로 진행할 수 있어요.',
+                    '지금 등록하지 않아도 돼요. 일기나 진료기록을 처음 쓸 때 등록할 수 있어요.',
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: AppSpacing.section),
@@ -161,12 +183,12 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.page),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.page, AppSpacing.page, 8),
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: (pets.isEmpty || _saving) ? null : _complete,
-                  child: _saving
+                  child: _saving && pets.isNotEmpty
                       ? const SizedBox(
                           width: 20,
                           height: 20,
@@ -176,6 +198,22 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
                 ),
               ),
             ),
+            // 반려동물 없이 가입을 끝낸다(2차 업데이트 결정 2) — 등록한 게 있으면
+            // "완료"를 쓰므로 0마리일 때만 보인다.
+            if (pets.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.page),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    key: const ValueKey('signup_pet_later'),
+                    onPressed: _saving ? null : _complete,
+                    child: _saving
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('나중에 등록할게요'),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -213,7 +251,7 @@ class _PetSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${pet.species.label} · ${pet.breed} · ${pet.weightKg}kg · ${pet.birth}',
+                  pet.summary,
                   style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
                 ),
               ],

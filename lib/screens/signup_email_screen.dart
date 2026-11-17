@@ -15,7 +15,7 @@ final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
 /// 자체(이메일/비밀번호) 회원가입 1단계 — 자격증명 + 이름("자체
 /// 회원가입·로그인·비밀번호 재설정" 지시서 1-1). 이메일 인증 없이
-/// 가입 즉시 로그인 상태가 되고, 다음은 성별·연령대(필수) 화면으로
+/// 가입 즉시 로그인 상태가 되고, 다음은 성별·연령대(선택) 화면으로
 /// 이어진다(소셜 가입과 같은 공용 화면).
 class SignupEmailScreen extends ConsumerStatefulWidget {
   const SignupEmailScreen({super.key});

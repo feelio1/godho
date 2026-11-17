@@ -25,10 +25,9 @@ void main() {
   }
 
   group(
-    'SignupAgeGenderScreen — 성별·연령대는 모든 신규 가입(소셜 포함)에서 '
-    '필수다("자체 회원가입·로그인·비밀번호 재설정" 지시서 3). "건너뛰기"는 '
-    '더 이상 없다. 만 14세 이상·이용약관·개인정보 동의도 공통 필수다'
-    '("v1 출시 준비" 지시서 2, "펫클 앱 디자인" 캔버스 SignupProfile.dc.html)',
+    'SignupAgeGenderScreen — 성별·연령대는 선택 입력이다(2차 업데이트 결정 1). '
+    '"건너뛰기" 버튼은 없다(고르지 않으면 그게 건너뛰기). 만 14세 이상·이용약관·'
+    '개인정보 동의는 공통 필수다("v1 출시 준비" 지시서 2)',
     () {
       testWidgets('"건너뛰기" 버튼이 없고, "선택 안 함"도 선택지로 노출되지 않는다', (tester) async {
         await tester.pumpWidget(
@@ -54,7 +53,7 @@ void main() {
         expect(find.text('이용 통계 활용 동의'), findsOneWidget);
       });
 
-      testWidgets('나이대·성별·필수 동의 3개를 모두 하기 전에는 "다음"이 비활성화돼 진행할 수 없다', (tester) async {
+      testWidgets('성별·연령대를 고르지 않아도 필수 동의 3개만 하면 "다음"으로 갈 수 있다', (tester) async {
         await tester.pumpWidget(
           const ProviderScope(
             child: MaterialApp(home: SignupAgeGenderScreen()),
@@ -63,20 +62,20 @@ void main() {
 
         final nextButton = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
         expect(nextButton.onPressed, isNull);
+        // 두 항목 모두 "선택" 표시.
+        expect(find.text('선택'), findsWidgets);
+        expect(find.text('필수'), findsNWidgets(2), reason: '필수 배지는 이용약관·개인정보 동의 2개뿐');
 
         await tester.tap(find.text('20대'));
-        await tester.pump();
-        final afterAgeOnly = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
-        expect(afterAgeOnly.onPressed, isNull, reason: '성별을 고르기 전에는 여전히 진행할 수 없어야 한다');
-
         await tester.tap(find.text('여'));
         await tester.pump();
         final afterAgeAndGender = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
-        expect(
-          afterAgeAndGender.onPressed,
-          isNull,
-          reason: '필수 동의 3개를 체크하기 전에는 나이대·성별만으로는 진행할 수 없어야 한다',
-        );
+        expect(afterAgeAndGender.onPressed, isNull, reason: '필수 동의 없이 성별·연령대만으로는 진행할 수 없다');
+
+        // 고른 칩을 다시 누르면 풀린다.
+        await tester.tap(find.text('20대'));
+        await tester.tap(find.text('여'));
+        await tester.pump();
 
         await tapKey(tester, 'consent_age14');
         final afterAge14Only = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
@@ -85,7 +84,25 @@ void main() {
         await tapKey(tester, 'consent_terms');
         await tapKey(tester, 'consent_privacy');
         final afterAll = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '다음'));
-        expect(afterAll.onPressed, isNotNull, reason: '나이대·성별·필수 동의 3개를 모두 하면 진행할 수 있어야 한다');
+        expect(afterAll.onPressed, isNotNull, reason: '성별·연령대 없이 필수 동의 3개면 진행할 수 있다');
+      });
+
+      testWidgets('성별·연령대 없이 "다음"을 누르면 두 값은 null로 넘어간다', (tester) async {
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(home: SignupAgeGenderScreen()),
+          ),
+        );
+        await agreeAll(tester);
+        await tester.tap(find.widgetWithText(FilledButton, '다음'));
+        await tester.pumpAndSettle();
+
+        final state = container.read(signupFlowProvider);
+        expect(state.ageGroup, isNull);
+        expect(state.gender, isNull);
       });
 
       testWidgets('"전체 동의"를 누르면 필수·선택 동의가 한 번에 체크된다', (tester) async {

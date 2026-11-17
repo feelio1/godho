@@ -168,7 +168,8 @@ class _PetProfileCard extends ConsumerWidget {
     final subtitleParts = <String>[
       if (pet.breed != null && pet.breed!.isNotEmpty) pet.breed! else pet.species.label,
       if (pet.ageLabel != null) pet.ageLabel!,
-      if (pet.weightKg != null) '${pet.weightKg}kg',
+      // 프로필 체중은 구간으로 보인다(옛 kg 값만 있으면 그 값의 구간).
+      ?pet.weightBandOrDerived?.label,
     ];
     final isAccountPet = isAccountPetId(pet.id);
     return Card(

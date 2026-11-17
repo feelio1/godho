@@ -15,11 +15,11 @@ import '../models/pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/cloud_migration_provider.dart';
+import '../providers/effective_pets_provider.dart';
 import '../providers/fee_provider.dart';
 import '../providers/followup_appointment_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
-import '../providers/pet_provider.dart';
 import '../diary/diary_photo_upload_queue_service.dart';
 import '../diary/screens/diary_form_screen.dart';
 import '../notifications/notification_service.dart';
@@ -28,6 +28,7 @@ import '../providers/search_provider.dart';
 import '../theme/app_dimens.dart';
 import '../utils/appointment_calendar.dart' show dateOnly;
 import '../utils/followup_appointment.dart' show shouldResetFollowUpSession;
+import '../utils/pet_guard.dart';
 import '../widgets/followup_check_sheet.dart';
 import '../widgets/mascot_message.dart';
 import 'appointment_form_screen.dart';
@@ -151,11 +152,19 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   }
 
   /// 알림 탭 → 우리 아이 탭 일기 작성("일기 활성화" 지시서 K). 지금은
-  /// 일기 알림만 payload를 쓰므로 다른 값은 조용히 무시한다.
-  void _handleNotificationTap(String payload) {
+  /// 일기 알림만 payload를 쓰므로 다른 값은 조용히 무시한다. 반려동물이
+  /// 0마리면 등록 화면을 먼저 띄우고, 등록하면 그 반려동물로 일기를 이어
+  /// 쓴다(2차 업데이트 C).
+  Future<void> _handleNotificationTap(String payload) async {
     if (payload != NotificationService.diaryReminderPayload || !mounted) return;
     ref.read(selectedTabProvider.notifier).state = AppTab.pet.index;
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DiaryFormScreen()));
+    final pet = await ensurePetForWriting(context, ref);
+    if (pet == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => pet.registered ? DiaryFormScreen(defaultPetIds: [pet.petId]) : const DiaryFormScreen(),
+      ),
+    );
   }
 
   @override
@@ -417,15 +426,16 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       }
     });
 
-    // 반려동물이 등록되어 있고 체중이 입력돼 있으면, 진료비 시세 조회의
-    // 체중 기준 기본값을 그 값으로 맞춘다 — 사용자가 이미 직접 고른
-    // 체중 기준은 덮어쓰지 않는다(FeeWeightNotifier.applyPetWeightIfUnset).
-    ref.listen<AsyncValue<List<Pet>>>(petsProvider, (previous, next) {
+    // 반려동물(로그인이면 계정, 게스트면 기기)의 체중 구간이 있으면 진료비
+    // 시세 체중 기준 기본값을 그 구간으로 맞춘다(20kg 이상은 10~20kg 시세) —
+    // 사용자가 이미 직접 고른 기준은 덮어쓰지 않는다. 반려동물이 없거나
+    // 체중을 모르면 기본 구간 그대로.
+    ref.listen<AsyncValue<List<Pet>>>(effectivePetsProvider, (previous, next) {
       final pets = next.value;
       if (pets == null || pets.isEmpty) return;
-      final weightKg = pets.first.weightKg;
-      if (weightKg == null) return;
-      ref.read(feeWeightProvider.notifier).applyPetWeightIfUnset(weightKg);
+      final band = pets.first.weightBandOrDerived;
+      if (band == null) return;
+      ref.read(feeWeightProvider.notifier).applyPetBucketIfUnset(band.feeBucket);
     });
 
     return PopScope(

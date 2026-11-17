@@ -44,10 +44,19 @@ bool _matches(Product product, Pet pet) {
   final min = product.weightMinKg;
   final max = product.weightMaxKg;
   if (min != null || max != null) {
+    // 프로필 체중은 이제 구간으로 고른다(2차 업데이트). 구간을 골랐으면 그
+    // 구간이 상품 범위와 겹치는지, 옛 데이터라 실제 kg만 있으면 그 값이
+    // 범위 안인지 본다. 둘 다 모르면 체중 조건이 있는 상품은 추천하지 않는다.
+    final band = pet.weightBand;
     final weight = pet.weightKg;
-    if (weight == null) return false;
-    if (min != null && weight < min) return false;
-    if (max != null && weight > max) return false;
+    if (band != null) {
+      if (!band.overlaps(minKg: min, maxKg: max)) return false;
+    } else if (weight != null) {
+      if (min != null && weight < min) return false;
+      if (max != null && weight > max) return false;
+    } else {
+      return false;
+    }
   }
 
   return true;

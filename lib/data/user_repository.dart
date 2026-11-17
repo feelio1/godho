@@ -58,6 +58,16 @@ class UserRepository {
     });
   }
 
+  /// 내 정보 > 기본 정보에서 성별·연령대를 고치거나 비운다 — 둘 다 선택
+  /// 입력이라 null이면 그 필드를 비운다([updateProfile]과 달리 null도 쓴다).
+  Future<void> updateBasicInfo(String uid, {AgeGroup? ageGroup, Gender? gender}) async {
+    await _users.doc(uid).update({
+      'ageGroup': ageGroup?.name,
+      'gender': gender?.name,
+      'updatedAt': Timestamp.now(),
+    });
+  }
+
   // --- 일기 알림 동의 질문("일기 수정" 지시서 3-2) ---
   // 기기 로컬(SharedPreferences) 대신 여기 저장해, 재설치·기기 변경
   // 후에도 이미 물었던 사람에게 다시 묻지 않는다. 기존에 로컬에만 저장돼

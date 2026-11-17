@@ -6,6 +6,7 @@ import '../../ads/app_open_ad_suppression.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
+import '../../widgets/unsaved_changes_guard.dart';
 import '../models/seller.dart';
 import '../models/shop_order.dart';
 import '../payment/payment_gateway.dart';
@@ -36,6 +37,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _agreeOrder = false;
   bool _agreeDataShare = false;
   bool _submitting = false;
+
+  /// 뒤로가기 확인용 — 배송지·요청사항을 하나라도 적었거나 동의를
+  /// 체크했으면 "작성 중"으로 본다(2차 업데이트 H). 결제 성공 후 닫기는
+  /// 막지 않는다.
+  bool get _isDirty =>
+      [
+        _nameController,
+        _phoneController,
+        _zipController,
+        _address1Controller,
+        _address2Controller,
+        _memoController,
+      ].any((c) => c.text.trim().isNotEmpty) ||
+      _agreeOrder ||
+      _agreeDataShare;
 
   @override
   void dispose() {
@@ -101,7 +117,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   // 주문서 작성·결제 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
   // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+  Widget build(BuildContext context) => AppOpenAdSuppressor(
+        child: UnsavedChangesGuard(isDirty: () => _isDirty, child: _buildScreen(context)),
+      );
 
   Widget _buildScreen(BuildContext context) {
     final sellerIds = widget.lines.map((l) => l.product.sellerId).toSet().toList();

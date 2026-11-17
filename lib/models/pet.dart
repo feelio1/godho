@@ -1,3 +1,5 @@
+import 'pet_weight_band.dart';
+
 /// 반려동물 종. 목록·라벨을 늘릴 땐 이 enum만 확장하면 된다.
 enum PetSpecies {
   dog('강아지'),
@@ -46,6 +48,10 @@ class Pet {
   final bool neutered;
   final double? weightKg;
 
+  /// 체중 구간(2차 업데이트 — 프로필 체중은 구간으로 고른다). 옛 데이터는
+  /// [weightKg]만 있을 수 있어, 화면·시세·추천은 [weightBandOrDerived]를 쓴다.
+  final PetWeightBand? weightBand;
+
   /// 로컬 파일 경로(기기 내). 서버 업로드 없음 — CLAUDE.md 계정·서버 없음.
   final String? photoPath;
 
@@ -58,8 +64,12 @@ class Pet {
     this.sex = PetSex.unknown,
     this.neutered = false,
     this.weightKg,
+    this.weightBand,
     this.photoPath,
   });
+
+  /// 고른 구간, 없으면 옛 [weightKg]로 계산한 구간, 둘 다 없으면 null.
+  PetWeightBand? get weightBandOrDerived => effectiveWeightBand(band: weightBand, weightKg: weightKg);
 
   Pet copyWith({
     String? name,
@@ -69,6 +79,7 @@ class Pet {
     PetSex? sex,
     bool? neutered,
     double? weightKg,
+    PetWeightBand? weightBand,
     String? photoPath,
     bool clearBreed = false,
     bool clearBirthday = false,
@@ -84,6 +95,7 @@ class Pet {
       sex: sex ?? this.sex,
       neutered: neutered ?? this.neutered,
       weightKg: clearWeight ? null : (weightKg ?? this.weightKg),
+      weightBand: clearWeight ? null : (weightBand ?? this.weightBand),
       photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     );
   }
@@ -97,6 +109,7 @@ class Pet {
         sex: PetSex.fromJson(json['sex'] as String?),
         neutered: json['neutered'] as bool? ?? false,
         weightKg: (json['weightKg'] as num?)?.toDouble(),
+        weightBand: PetWeightBand.fromName(json['weightBand'] as String?),
         photoPath: json['photoPath'] as String?,
       );
 
@@ -126,6 +139,7 @@ class Pet {
         'sex': sex.name,
         'neutered': neutered,
         'weightKg': weightKg,
+        'weightBand': weightBand?.name,
         'photoPath': photoPath,
       };
 }

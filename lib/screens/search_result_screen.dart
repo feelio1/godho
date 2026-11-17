@@ -5,7 +5,6 @@ import '../ads/global_banner_ad.dart';
 import '../data/hospital_repository.dart';
 import '../models/region_filter.dart';
 import '../providers/bundle_provider.dart';
-import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/region_provider.dart';
@@ -115,7 +114,6 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
     final bundle = ref.watch(bundleProvider).value;
     final location = ref.watch(locationProvider).value;
     final region = ref.watch(regionProvider).value?.filter ?? const RegionFilter.all();
-    final compareIds = ref.watch(compareListProvider);
     final repo = ref.watch(repositoryProvider);
 
     return Scaffold(
@@ -269,20 +267,6 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
                             sameAddressRecordCount: recordCount,
                             distanceKm: distance,
                             hasUserLocation: location != null,
-                            isInCompare: compareIds.contains(hospital.id),
-                            onCompareToggle: () {
-                              final notifier = ref.read(compareListProvider.notifier);
-                              if (compareIds.contains(hospital.id)) {
-                                notifier.remove(hospital.id);
-                              } else {
-                                final added = notifier.add(hospital.id);
-                                if (!added) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('비교는 최대 3곳까지 담을 수 있습니다.')),
-                                  );
-                                }
-                              }
-                            },
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => DetailScreen(hospitalId: hospital.id),

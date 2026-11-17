@@ -826,6 +826,19 @@ class GuideScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          // 병원 상세의 "예약 준비 중" 버튼 시트에 있던 고지를 옮겨 왔다
+          // (2차 업데이트 G) — 제휴·거래 관계가 없다는 점을 그대로 밝힌다.
+          _GuideSection(
+            title: '병원 예약',
+            child: const Text(
+              '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. 펫클은 특정 병원과 '
+              '제휴하거나 거래 관계를 맺지 않으며, 추후 전화·외부 예약 링크 연결 등의 기능을 '
+              '검토하고 있습니다. 예약은 병원 상세의 전화나 "리뷰·영업시간"(네이버 지도)에서 '
+              '직접 확인해 주세요.',
+              style: TextStyle(color: AppColors.textSecondary, height: 1.6),
+            ),
+          ),
+          const SizedBox(height: 16),
           _GuideSection(
             title: '화면에 나오는 말',
             child: const Column(

@@ -22,8 +22,6 @@ class HospitalCard extends StatelessWidget {
   final double? distanceKm;
   final bool hasUserLocation;
   final VoidCallback onTap;
-  final bool? isInCompare;
-  final VoidCallback? onCompareToggle;
 
   /// 기본은 chevron(더 보기). 저장 화면처럼 "이미 저장됨"을 나타내고 싶은
   /// 곳은 채워진 북마크 아이콘을 넘긴다.
@@ -36,8 +34,6 @@ class HospitalCard extends StatelessWidget {
     this.distanceKm,
     this.hasUserLocation = false,
     required this.onTap,
-    this.isInCompare,
-    this.onCompareToggle,
     this.trailingIcon = Icons.chevron_right,
   });
 
@@ -134,27 +130,6 @@ class HospitalCard extends StatelessWidget {
                   // 폐업 병원엔 시세 칩을 달지 않는다 — 회색 톤은 유지하되
                   // 헛걸음 방지를 위한 정보(폐업 표시)에 집중한다.
                   if (!isClosed) FeeContextChip(hospital: hospital),
-                  if (onCompareToggle != null)
-                    ActionChip(
-                      onPressed: onCompareToggle,
-                      avatar: Icon(
-                        isInCompare == true ? Icons.check_circle : Icons.add_circle_outline,
-                        size: 14,
-                        color: isInCompare == true ? AppColors.primary : AppColors.textSecondary,
-                      ),
-                      label: Text(
-                        isInCompare == true ? '비교 담음' : '비교 추가',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isInCompare == true ? AppColors.primaryTextTone : AppColors.textSecondary,
-                        ),
-                      ),
-                      backgroundColor:
-                          isInCompare == true ? AppColors.primarySoft : AppColors.inputFill,
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      padding: EdgeInsets.zero,
-                    ),
                 ],
               ),
             ],

@@ -8,12 +8,14 @@ import 'package:intl/intl.dart';
 
 import '../ads/app_open_ad_suppression.dart';
 import '../models/pet.dart';
+import '../models/pet_weight_band.dart';
 import '../models/signup_pet.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/breed_picker_sheet.dart';
 import '../widgets/date_picker_sheet.dart';
 import '../widgets/form_field_label.dart';
+import '../widgets/unsaved_changes_guard.dart';
 
 /// [AccountPetFormScreen]이 pop으로 돌려주는 값 — 저장(추가/수정)인지
 /// 삭제인지를 구분한다. 저장이면 [pet]에 폼 값이, 사진을 새로 골랐으면
@@ -36,14 +38,19 @@ class AccountPetFormResult {
   bool get isDelete => pet == null;
 }
 
-/// 계정(Firestore) 반려동물 1마리 입력/수정 폼 — 가입 플로우 2단계에서
-/// 쓰던 폼을 공용 화면으로 뺐다(펫클 "계정 반려동물 추가/수정" 지시서 1).
-/// [existing]이 없으면 새로 추가, 있으면 그 값으로 미리 채워 수정한다.
-/// 종류/품종/체중/생년월은 필수, 이름/성별/중성화/사진은 선택.
+/// 계정(Firestore) 반려동물 1마리 입력/수정 폼 — 가입 플로우·추가·수정이
+/// 함께 쓴다(펫클 "계정 반려동물 추가/수정" 지시서 1). [existing]이 없으면
+/// 새로 추가, 있으면 그 값으로 미리 채워 수정한다.
 ///
-/// [existing]이 있을 때만 앱바에 삭제 버튼이 뜨고, 확인 다이얼로그를 거쳐야
-/// 실제로 삭제 신호([AccountPetFormResult.deleted])를 pop한다(지시서 2:
-/// "삭제도 넣되 확인 팝업 필수").
+/// 2차 업데이트(D): 순서는 이름 → 종류 → 품종 → 생년월 → 체중. 필수는
+/// 이름·종류뿐이다. 품종은 고르지 않으면 [kUnknownBreed]("모름/믹스")로,
+/// 생년월은 "모름"(빈 값)으로 저장한다. 체중은 숫자 대신 구간 4개 중
+/// 하나([PetWeightBand], 선택)를 고르고, 가짜 kg 값을 만들지 않는다 — 옛
+/// 데이터의 kg 값은 지우지 않고 그대로 들고 간다. 오류는 저장 뒤 스낵바가
+/// 아니라 해당 칸 아래에 보인다. 바뀐 내용이 있으면 뒤로가기 때 묻는다.
+///
+/// [existing]이 있을 때만 삭제 버튼이 뜨고, 확인 다이얼로그를 거쳐야
+/// 실제로 삭제 신호([AccountPetFormResult.deleted])를 pop한다.
 class AccountPetFormScreen extends StatefulWidget {
   final SignupPet? existing;
 
@@ -55,30 +62,32 @@ class AccountPetFormScreen extends StatefulWidget {
 
 class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
   late final TextEditingController _nameController;
-  late final TextEditingController _breedController;
-  late final TextEditingController _weightController;
   late PetSpecies _species;
+  String? _breed;
+  DateTime? _birthMonth;
+  PetWeightBand? _weightBand;
   late PetSex _sex;
   bool? _neutered;
-  DateTime? _birthMonth;
   File? _newPhotoFile;
   bool _removePhoto = false;
+  String? _nameError;
+  late final String _initialSignature;
 
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
     _nameController = TextEditingController(text: existing?.name ?? '');
-    _breedController = TextEditingController(text: existing?.breed ?? '');
-    _weightController = TextEditingController(text: existing != null ? _formatWeight(existing.weightKg) : '');
     _species = existing?.species ?? PetSpecies.dog;
+    final breed = existing?.breed.trim() ?? '';
+    _breed = breed.isEmpty || breed == kUnknownBreed ? null : breed;
+    _birthMonth = existing != null ? _parseBirthMonth(existing.birth) : null;
+    // 옛 데이터(kg만 있음)는 그 값으로 구간을 계산해 보여준다.
+    _weightBand = existing?.weightBandOrDerived;
     _sex = existing?.sex ?? PetSex.unknown;
     _neutered = existing?.neutered;
-    _birthMonth = existing != null ? _parseBirthMonth(existing.birth) : null;
+    _initialSignature = _signature();
   }
-
-  static String _formatWeight(double weightKg) =>
-      weightKg == weightKg.roundToDouble() ? weightKg.toInt().toString() : weightKg.toString();
 
   static DateTime? _parseBirthMonth(String birth) {
     final parts = birth.split('-');
@@ -89,11 +98,24 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
     return DateTime(year, month);
   }
 
+  /// 뒤로가기 확인용 — 화면을 연 때와 지금 입력값을 비교한다.
+  String _signature() => [
+        _nameController.text.trim(),
+        _species.name,
+        _breed,
+        _birthMonth?.toIso8601String(),
+        _weightBand?.name,
+        _sex.name,
+        _neutered,
+        _newPhotoFile?.path,
+        _removePhoto,
+      ].join('|');
+
+  bool get _isDirty => _signature() != _initialSignature;
+
   @override
   void dispose() {
     _nameController.dispose();
-    _breedController.dispose();
-    _weightController.dispose();
     super.dispose();
   }
 
@@ -128,12 +150,8 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
 
   Future<void> _pickBreed() async {
     final options = _species == PetSpecies.cat ? commonCatBreeds : commonDogBreeds;
-    final picked = await showBreedPickerSheet(
-      context,
-      options: options,
-      current: _breedController.text.trim().isEmpty ? null : _breedController.text.trim(),
-    );
-    if (picked != null) setState(() => _breedController.text = picked);
+    final picked = await showBreedPickerSheet(context, options: options, current: _breed);
+    if (picked != null) setState(() => _breed = picked);
   }
 
   Future<void> _pickBirthMonth() async {
@@ -171,36 +189,29 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
   }
 
   void _submit() {
-    final breed = _breedController.text.trim();
-    final weight = double.tryParse(_weightController.text.trim());
-    if (breed.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('품종을 선택해주세요.')));
-      return;
-    }
-    if (weight == null || weight <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('체중을 입력해주세요.')));
-      return;
-    }
-    if (_birthMonth == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('생년월을 선택해주세요.')));
-      return;
-    }
     final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _nameError = '이름을 입력해주세요');
+      return;
+    }
+    final existing = widget.existing;
     Navigator.of(context).pop(
       AccountPetFormResult.saved(
         SignupPet(
-          id: widget.existing?.id,
+          id: existing?.id,
           species: _species,
-          breed: breed,
-          weightKg: weight,
-          birth: DateFormat('yyyy-MM').format(_birthMonth!),
-          name: name.isEmpty ? null : name,
+          breed: _breed ?? kUnknownBreed,
+          // 옛 실제 체중(kg)은 지우지 않는다 — 구간을 새로 골라도 구간만 바뀐다.
+          weightKg: existing?.weightKg,
+          weightBand: _weightBand,
+          birth: _birthMonth != null ? DateFormat('yyyy-MM').format(_birthMonth!) : '',
+          name: name,
           sex: _sex == PetSex.unknown ? null : _sex,
           neutered: _neutered,
           // 사진 최종 값(새로 올릴지/지울지/그대로 둘지)은 호출부가
           // newPhotoFile·removePhoto를 보고 정한다 — 여기서는 기존 값만
           // 그대로 들고 간다(잃어버리지 않게).
-          photoUrl: widget.existing?.photoUrl,
+          photoUrl: existing?.photoUrl,
         ),
         newPhotoFile: _newPhotoFile,
         removePhoto: _removePhoto,
@@ -219,9 +230,11 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
   bool get _hasPhoto => _avatarImage != null;
 
   // 반려동물 추가·수정 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
-  // (어떤 경로든) 억제도 같이 풀린다.
+  // (어떤 경로든) 억제도 같이 풀린다. 바뀐 게 있으면 뒤로가기 때 묻는다.
   @override
-  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+  Widget build(BuildContext context) => AppOpenAdSuppressor(
+        child: UnsavedChangesGuard(isDirty: () => _isDirty, child: _buildScreen(context)),
+      );
 
   Widget _buildScreen(BuildContext context) {
     final isEditing = widget.existing != null;
@@ -281,8 +294,18 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const _GroupTitle('필수 정보'),
-                  const FormFieldLabel('종류'),
+                  const _FieldTitle('이름', required: true),
+                  TextField(
+                    key: const ValueKey('pet_name'),
+                    controller: _nameController,
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(hintText: '예: 구름이', errorText: _nameError),
+                    onChanged: (_) {
+                      if (_nameError != null) setState(() => _nameError = null);
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.formField),
+                  const _FieldTitle('종류', required: true),
                   _SegmentRow<PetSpecies>(
                     value: _species,
                     options: const [PetSpecies.dog, PetSpecies.cat],
@@ -290,56 +313,45 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
                     onChanged: (s) => setState(() => _species = s),
                   ),
                   const SizedBox(height: AppSpacing.formField),
-                  const FormFieldLabel('품종'),
+                  const _FieldTitle('품종'),
                   _SelectField(
                     icon: Icons.pets_outlined,
-                    label: _breedController.text.trim().isEmpty ? '품종 선택' : _breedController.text.trim(),
-                    placeholder: _breedController.text.trim().isEmpty,
+                    label: _breed ?? '$kUnknownBreed (고르지 않으면)',
+                    placeholder: _breed == null,
                     onTap: _pickBreed,
                   ),
                   const SizedBox(height: AppSpacing.formField),
+                  const _FieldTitle('생년월'),
                   Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const FormFieldLabel('체중'),
-                            TextField(
-                              controller: _weightController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                hintText: '0.0',
-                                suffixText: 'kg',
-                                suffixStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
+                        child: _SelectField(
+                          icon: Icons.calendar_today_outlined,
+                          label: _birthMonth != null ? DateFormat('yyyy.MM').format(_birthMonth!) : '모름',
+                          placeholder: _birthMonth == null,
+                          onTap: _pickBirthMonth,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const FormFieldLabel('생년월'),
-                            _SelectField(
-                              icon: Icons.calendar_today_outlined,
-                              label: _birthMonth != null ? DateFormat('yyyy.MM').format(_birthMonth!) : '설정 안 함',
-                              placeholder: _birthMonth == null,
-                              onTap: _pickBirthMonth,
-                            ),
-                          ],
+                      if (_birthMonth != null)
+                        TextButton(
+                          onPressed: () => setState(() => _birthMonth = null),
+                          child: const Text('모름'),
                         ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.section),
-                  const _GroupTitle('선택 정보'),
-                  const FormFieldLabel('이름'),
-                  TextField(controller: _nameController, decoration: const InputDecoration(hintText: '반려동물 이름')),
                   const SizedBox(height: AppSpacing.formField),
+                  const _FieldTitle('체중'),
+                  _WeightBandGrid(
+                    value: _weightBand,
+                    onChanged: (band) => setState(() => _weightBand = band),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '진료비 시세를 몸무게 구간에 맞춰 보여드려요',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: AppSpacing.section),
+                  const _GroupTitle('더 알려주셔도 돼요(선택)'),
                   const FormFieldLabel('성별'),
                   _SegmentRow<PetSex>(
                     value: _sex,
@@ -382,6 +394,73 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 칸 제목 + 필수 표시(필수인 칸만).
+class _FieldTitle extends StatelessWidget {
+  final String label;
+  final bool required;
+
+  const _FieldTitle(this.label, {this.required = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textLabel)),
+          const SizedBox(width: 6),
+          Text(
+            required ? '필수' : '선택',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: required ? AppColors.primary : AppColors.textPlaceholder,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 체중 구간 4개(2열) — 고른 걸 다시 누르면 "모름"으로 되돌린다.
+class _WeightBandGrid extends StatelessWidget {
+  final PetWeightBand? value;
+  final ValueChanged<PetWeightBand?> onChanged;
+
+  const _WeightBandGrid({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(PetWeightBand band) {
+      final selected = band == value;
+      return Expanded(
+        child: OutlinedButton(
+          key: ValueKey('weight_${band.name}'),
+          onPressed: () => onChanged(selected ? null : band),
+          style: OutlinedButton.styleFrom(
+            backgroundColor: selected ? AppColors.primarySoft : AppColors.surfaceLight,
+            foregroundColor: selected ? AppColors.primaryTextTone : AppColors.textPrimary,
+            side: BorderSide(color: selected ? AppColors.primary : AppColors.borderInput, width: selected ? 1.5 : 1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field)),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          child: Text(band.label, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
+        ),
+      );
+    }
+
+    const bands = PetWeightBand.values;
+    return Column(
+      children: [
+        Row(children: [cell(bands[0]), const SizedBox(width: 8), cell(bands[1])]),
+        const SizedBox(height: 8),
+        Row(children: [cell(bands[2]), const SizedBox(width: 8), cell(bands[3])]),
+      ],
     );
   }
 }

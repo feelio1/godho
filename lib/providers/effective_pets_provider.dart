@@ -48,6 +48,7 @@ Pet accountPetToLocalPet(SignupPet pet) {
     sex: pet.sex ?? PetSex.unknown,
     neutered: pet.neutered ?? false,
     weightKg: pet.weightKg,
+    weightBand: pet.weightBand,
   );
 }
 

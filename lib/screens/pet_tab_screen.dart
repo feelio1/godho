@@ -13,7 +13,8 @@ import '../theme/app_dimens.dart';
 import '../utils/record_appointment_flow.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/inline_error_message.dart';
-import '../widgets/no_pets_message.dart';
+import '../widgets/mascot_image.dart';
+import '../widgets/mascot_message.dart';
 import '../widgets/pet_switcher.dart';
 import 'account_pet_actions.dart';
 import 'calendar_screen.dart' show PetCalendarBody;
@@ -48,10 +49,13 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
     restorePersistedPetTabView(ref.read(petTabViewProvider.notifier));
   }
 
+  /// 반려동물 등록 — 등록하면 그 반려동물을 고르고 일기 보기로 바로 간다
+  /// (2차 업데이트 C: 0마리 회원이 처음 등록한 뒤 일기부터 쓰게).
   Future<void> _addAccountPet(String uid) async {
     final petId = await AccountPetActions.add(context, ref, uid);
     if (petId == null || !mounted) return;
     setState(() => _selectedPetId = 'account:$petId');
+    ref.read(petTabViewProvider.notifier).state = PetTabView.diary;
   }
 
   /// AppBar의 "+" 버튼 — 보고 있는 세그먼트 기준으로 다른 동작을 연다
@@ -112,6 +116,12 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
       ref.read(calendarFocusRequestProvider.notifier).state = null;
     });
 
+    // 가입 완료 화면 등 이미 닫힌 화면이 "등록 화면을 열어 달라"고 요청한
+    // 경우(2차 업데이트 C) — 이 탭이 대신 연다.
+    ref.listen<int>(petRegistrationRequestProvider, (previous, next) {
+      if (next != previous) _addAccountPet(uid);
+    });
+
     // 세그먼트가 바뀔 때마다 기기에 저장해 다음 실행에서도 이어본다
     // ("일기를 기본 보기로" 지시서).
     ref.listen<PetTabView>(petTabViewProvider, (previous, next) {
@@ -151,16 +161,23 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
         ),
         data: (pets) {
           if (pets.isEmpty) {
-            return Column(
-              children: [
-                _ViewSegment(value: view),
-                Expanded(
-                  child: NoPetsMessage(
-                    isLoggedIn: true,
-                    onAddAccountPet: () => _addAccountPet(uid),
+            // 반려동물 0마리 회원(가입 때 등록이 선택이 됨) — 세그먼트 없이
+            // 등록 안내 하나만 보여 준다. 등록하면 바로 일기 보기로 간다.
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: MascotMessage(
+                  title: '우리 아이를 등록하면 일기와 진료기록을 남길 수 있어요',
+                  assetPath: MascotImage.emptyRecordAssetPath,
+                  overlayIcon: Icons.pets,
+                  trailing: FilledButton.icon(
+                    key: const ValueKey('pet_tab_register'),
+                    onPressed: () => _addAccountPet(uid),
+                    icon: const Icon(Icons.add),
+                    label: const Text('반려동물 등록'),
                   ),
                 ),
-              ],
+              ),
             );
           }
           final selected = pets.firstWhere(

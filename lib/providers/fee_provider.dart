@@ -42,11 +42,14 @@ class FeeWeightNotifier extends Notifier<FeeWeightState> {
 
   /// 반려동물 체중이 확인되면(등록·입력) 그 구간을 기본값으로 반영한다 —
   /// 사용자가 이미 직접 고른 경우는 덮어쓰지 않는다.
-  void applyPetWeightIfUnset(double weightKg) {
+  void applyPetWeightIfUnset(double weightKg) => applyPetBucketIfUnset(FeeWeightBucket.fromKg(weightKg));
+
+  /// 반려동물 체중 구간(프로필)을 기본값으로 반영 — 사용자가 직접 고른
+  /// 구간은 덮어쓰지 않는다.
+  void applyPetBucketIfUnset(FeeWeightBucket bucket) {
     if (state.isUserSelected) return;
-    final derived = FeeWeightBucket.fromKg(weightKg);
-    if (state.bucket == derived) return;
-    state = FeeWeightState(bucket: derived, isUserSelected: false);
+    if (state.bucket == bucket) return;
+    state = FeeWeightState(bucket: bucket, isUserSelected: false);
   }
 }
 

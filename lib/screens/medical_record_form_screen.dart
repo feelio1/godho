@@ -20,6 +20,7 @@ import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
 import '../widgets/photo_attach_field.dart';
 import '../widgets/picker_sheet_chrome.dart';
+import '../widgets/unsaved_changes_guard.dart';
 import 'appointment_form_screen.dart';
 
 String _newLocalId() =>
@@ -103,7 +104,24 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
     } else {
       _selectedCategoryChip = '기타';
     }
+    _initialSignature = _signature();
   }
+
+  /// 뒤로가기 확인용 — 화면을 연 때와 지금의 입력값 비교.
+  late final String _initialSignature;
+
+  String _signature() => [
+        _date.toIso8601String(),
+        _petId,
+        _hospitalController.text,
+        _memoController.text,
+        _weightController.text,
+        _costController.text,
+        _categoryController.text,
+        _selectedHospitalId ?? '',
+        _selectedCategoryChip ?? '',
+        _photoPath ?? '',
+      ].join('\u0001');
 
   @override
   void dispose() {
@@ -276,7 +294,14 @@ class _MedicalRecordFormScreenState extends ConsumerState<MedicalRecordFormScree
   // 진료기록 입력 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
   // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+  Widget build(BuildContext context) => AppOpenAdSuppressor(
+        // 바뀐 게 있을 때만 뒤로가기 확인(2차 업데이트 H) — 저장 후 닫기·
+        // 기록↔예약 전환(pushReplacement)은 막지 않는다.
+        child: UnsavedChangesGuard(
+          isDirty: () => _signature() != _initialSignature,
+          child: _buildScreen(context),
+        ),
+      );
 
   Widget _buildScreen(BuildContext context) {
     // 로그인 상태면 계정(Firestore) 반려동물, 게스트면 로컬 반려동물 —

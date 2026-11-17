@@ -227,9 +227,11 @@ class _Header extends ConsumerWidget {
   }
 }
 
-/// 액션 4버튼 — "펫클 앱 디자인" 캔버스 시안(Detail.dc.html)의 2×2 아님,
-/// 1행 4열 아이콘 그리드 그대로: 전화 · 길찾기 · 비교 담기 · 예약(준비
-/// 중). "공유"는 시안처럼 앱바 아이콘으로 옮겼다.
+/// 액션 4버튼 — 1행 4열 아이콘 그리드: 전화 · 길찾기 · 비교 담기 ·
+/// 리뷰·영업시간. "공유"는 앱바 아이콘. 넷째 칸은 예전 "예약 준비 중"
+/// 자리였는데, 쓸 수 없는 버튼 대신 네이버 지도 검색(리뷰·영업시간)으로
+/// 바꿨다(2차 업데이트 G) — 예약·제휴 없음 고지는 이용안내로 옮겼다.
+/// 전화번호가 없는 병원은 "전화" 대신 "전화번호 찾기"(같은 네이버 검색).
 class _ActionRow extends StatelessWidget {
   final Hospital hospital;
   final bool isInCompare;
@@ -243,14 +245,21 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasPhone = ExternalLinks.sanitizedPhone(hospital.phone) != null;
     return Row(
       children: [
         Expanded(
-          child: _ActionButton(
-            icon: Icons.call_outlined,
-            label: '전화',
-            onTap: () => ExternalLinks.call(context, hospital.phone),
-          ),
+          child: hasPhone
+              ? _ActionButton(
+                  icon: Icons.call_outlined,
+                  label: '전화',
+                  onTap: () => ExternalLinks.call(context, hospital.phone),
+                )
+              : _ActionButton(
+                  icon: Icons.phone_in_talk_outlined,
+                  label: '전화번호 찾기',
+                  onTap: () => ExternalLinks.openNaverMapReviews(hospital),
+                ),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -272,10 +281,9 @@ class _ActionRow extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _ActionButton(
-            icon: Icons.event_available_outlined,
-            label: '예약 준비 중',
-            muted: true,
-            onTap: () => _showReservationComingSoonSheet(context),
+            icon: Icons.storefront_outlined,
+            label: '리뷰·영업시간',
+            onTap: () => ExternalLinks.openNaverMapReviews(hospital),
           ),
         ),
       ],
@@ -289,33 +297,22 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool active;
 
-  /// 예약처럼 "아직 쓸 수 없음"을 알리는 톤 — 시안의 회색 비활성 타일.
-  /// 완전히 막지는 않고 누르면 안내 시트가 뜬다(제휴 없음 고지가
-  /// 중요해서 — 스프린트 3 지시서).
-  final bool muted;
-
   const _ActionButton({
     required this.icon,
     required this.label,
     required this.onTap,
     this.active = false,
-    this.muted = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = muted
-        ? AppColors.textPlaceholder
-        : active
-            ? AppColors.primary
-            : AppColors.textPrimary;
+    final color = active ? AppColors.primary : AppColors.textPrimary;
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 10),
         foregroundColor: color,
-        backgroundColor: muted ? AppColors.backgroundLight : null,
-        side: BorderSide(color: muted ? AppColors.borderMuted : AppColors.borderCard),
+        side: const BorderSide(color: AppColors.borderCard),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -325,50 +322,14 @@ class _ActionButton extends StatelessWidget {
           Text(
             label,
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: color),
           ),
         ],
       ),
     );
   }
-}
-
-/// 예약 준비중 안내 — 어떤 병원과도 제휴·거래 관계가 없다는 점을 문구로
-/// 분명히 해 중립성을 지킨다(스프린트 3 지시서).
-void _showReservationComingSoonSheet(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    builder: (sheetContext) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '예약 기능 준비 중',
-              style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '현재는 병원과의 예약 연동 기능을 제공하지 않습니다. 펫클은 특정 병원과 '
-              '제휴하거나 거래 관계를 맺지 않으며, 추후 전화·외부 예약 링크 연결 등의 기능을 '
-              '검토하고 있습니다.',
-              style: Theme.of(sheetContext).textTheme.bodyMedium?.copyWith(height: 1.5),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(sheetContext).pop(),
-                child: const Text('확인'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 class _OperatingInfoSection extends StatelessWidget {

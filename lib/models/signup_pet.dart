@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'pet.dart';
+import 'pet_weight_band.dart';
+
+/// 품종을 고르지 않았을 때 저장하는 값(2차 업데이트 — 품종은 선택 입력).
+const String kUnknownBreed = '모름/믹스';
 
 /// 가입 플로우에서 등록하는 반려동물 — `users/{uid}/pets/{petId}` 문서.
 ///
@@ -13,9 +17,15 @@ class SignupPet {
   final String? id;
   final PetSpecies species;
   final String breed;
-  final double weightKg;
 
-  /// "YYYY-MM" — 예: "2023-05".
+  /// 옛 가입 데이터의 실제 체중(kg) — 지금 폼은 [weightBand]만 고른다. 옛
+  /// 값은 지우지 않고(수정해도 그대로 들고 간다) 구간 계산에만 쓴다.
+  final double? weightKg;
+
+  /// 체중 구간 — 선택 입력, 모르면 null.
+  final PetWeightBand? weightBand;
+
+  /// "YYYY-MM" — 예: "2023-05". 모르면 빈 문자열(선택 입력).
   final String birth;
 
   final String? name;
@@ -27,7 +37,8 @@ class SignupPet {
     this.id,
     required this.species,
     required this.breed,
-    required this.weightKg,
+    this.weightKg,
+    this.weightBand,
     required this.birth,
     this.name,
     this.sex,
@@ -40,7 +51,8 @@ class SignupPet {
       id: id,
       species: PetSpecies.fromJson(data['species'] as String?),
       breed: data['breed'] as String? ?? '',
-      weightKg: (data['weightKg'] as num?)?.toDouble() ?? 0,
+      weightKg: _positiveOrNull((data['weightKg'] as num?)?.toDouble()),
+      weightBand: PetWeightBand.fromName(data['weightBand'] as String?),
       birth: data['birth'] as String? ?? '',
       name: data['name'] as String?,
       sex: data['sex'] != null ? PetSex.fromJson(data['sex'] as String?) : null,
@@ -53,6 +65,7 @@ class SignupPet {
         'species': species.name,
         'breed': breed,
         'weightKg': weightKg,
+        'weightBand': weightBand?.name,
         'birth': birth,
         'name': name,
         'sex': sex?.name,
@@ -74,6 +87,7 @@ class SignupPet {
       species: species,
       breed: breed,
       weightKg: weightKg,
+      weightBand: weightBand,
       birth: birth,
       name: name,
       sex: sex,
@@ -81,4 +95,21 @@ class SignupPet {
       photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
     );
   }
+
+  /// 고른 구간, 없으면 옛 [weightKg]로 계산한 구간, 둘 다 없으면 null.
+  PetWeightBand? get weightBandOrDerived => effectiveWeightBand(band: weightBand, weightKg: weightKg);
+
+  /// 목록 한 줄 요약 — "강아지 · 말티즈 · 5kg 미만 · 2023.05". 모르는 값은 빼고,
+  /// 체중·생년월을 모르면 "체중 모름"·"생년월 모름" 대신 그냥 생략한다.
+  String get summary {
+    final parts = <String>[
+      species.label,
+      if (breed.trim().isNotEmpty) breed.trim(),
+      ?weightBandOrDerived?.label,
+      if (birth.trim().isNotEmpty) birth.trim().replaceAll('-', '.'),
+    ];
+    return parts.join(' · ');
+  }
 }
+
+double? _positiveOrNull(double? value) => value == null || value <= 0 ? null : value;

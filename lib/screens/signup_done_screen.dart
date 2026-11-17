@@ -4,15 +4,16 @@ import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/mascot_image.dart';
 
-/// 가입 완료("펫클 앱 디자인" 캔버스 시안 SignupDone.dc.html) — 마스코트
-/// + 완료 문구 + "시작하기"(홈까지 전부 pop). "첫 진료기록 남기기"는
-/// 아직 반려동물 문서 id를 모르는 시점(가입 직후 1프레임)이라 섣불리
-/// 특정 화면을 열지 않고, 홈으로 보낸 뒤 사용자가 우리 아이 탭에서
-/// 직접 시작하게 한다 — 과장·유도 문구 없이 담백하게.
+/// 가입 완료("펫클 앱 디자인" 캔버스 시안 SignupDone.dc.html) — 마스코트 +
+/// 완료 문구 + 버튼 2개. 반려동물을 등록했으면 "첫 일기 쓰기" / "홈으로",
+/// 등록하지 않았으면 "반려동물 등록하기" / "홈으로"(2차 업데이트 C). 실제
+/// 이동은 호출부([onPrimary]/[onHome])가 맡는다 — 과장·유도 문구 없이 담백하게.
 class SignupDoneScreen extends StatelessWidget {
-  final VoidCallback onDone;
+  final bool hasPets;
+  final VoidCallback onPrimary;
+  final VoidCallback onHome;
 
-  const SignupDoneScreen({super.key, required this.onDone});
+  const SignupDoneScreen({super.key, required this.hasPets, required this.onPrimary, required this.onHome});
 
   @override
   Widget build(BuildContext context) {
@@ -34,10 +35,12 @@ class SignupDoneScreen extends StatelessWidget {
                       style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.5),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      '이제 우리 아이의 진료기록과 예약을\n계정에 저장할 수 있어요.',
+                    Text(
+                      hasPets
+                          ? '이제 우리 아이의 일기와 진료기록을\n계정에 저장할 수 있어요.'
+                          : '우리 아이를 등록하면 일기와 진료기록을\n계정에 저장할 수 있어요.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, height: 1.6, color: AppColors.textSecondary),
+                      style: const TextStyle(fontSize: 14, height: 1.6, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -46,12 +49,21 @@ class SignupDoneScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 54,
                 child: FilledButton(
-                  onPressed: onDone,
+                  onPressed: onPrimary,
                   style: FilledButton.styleFrom(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field)),
                   ),
-                  child: const Text('시작하기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  child: Text(
+                    hasPets ? '첫 일기 쓰기' : '반려동물 등록하기',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: TextButton(onPressed: onHome, child: const Text('홈으로')),
               ),
             ],
           ),

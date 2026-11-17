@@ -10,10 +10,11 @@ import '../widgets/signup_steps.dart';
 import 'info_screens.dart';
 import 'signup_pet_screen.dart';
 
-/// 가입 플로우 1단계 — 나이대·성별은 모든 신규 가입(소셜 포함)에서
-/// 필수 입력이고 "건너뛰기"가 없다("자체 회원가입·로그인·비밀번호
-/// 재설정" 지시서 3). 만 14세 이상 확인도 모든 신규 가입에 공통으로
-/// 필수다("v1 출시 준비" 지시서 2). 통계 활용 동의만 선택으로 남는다.
+/// 가입 플로우 1단계 — 성별·연령대는 **선택** 입력이다(2차 업데이트 결정 1):
+/// 고르지 않아도 다음으로 갈 수 있고, 고르지 않으면 값을 비워(null) 저장한다.
+/// 나중에 내 정보 > 기본 정보에서 입력·수정할 수 있다. 고른 칩을 다시 누르면
+/// 선택이 풀린다. 만 14세 이상 확인·이용약관·개인정보 동의는 모든 신규
+/// 가입에 공통으로 필수이고("v1 출시 준비" 지시서 2), 통계 활용 동의는 선택.
 /// 이미 가입된 기존 사용자에게 소급 재입력을 강제하는 것은 이 화면의
 /// 책임이 아니다 — 로그인(기존 사용자) 경로는 이 화면을 거치지 않는다.
 /// 과장·혜택 미끼 문구 금지(CLAUDE.md 제품 헌법) — "또래 반려인 기준"
@@ -34,10 +35,9 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
   bool _agreedPrivacy = false;
   bool _agreedStats = false;
 
-  /// 남/여만 필수 선택지로 둔다 — 이 화면은 이제 건너뛸 수 없으므로
-  /// "선택 안 함"은 고를 수 있는 값으로 노출하지 않는다("자체
-  /// 회원가입·로그인·비밀번호 재설정" 지시서 1-2/3).
-  static const List<Gender> _requiredGenderOptions = [
+  /// 남/여만 선택지로 둔다 — 고르지 않는 것 자체가 "선택 안 함"이라
+  /// [Gender.unspecified]를 따로 보이지 않는다.
+  static const List<Gender> _genderOptions = [
     Gender.male,
     Gender.female,
   ];
@@ -53,8 +53,6 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
   }
 
   bool get _canProceed =>
-      _ageGroup != null &&
-      _gender != null &&
       _agreedAge14 &&
       _agreedTerms &&
       _agreedPrivacy;
@@ -126,11 +124,11 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
                       ),
                       const SizedBox(width: 6),
                       const Text(
-                        '필수',
+                        '선택',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                          color: AppColors.textPlaceholder,
                         ),
                       ),
                     ],
@@ -139,12 +137,12 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _requiredGenderOptions.map((g) {
+                    children: _genderOptions.map((g) {
                       final selected = _gender == g;
                       return ChoiceChip(
                         label: Text(g.label),
                         selected: selected,
-                        onSelected: (_) => setState(() => _gender = g),
+                        onSelected: (_) => setState(() => _gender = selected ? null : g),
                       );
                     }).toList(),
                   ),
@@ -161,11 +159,11 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
                       ),
                       const SizedBox(width: 6),
                       const Text(
-                        '필수',
+                        '선택',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.primary,
+                          color: AppColors.textPlaceholder,
                         ),
                       ),
                     ],
@@ -179,7 +177,7 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
                       return ChoiceChip(
                         label: Text(group.label),
                         selected: selected,
-                        onSelected: (_) => setState(() => _ageGroup = group),
+                        onSelected: (_) => setState(() => _ageGroup = selected ? null : group),
                       );
                     }).toList(),
                   ),

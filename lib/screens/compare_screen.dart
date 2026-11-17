@@ -52,7 +52,7 @@ class CompareScreen extends ConsumerWidget {
                 padding: EdgeInsets.all(24),
                 child: MascotMessage(
                   title: '비교할 병원을 먼저 담아주세요',
-                  subtitle: '검색 결과나 병원 상세에서 "비교 추가"를 눌러 담을 수 있어요',
+                  subtitle: '병원 상세에서 "비교 담기"를 눌러 담을 수 있어요',
                 ),
               ),
             )

@@ -18,6 +18,7 @@ import '../widgets/date_picker_sheet.dart';
 import '../widgets/form_field_label.dart';
 import '../widgets/hospital_picker_field.dart';
 import '../widgets/picker_sheet_chrome.dart';
+import '../widgets/unsaved_changes_guard.dart';
 import '../widgets/time_picker_sheet.dart';
 import 'medical_record_form_screen.dart';
 
@@ -140,7 +141,22 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
       // "기타" 칩을 선택해 두고 직접 입력 필드에 원래 값을 그대로 보여준다.
       _selectedPurposeChip = '기타';
     }
+    _initialSignature = _signature();
   }
+
+  /// 뒤로가기 확인용 — 화면을 연 때와 지금의 입력값 비교.
+  late final String _initialSignature;
+
+  String _signature() => [
+        _date.toIso8601String(),
+        '${_time.hour}:${_time.minute}',
+        _hospitalController.text,
+        _reasonController.text,
+        _memoController.text,
+        _selectedHospitalId ?? '',
+        _reminder == null ? '' : '${_reminder!.daysBefore}-${_reminder!.hour}-${_reminder!.minute}',
+        _selectedPurposeChip ?? '',
+      ].join('\u0001');
 
   @override
   void dispose() {
@@ -316,7 +332,14 @@ class _AppointmentFormScreenState extends ConsumerState<AppointmentFormScreen> {
   // 예약 입력 중에는 앱 오프닝 광고를 띄우지 않는다 — 화면이 사라지면
   // (어떤 경로든) 억제도 같이 풀린다.
   @override
-  Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
+  Widget build(BuildContext context) => AppOpenAdSuppressor(
+        // 바뀐 게 있을 때만 뒤로가기 확인(2차 업데이트 H) — 저장 후 닫기·
+        // 기록↔예약 전환(pushReplacement)은 막지 않는다.
+        child: UnsavedChangesGuard(
+          isDirty: () => _signature() != _initialSignature,
+          child: _buildScreen(context),
+        ),
+      );
 
   Widget _buildScreen(BuildContext context) {
     return Scaffold(

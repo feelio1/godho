@@ -27,4 +27,22 @@ void main() {
     expect(find.widgetWithText(TextButton, '회원가입'), findsOneWidget);
     expect(find.widgetWithText(TextButton, '비밀번호 찾기'), findsOneWidget);
   });
+
+  testWidgets('구글 버튼: 공식 G 로고(assets/brand) + 흰 바탕·#747775 1px 테두리·알약 모양·높이 54', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(home: LoginScreen()),
+      ),
+    );
+
+    final button = find.byKey(const ValueKey('login_google'));
+    expect(tester.getSize(button).height, 54);
+    final image = tester.widget<Image>(find.descendant(of: button, matching: find.byType(Image)));
+    expect((image.image as AssetImage).assetName, 'assets/brand/google_g.png');
+    expect(image.width, 20);
+    final style = tester.widget<OutlinedButton>(find.descendant(of: button, matching: find.byType(OutlinedButton))).style!;
+    expect(style.backgroundColor!.resolve({}), Colors.white);
+    expect(style.side!.resolve({}), const BorderSide(color: Color(0xFF747775)));
+    expect(style.shape!.resolve({}), isA<StadiumBorder>());
+  });
 }

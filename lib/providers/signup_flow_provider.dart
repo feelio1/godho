@@ -52,10 +52,16 @@ class SignupFlowNotifier extends Notifier<SignupFlowState> {
   @override
   SignupFlowState build() => const SignupFlowState();
 
-  /// 3-1(나이·성별) 화면의 "다음"/"건너뛰기" — 건너뛰어도 값은 모두 null,
-  /// agreedStats는 false로 그대로 넘어간다(입력 강요 금지).
+  /// 기본 정보 화면의 "다음" — 성별·연령대는 선택이라 null이면 그대로 비워
+  /// 둔다(copyWith는 null을 "그대로 둠"으로 보므로 직접 만든다 — 뒤로 가서
+  /// 선택을 풀었을 때 이전 값이 남지 않게).
   void setAgeGender({AgeGroup? ageGroup, Gender? gender, required bool agreedStats}) {
-    state = state.copyWith(ageGroup: ageGroup, gender: gender, agreedStats: agreedStats);
+    state = SignupFlowState(
+      ageGroup: ageGroup,
+      gender: gender,
+      agreedStats: agreedStats,
+      pets: state.pets,
+    );
   }
 
   void addPet(SignupPet pet, {File? photoFile}) {

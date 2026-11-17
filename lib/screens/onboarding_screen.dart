@@ -53,7 +53,7 @@ class OnboardingScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.section),
               const Text(
-                '동물병원,\n사실부터 확인하세요',
+                '동물병원 가기 전에\n확인하세요',
                 style: TextStyle(
                   fontSize: 27,
                   height: 1.35,

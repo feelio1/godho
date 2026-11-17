@@ -265,12 +265,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _ProviderButton(
-                  label: 'Google로 계속하기',
-                  icon: Icons.g_mobiledata,
-                  background: AppColors.surfaceLight,
-                  foreground: AppColors.textPrimary,
-                  border: AppColors.borderInput,
+                child: _GoogleSignInButton(
                   loading: _loading == _Provider.google,
                   enabled: _loading == null,
                   onPressed: _handleGoogle,
@@ -426,12 +421,58 @@ class _LoginBenefit extends StatelessWidget {
   }
 }
 
+/// 구글 로그인 버튼 — Google 브랜드 가이드(라이트 테마)대로: 흰 바탕,
+/// 1px #747775 테두리, 알약 모양, 왼쪽에 공식 G 로고(`assets/brand/
+/// google_g.png`, 다시 그리지 않음) 20dp, "Google로 계속하기". 높이 54dp로
+/// 다른 로그인 수단보다 덜 눈에 띄지 않게 한다(2차 업데이트 I).
+class _GoogleSignInButton extends StatelessWidget {
+  final bool loading;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _GoogleSignInButton({required this.loading, required this.enabled, required this.onPressed});
+
+  static const _border = Color(0xFF747775);
+  static const _text = Color(0xFF1F1F1F);
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const ValueKey('login_google'),
+      height: 54,
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: enabled ? onPressed : null,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          disabledBackgroundColor: Colors.white,
+          side: const BorderSide(color: _border, width: 1),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            loading
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: _text))
+                : Image.asset('assets/brand/google_g.png', width: 20, height: 20),
+            const SizedBox(width: 12),
+            const Text(
+              'Google로 계속하기',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _text),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProviderButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final Color background;
   final Color foreground;
-  final Color? border;
   final bool loading;
   final bool enabled;
   final VoidCallback onPressed;
@@ -441,7 +482,6 @@ class _ProviderButton extends StatelessWidget {
     required this.icon,
     required this.background,
     required this.foreground,
-    this.border,
     required this.loading,
     required this.enabled,
     required this.onPressed,
@@ -470,7 +510,7 @@ class _ProviderButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           backgroundColor: background,
           disabledBackgroundColor: background,
-          side: border != null ? BorderSide(color: border!) : BorderSide.none,
+          side: BorderSide.none,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.field),
           ),

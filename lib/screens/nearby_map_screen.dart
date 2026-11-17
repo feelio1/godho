@@ -12,7 +12,6 @@ import '../config/kakao_map_config.dart';
 import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../providers/bundle_provider.dart';
-import '../providers/compare_provider.dart';
 import '../providers/location_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -550,24 +549,9 @@ class _NearbyMapScreenState extends ConsumerState<NearbyMapScreen> {
                 ),
               ],
               const SizedBox(height: 16),
+              // 비교 담기는 병원 상세에만 둔다(2차 업데이트 결정 4).
               Row(
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        Navigator.pop(sheetContext);
-                        final added =
-                            ref.read(compareListProvider.notifier).add(hospital.id);
-                        if (!added && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('비교는 최대 3곳까지 담을 수 있습니다.')),
-                          );
-                        }
-                      },
-                      child: const Text('비교 추가'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: FilledButton(
                       onPressed: () {

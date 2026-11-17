@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
+import '../providers/region_auto_detect.dart';
 import '../providers/region_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
@@ -95,28 +96,36 @@ class _HomeBody extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 14),
+        // "평가하지 않아요" 류 문구는 홈에서 이 인사 배너 한 곳에만 둔다(2차
+        // 업데이트 F) — 상세 하단·이용안내의 고지는 그대로.
         const HomeGreetingBanner(),
+        // 지역이 "전체"일 때만 — 우리 동네를 정하면 사라진다.
+        if (region.isNationwide) ...[
+          const SizedBox(height: AppSpacing.section),
+          const _NeighborhoodCard(),
+        ],
         const SizedBox(height: AppSpacing.section),
-        // 우리 아이 영역 — 로그인+반려동물이 있을 때만 보인다(OurPetCard·
+        // 우리 아이 영역 — 로그인+반려동물이 있을 때 보인다(OurPetCard·
         // TodayDiaryRow·OnThisDayDiaryCard가 각자 스스로 가린다, "방향
-        // 개편" 지시서 F, "일기 활성화" 지시서 I).
+        // 개편" 지시서 F, "일기 활성화" 지시서 I). 반려동물이 0마리면
+        // TodayDiaryRow가 등록 안내 한 줄을 보인다.
         const OurPetCard(),
         const TodayDiaryRow(),
         const OnThisDayDiaryCard(),
         const SizedBox(height: AppSpacing.section),
-        // 병원 영역.
+        // 병원 영역 — 검색 → 진료비 시세 → 바로가기 순(2차 업데이트 F).
         const Text(
           '병원 찾기',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary, letterSpacing: 0.2),
         ),
         const SizedBox(height: 10),
         Text(
-          '동물병원의 기록을\n사실 그대로 확인하세요',
+          '동물병원 가기 전에\n확인하세요',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(height: 1.35),
         ),
         const SizedBox(height: 6),
         const Text(
-          '공공데이터 기반 · 평가나 순위 없이 기록만 보여드려요',
+          '문 연 날 · 영업 등록 상태 · 동네 진료비',
           style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         const SizedBox(height: AppSpacing.section),
@@ -130,6 +139,8 @@ class _HomeBody extends ConsumerWidget {
           '전국 ${NumberFormat('#,###').format(repo.all.length)}곳 인허가 기록 · $dateLabel 기준',
           style: AppTextStyles.src(AppColors.textSecondary),
         ),
+        const SizedBox(height: AppSpacing.section),
+        const FeeSummaryCard(),
         const SizedBox(height: AppSpacing.section),
         Row(
           children: [
@@ -165,8 +176,6 @@ class _HomeBody extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.section),
-        const FeeSummaryCard(),
         const SizedBox(height: AppSpacing.section),
         const HomeShopRecommendation(),
         // 제휴 카드는 병원 데이터 카드(FeeSummaryCard)와 붙지 않게 쇼핑 추천
@@ -296,6 +305,102 @@ class _HomeAuthBadge extends ConsumerWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// "우리 동네를 알려주세요" — 지역이 "전체"일 때만 홈에 보인다(2차 업데이트
+/// F). [현재 위치로 찾기]는 이 버튼을 눌렀을 때만 위치 권한을 묻고(앱 시작 시
+/// 강제 요청 금지), 좌표로 지역을 판정해 고른다. [직접 선택]은 지역 선택 시트.
+/// 지역이 정해지면 홈이 이 카드를 더는 그리지 않는다.
+class _NeighborhoodCard extends ConsumerStatefulWidget {
+  const _NeighborhoodCard();
+
+  @override
+  ConsumerState<_NeighborhoodCard> createState() => _NeighborhoodCardState();
+}
+
+class _NeighborhoodCardState extends ConsumerState<_NeighborhoodCard> {
+  bool _locating = false;
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locating = true);
+    try {
+      await ref.read(locationProvider.notifier).requestAndFetch();
+      final position = ref.read(locationProvider).value;
+      if (position == null) {
+        _showMessage('위치를 확인할 수 없어요. 위치 권한을 확인하거나 직접 선택해 주세요.');
+        return;
+      }
+      final normalized = await detectNormalizedRegion(ref, position.latitude, position.longitude);
+      if (normalized == null) {
+        _showMessage('현재 위치의 지역을 찾지 못했어요. 직접 선택해 주세요.');
+        return;
+      }
+      await ref
+          .read(regionProvider.notifier)
+          .selectRegion(RegionFilter(sido: normalized.sido, sigungu: normalized.sigungu));
+    } finally {
+      if (mounted) setState(() => _locating = false);
+    }
+  }
+
+  void _showMessage(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _pickRegion() async {
+    final result = await showRegionPickerSheet(context);
+    if (result != null) await ref.read(regionProvider.notifier).selectRegion(result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.card),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight,
+        border: Border.all(color: AppColors.borderCard),
+        borderRadius: BorderRadius.circular(AppRadius.card),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '우리 동네를 알려주세요',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '진료비 시세와 가까운 병원을 보여드려요',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  key: const ValueKey('neighborhood_locate'),
+                  onPressed: _locating ? null : _useCurrentLocation,
+                  icon: _locating
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.my_location, size: 18),
+                  label: const Text('현재 위치로 찾기'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  key: const ValueKey('neighborhood_pick'),
+                  onPressed: _locating ? null : _pickRegion,
+                  child: const Text('직접 선택'),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
