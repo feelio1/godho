@@ -32,7 +32,10 @@ void main() {
     // 2차 업데이트 F — 지역이 "전체"면 우리 동네 카드가 위에 뜨고,
     // 바로가기는 진료비 시세 카드 아래로 내려갔다(스크롤해서 확인).
     expect(find.text('동물병원 가기 전에\n확인하세요'), findsOneWidget);
-    expect(find.text('문 연 날 · 영업 등록 상태 · 동네 진료비'), findsOneWidget);
+    // 설명 한 줄은 3차 업데이트 J-2에서 검색 카드 안 칩 3개가 됐다.
+    expect(find.text('문 연 날'), findsOneWidget);
+    expect(find.text('영업 등록 상태'), findsOneWidget);
+    expect(find.text('동네 진료비'), findsOneWidget);
     expect(find.text('우리 동네를 알려주세요'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('저장한 병원'), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text('주변 병원'), findsOneWidget);

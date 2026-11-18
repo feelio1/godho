@@ -92,6 +92,11 @@ Product _product(String id, {double? min, double? max}) => Product(
   updatedAt: DateTime(2026, 11, 1),
 );
 
+/// 손글씨 한 줄은 낱말 단위 줄바꿈용 보이지 않는 문자(U+2060)가 섞여 있다
+/// (keepWords) — 그 문자를 빼고 비교한다.
+Finder _findPlain(String text) =>
+    find.byWidgetPredicate((w) => w is Text && w.data?.replaceAll('\u2060', '') == text);
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -410,7 +415,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('우리 아이를 등록하면 일기를 남길 수 있어요'), findsOneWidget);
+      expect(_findPlain('우리 아이를 등록하면 일기를 남길 수 있어요'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -479,7 +484,7 @@ void main() {
       }
 
       expect(find.text('동물병원 가기 전에\n확인하세요'), findsOneWidget);
-      expect(find.text('우리 아이를 등록하면 일기를 남길 수 있어요'), findsOneWidget);
+      expect(_findPlain('우리 아이를 등록하면 일기를 남길 수 있어요'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

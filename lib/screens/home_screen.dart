@@ -9,6 +9,7 @@ import '../diary/screens/today_diary_row.dart';
 import '../models/region_filter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/bundle_provider.dart';
+import '../providers/effective_pets_provider.dart';
 import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../providers/region_auto_detect.dart';
@@ -22,6 +23,7 @@ import '../widgets/fee_summary_card.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/home_greeting_banner.dart';
 import '../widgets/home_shop_recommendation.dart';
+import '../widgets/mascot_image.dart';
 import '../widgets/our_pet_card.dart';
 import '../widgets/region_indicator.dart';
 import 'account_ui.dart';
@@ -49,9 +51,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: SafeArea(child: _HomeBody()),
-    );
+    return const Scaffold(body: SafeArea(child: _HomeBody()));
   }
 }
 
@@ -66,11 +66,7 @@ class _HomeBody extends ConsumerWidget {
   }
 
   Future<void> _openSaved(BuildContext context, WidgetRef ref) async {
-    final ok = await requireLogin(
-      context,
-      ref,
-      message: '로그인하면 관심 있는 병원을 저장해두고 언제든 다시 찾아볼 수 있어요.',
-    );
+    final ok = await requireLogin(context, ref, message: '로그인하면 관심 있는 병원을 저장해두고 언제든 다시 찾아볼 수 있어요.');
     if (!ok || !context.mounted) return;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SavedScreen()));
   }
@@ -84,62 +80,44 @@ class _HomeBody extends ConsumerWidget {
     final generatedAt = bundle?.generatedAt;
     final dateLabel = generatedAt != null ? DateFormat('yyyy.MM.dd').format(generatedAt) : '확인 불가';
 
+    final user = ref.watch(authStateProvider).value;
+    final hasPets = user != null && (ref.watch(effectivePetsProvider).value?.isNotEmpty ?? false);
+
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 16, AppSpacing.page, 16),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 16),
       children: [
         Row(
           children: [
-            const Expanded(child: BrandMark()),
+            const Expanded(
+              child: Align(alignment: Alignment.centerLeft, child: BrandMark(fontSize: 26, showIcon: false)),
+            ),
             const _HomeAuthBadge(),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             RegionIndicator(region: region, onTap: () => _changeRegion(context, ref)),
           ],
         ),
-        const SizedBox(height: 14),
-        // "평가하지 않아요" 류 문구는 홈에서 이 인사 배너 한 곳에만 둔다(2차
-        // 업데이트 F) — 상세 하단·이용안내의 고지는 그대로.
+        const SizedBox(height: 16),
+        // "평가하지 않아요" 류 문구는 홈에서 한 곳에만 둔다(2차 업데이트 F) —
+        // 게스트·반려동물 0마리는 이 인사 배너, 반려동물이 있는 회원은 버터색
+        // 일기 띠가 이 자리에 오므로 검색 카드 아래 기준일 줄에 붙인다.
         const HomeGreetingBanner(),
         // 지역이 "전체"일 때만 — 우리 동네를 정하면 사라진다.
-        if (region.isNationwide) ...[
-          const SizedBox(height: AppSpacing.section),
-          const _NeighborhoodCard(),
-        ],
-        const SizedBox(height: AppSpacing.section),
-        // 우리 아이 영역 — 로그인+반려동물이 있을 때 보인다(OurPetCard·
-        // TodayDiaryRow·OnThisDayDiaryCard가 각자 스스로 가린다, "방향
-        // 개편" 지시서 F, "일기 활성화" 지시서 I). 반려동물이 0마리면
-        // TodayDiaryRow가 등록 안내 한 줄을 보인다.
-        const OurPetCard(),
-        const TodayDiaryRow(),
+        if (region.isNationwide) ...[const SizedBox(height: 14), const _NeighborhoodCard()],
+        // 우리 아이 영역 — 버터색 일기 띠(로그인 + 반려동물, 0마리면 등록
+        // 안내) + 다가오는 예약·최근 진료기록 카드 + 1년 전 오늘 일기. 각자
+        // 조건이 안 맞으면 스스로 숨는다.
+        const _GapIfVisible(child: TodayDiaryRow()),
+        const _GapIfVisible(child: OurPetCard()),
         const OnThisDayDiaryCard(),
-        const SizedBox(height: AppSpacing.section),
+        const SizedBox(height: 12),
         // 병원 영역 — 검색 → 진료비 시세 → 바로가기 순(2차 업데이트 F).
-        const Text(
-          '병원 찾기',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary, letterSpacing: 0.2),
+        _SearchHeroCard(
+          totalLabel: NumberFormat('#,###').format(repo.all.length),
+          dateLabel: dateLabel,
+          showNoRatingLine: hasPets,
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SearchResultScreen())),
         ),
-        const SizedBox(height: 10),
-        Text(
-          '동물병원 가기 전에\n확인하세요',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(height: 1.35),
-        ),
-        const SizedBox(height: 6),
-        const Text(
-          '문 연 날 · 영업 등록 상태 · 동네 진료비',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.section),
-        _SearchEntry(
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const SearchResultScreen()),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '전국 ${NumberFormat('#,###').format(repo.all.length)}곳 인허가 기록 · $dateLabel 기준',
-          style: AppTextStyles.src(AppColors.textSecondary),
-        ),
-        const SizedBox(height: AppSpacing.section),
+        const SizedBox(height: 28),
         const FeeSummaryCard(),
         const SizedBox(height: AppSpacing.section),
         Row(
@@ -156,17 +134,15 @@ class _HomeBody extends ConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: _ShortcutButton(
                 icon: Icons.bar_chart_outlined,
                 label: '진료비 시세',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const FeeOverviewScreen()),
-                ),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FeeOverviewScreen())),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: _ShortcutButton(
                 icon: Icons.bookmark_outline,
@@ -176,16 +152,13 @@ class _HomeBody extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AppSpacing.section),
+        const SizedBox(height: 28),
         const HomeShopRecommendation(),
         // 제휴 카드는 병원 데이터 카드(FeeSummaryCard)와 붙지 않게 쇼핑 추천
         // 뒤에 둔다 — 쇼핑이 꺼져 위 섹션이 비어도 위아래 간격이 두 번
         // 겹쳐 병원 영역과 충분히 떨어진다(CLAUDE.md 광고 배치 원칙).
         // v1에서는 펫보험 카드를 숨긴다(kEnableInsuranceCard) — 코드는 그대로.
-        if (kEnableInsuranceCard) ...[
-          const SizedBox(height: AppSpacing.section),
-          const AffiliateFeeCard(),
-        ],
+        if (kEnableInsuranceCard) ...[const SizedBox(height: AppSpacing.section), const AffiliateFeeCard()],
         const SizedBox(height: AppSpacing.section),
         const GlobalBannerAd(inline: true),
       ],
@@ -193,43 +166,163 @@ class _HomeBody extends ConsumerWidget {
   }
 }
 
-/// 홈 검색 진입 — 입력을 바로 받지 않고(시안: `pointer-events:none`인
-/// placeholder input) 탭하면 검색 화면으로 이동한다.
-class _SearchEntry extends StatelessWidget {
-  final VoidCallback onTap;
+/// 우리 아이 영역 카드 위 간격(카드가 스스로 숨어도 14dp만 남는다).
+class _GapIfVisible extends StatelessWidget {
+  final Widget child;
 
-  const _SearchEntry({required this.onTap});
+  const _GapIfVisible({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.field),
-      child: Container(
-        height: 54,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
-          border: Border.all(color: AppColors.primary, width: 1.5),
-          borderRadius: BorderRadius.circular(AppRadius.field),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.search, size: 20, color: AppColors.primary),
-            const SizedBox(width: 10),
-            Text(
-              '동 이름이나 병원 이름으로 검색',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.textPrimary),
+    return Padding(padding: const EdgeInsets.only(top: 14), child: child);
+  }
+}
+
+/// 홈 검색 카드("장구름의 수첩", 3차 업데이트 J-2) — 네이비 바탕 큰 둥근
+/// 카드(반지름 28): 흰 제목, 흰 검색창 + 버터색 화살표 버튼, `navyTint`
+/// 칩 3개(버터색 체크), 맨 아래 기준일. 오른쪽 위에 돋보기 든 구름이가
+/// 카드 밖으로 살짝 걸친다. 입력을 바로 받지 않고 탭하면 검색 화면으로.
+class _SearchHeroCard extends StatelessWidget {
+  final String totalLabel;
+  final String dateLabel;
+  final bool showNoRatingLine;
+  final VoidCallback onTap;
+
+  const _SearchHeroCard({
+    required this.totalLabel,
+    required this.dateLabel,
+    required this.showNoRatingLine,
+    required this.onTap,
+  });
+
+  static const _mascot = 104.0;
+  static const _overhang = 30.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: _overhang),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(18, 22, 18, 20),
+            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(AppRadius.button)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: _mascot - 20),
+                  child: Text(
+                    '동물병원 가기 전에\n확인하세요',
+                    style: TextStyle(
+                      fontSize: 25,
+                      height: 1.3,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Semantics(
+                  button: true,
+                  label: '병원 검색',
+                  child: Material(
+                    color: Colors.white,
+                    shape: const StadiumBorder(side: BorderSide(color: Colors.white, width: 1.5)),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: onTap,
+                      child: SizedBox(
+                        height: 56,
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 18),
+                            const Icon(Icons.search, size: 22, color: AppColors.textPrimary),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                '동 이름이나 병원 이름으로 검색',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 15, color: AppColors.textPlaceholder),
+                              ),
+                            ),
+                            Container(
+                              width: 44,
+                              height: 44,
+                              margin: const EdgeInsets.only(right: 6),
+                              decoration: const BoxDecoration(color: AppColors.butter, shape: BoxShape.circle),
+                              child: const Icon(Icons.arrow_forward, color: AppColors.textPrimary, size: 22),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Wrap(
+                  spacing: 6,
+                  runSpacing: 8,
+                  children: [_NavyCheckChip('문 연 날'), _NavyCheckChip('영업 등록 상태'), _NavyCheckChip('동네 진료비')],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '전국 $totalLabel곳 인허가 기록 · $dateLabel 기준',
+                  style: AppTextStyles.mono(size: 13, color: AppColors.onNavyCaption),
+                ),
+                if (showNoRatingLine) ...[
+                  const SizedBox(height: 2),
+                  const Text(
+                    '병원을 평가하지 않아요. 공개된 사실만 보여드려요.',
+                    style: TextStyle(fontSize: 13, color: AppColors.onNavyCaption),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
         ),
+        const Positioned(
+          right: 6,
+          top: 0,
+          child: ExcludeSemantics(
+            child: MascotImage(size: _mascot, assetPath: MascotImage.emptySearchAssetPath),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NavyCheckChip extends StatelessWidget {
+  final String label;
+
+  const _NavyCheckChip(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(color: AppColors.navyTint, borderRadius: BorderRadius.circular(AppRadius.pill)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check, size: 14, color: AppColors.butter),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// 3개 바로가기(주변 병원·진료비 시세·저장한 병원) 카드 — 시안의 3열
-/// 그리드 버튼.
+/// 3개 바로가기(주변 병원·진료비 시세·저장한 병원) — 흰 카드 3칸, 아이콘 +
+/// 글자, 높이 84dp.
 class _ShortcutButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -239,26 +332,30 @@ class _ShortcutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
-          border: Border.all(color: AppColors.borderCard),
-          borderRadius: BorderRadius.circular(AppRadius.card),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 22, color: AppColors.primary),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
-            ),
-          ],
+    return Material(
+      color: AppColors.surfaceLight,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: const BorderSide(color: AppColors.borderCard),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        child: SizedBox(
+          height: 84,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 24, color: AppColors.primary),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -277,9 +374,7 @@ class _HomeAuthBadge extends ConsumerWidget {
 
     if (user == null) {
       return InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        ),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen())),
         borderRadius: BorderRadius.circular(999),
         child: const Padding(
           padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -373,10 +468,7 @@ class _NeighborhoodCardState extends ConsumerState<_NeighborhoodCard> {
             style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 4),
-          const Text(
-            '진료비 시세와 가까운 병원을 보여드려요',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          ),
+          const Text('진료비 시세와 가까운 병원을 보여드려요', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
           Row(
             children: [

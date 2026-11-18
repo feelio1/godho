@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/effective_pets_provider.dart';
-import '../screens/account_ui.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
 import 'mascot_image.dart';
 
 /// 홈 헤더 바로 아래 "온기" 영역("출시 전 마무리" 지시서 B) — 장구름 +
@@ -22,26 +22,26 @@ class HomeGreetingBanner extends ConsumerWidget {
     final pets = petsAsync?.value ?? const [];
     final petName = pets.isNotEmpty ? pets.first.name : null;
 
-    final message = user == null
-        ? '병원을 평가하지 않아요. 공개된 사실로 방문 전에 확인하세요.'
-        : petName != null
-            ? '${accountLabel(user)}님, 오늘도 $petName와 함께해요'
-            : '병원을 평가하지 않아요. 공개된 사실로 방문 전에 확인하세요.';
+    // 반려동물이 있는 회원은 이 자리에 버터색 일기 띠([TodayDiaryRow])가
+    // 오므로 인사 배너를 그리지 않는다(3차 업데이트 J-2 — 같은 버터색 띠가
+    // 두 번 겹치지 않게).
+    if (user != null && petName != null) return const SizedBox.shrink();
+    const message = '병원을 평가하지 않아요. 공개된 사실로 방문 전에 확인하세요.';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.warmBackground,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.panel),
       ),
       child: Row(
         children: [
-          const MascotImage(size: 30),
+          const MascotImage(size: 36),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textLabel),
+              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),

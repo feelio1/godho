@@ -91,3 +91,30 @@ List<Product> selectHomeShopPreview({
   final recommended = filterRecommendedProducts(activeProducts, pets);
   return (recommended.isNotEmpty ? recommended : activeProducts).take(limit).toList();
 }
+
+/// 홈 추천 아래 근거 문구용 — 실제로 [filterRecommendedProducts]가 상품을
+/// 골랐을 때만, 맞은 반려동물의 프로필(종 · 생애단계)을 돌려준다("강아지 ·
+/// 성견"). 추천 결과가 없어 일반 상품으로 채운 경우·반려동물이 없는
+/// 경우는 null — 근거가 아닌 문구를 붙이지 않는다(3차 업데이트 J-2).
+String? recommendationBasisLabel(List<Product> activeProducts, List<Pet> pets) {
+  if (pets.isEmpty) return null;
+  final recommended = filterRecommendedProducts(activeProducts, pets);
+  if (recommended.isEmpty) return null;
+  final labels = <String>{};
+  for (final pet in pets) {
+    if (!recommended.any((p) => _matches(p, pet))) continue;
+    final stage = _lifeStageTagOf(pet);
+    final stageLabel = stage == null ? null : _lifeStageLabel(pet.species, stage);
+    labels.add(stageLabel == null ? pet.species.label : '${pet.species.label} · $stageLabel');
+  }
+  return labels.isEmpty ? null : labels.join(', ');
+}
+
+String _lifeStageLabel(PetSpecies species, LifeStageTag stage) => switch ((species, stage)) {
+      (PetSpecies.cat, LifeStageTag.puppy) => '아기 고양이',
+      (PetSpecies.cat, LifeStageTag.adult) => '성묘',
+      (PetSpecies.cat, LifeStageTag.senior) => '노령묘',
+      (_, LifeStageTag.puppy) => '퍼피',
+      (_, LifeStageTag.adult) => '성견',
+      (_, LifeStageTag.senior) => '노령견',
+    };

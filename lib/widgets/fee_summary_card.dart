@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../models/fee.dart';
 import '../models/fee_bundle.dart';
@@ -10,7 +11,7 @@ import '../screens/fee_overview_screen.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../utils/fee_no_data_message.dart';
-import 'fee_format.dart';
+import 'fee_range_bar.dart';
 
 /// 홈 상단 진료비 시세 카드(화면 01) — 선택한 지역의 대표 항목 3~4개
 /// 시세를 한눈에 보여주고 탭하면 진료비 시세 전체 페이지(21)로 이동한다
@@ -40,19 +41,38 @@ class FeeSummaryCard extends ConsumerWidget {
     final bundle = ref.watch(feeBundleProvider).value;
     final weight = ref.watch(feeWeightProvider).bucket;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const FeeOverviewScreen()),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.card),
-        decoration: BoxDecoration(
-          color: AppColors.primarySoft,
-          borderRadius: BorderRadius.circular(AppRadius.card),
+    void openOverview() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FeeOverviewScreen()));
+
+    // "장구름의 수첩"(3차 업데이트 J-2): 카드 밖 제목 줄 + 흰 카드.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                region.sigungu != null ? '${region.shortLabel} 진료비 시세' : '동네 진료비 시세',
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ),
+            TextButton(onPressed: openOverview, child: const Text('전체 보기')),
+          ],
         ),
-        child: _content(region, bundle, weight),
-      ),
+        const SizedBox(height: 6),
+        InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          onTap: openOverview,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.cardLarge, 4, AppSpacing.cardLarge, AppSpacing.cardLarge),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              border: Border.all(color: AppColors.borderCard),
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
+            child: _content(region, bundle, weight),
+          ),
+        ),
+      ],
     );
   }
 
@@ -85,7 +105,7 @@ class FeeSummaryCard extends ConsumerWidget {
       return _NoFeeData(regionLabel: region.shortLabel, sigungu: sigungu);
     }
 
-    return _WithItems(regionLabel: region.shortLabel, weight: weight, items: items);
+    return _WithItems(regionLabel: region.shortLabel, weight: weight, items: items, bundle: bundle);
   }
 
   List<(FeeItem, FeeValue)> _representativeItems(
@@ -111,72 +131,30 @@ class _WithItems extends StatelessWidget {
   final String regionLabel;
   final FeeWeightBucket weight;
   final List<(FeeItem, FeeValue)> items;
+  final FeeBundle bundle;
 
-  const _WithItems({required this.regionLabel, required this.weight, required this.items});
+  const _WithItems({required this.regionLabel, required this.weight, required this.items, required this.bundle});
 
   @override
   Widget build(BuildContext context) {
+    final baseDate = bundle.baseDate;
+    final source = bundle.source.split(' ').first;
+    final dateLabel = baseDate != null ? DateFormat('yyyy.MM.dd').format(baseDate) : '확인 불가';
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '$regionLabel 진료비 시세 · ${weight.label} 기준',
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
-          ],
-        ),
-        const SizedBox(height: 8),
         for (var i = 0; i < items.length; i++) ...[
-          if (i > 0) const Divider(height: 1, color: AppColors.borderCard),
-          _FeeSummaryRow(item: items[i].$1, value: items[i].$2),
+          if (i > 0) const Divider(height: 1, color: AppColors.borderMuted),
+          FeeRangeRow(name: items[i].$1.name, value: items[i].$2),
         ],
+        const Divider(height: 1, color: AppColors.borderMuted),
+        const SizedBox(height: 12),
+        Text(
+          '점은 가운데 값, 막대는 가장 낮은 곳부터 가장 높은 곳까지예요. '
+          '${weight.label} 기준, $source 공개 $dateLabel.',
+          style: const TextStyle(fontSize: 13, height: 1.5, color: AppColors.textSecondary),
+        ),
       ],
-    );
-  }
-}
-
-class _FeeSummaryRow extends StatelessWidget {
-  final FeeItem item;
-  final FeeValue value;
-
-  const _FeeSummaryRow({required this.item, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              item.name,
-              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            value.sampleLow ? '참고용' : feeWonLabel(value.mid),
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: value.sampleLow ? AppColors.textPlaceholder : AppColors.textPrimary,
-            ),
-          ),
-          if (!value.sampleLow) ...[
-            const SizedBox(width: 6),
-            Text(
-              feeWonRangeLabel(value.min, value.max),
-              style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
@@ -186,16 +164,19 @@ class _WithoutRegion extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Expanded(
-          child: Text(
-            '지역을 선택하면 우리 동네 진료비 시세를 볼 수 있어요',
-            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
+    return const Padding(
+      padding: EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '지역을 선택하면 우리 동네 진료비 시세를 볼 수 있어요',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
+            ),
           ),
-        ),
-        Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
-      ],
+          Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
+        ],
+      ),
     );
   }
 }
@@ -212,28 +193,36 @@ class _NoFeeData extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$regionLabel 진료비 시세',
-                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                feeNoRegionDataSubtitle(regionLabel, sigungu),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary, height: 1.3),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$regionLabel 진료비 시세',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.primaryTextTone),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  feeNoRegionDataSubtitle(regionLabel, sigungu),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        const Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
-      ],
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right, color: AppColors.primaryTextTone),
+        ],
+      ),
     );
   }
 }

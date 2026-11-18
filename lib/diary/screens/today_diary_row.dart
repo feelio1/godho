@@ -5,6 +5,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/effective_pets_provider.dart';
 import '../../screens/account_pet_actions.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_dimens.dart';
+import '../../theme/app_text_styles.dart';
+import '../../utils/keep_words.dart';
+import '../../widgets/mascot_image.dart';
 import '../../utils/appointment_calendar.dart' show dateOnly;
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
@@ -22,12 +26,12 @@ final todayDiaryProvider = FutureProvider.autoDispose.family<Diary?, String>((re
   return null;
 });
 
-/// 홈 "우리 아이" 영역의 "오늘의 일기 한 줄"("방향 개편" 지시서 B-3
-/// 자리, F에서 연결) — [OurPetCard]와 같은 조건(로그인 + 반려동물 있을
-/// 때)에서만 보이고, 그 외엔 아무것도 그리지 않는다. 오늘 일기가 없으면
-/// [쓰기](오늘·이 반려동물이 미리 선택된 작성 화면), 있으면 [보기](상세)
-/// 로 이어진다. 로그인했지만 반려동물이 0마리면(가입 때 등록이 선택이 됨,
-/// 2차 업데이트 C) 등록 안내 한 줄 + [등록]을 대신 보여준다.
+/// 홈 "우리 아이" 영역 — 버터색 둥근 띠("장구름의 수첩", 3차 업데이트
+/// J-2): 왼쪽 구름이 얼굴, 가운데 손글씨 한 줄 + "일기는 나만 볼 수
+/// 있어요", 오른쪽 버튼. 로그인 + 반려동물이 있을 때 오늘 일기가 없으면
+/// [일기 쓰기](오늘·이 반려동물이 미리 선택된 작성 화면), 있으면 [일기 보기]
+/// (상세). 압박 문구("연속 ○일" 등)는 쓰지 않는다. 로그인했지만 반려동물이
+/// 0마리면(2차 업데이트 C) 등록 안내 + [등록]. 게스트는 아무것도 그리지 않는다.
 class TodayDiaryRow extends ConsumerWidget {
   const TodayDiaryRow({super.key});
 
@@ -39,8 +43,9 @@ class TodayDiaryRow extends ConsumerWidget {
     final pets = ref.watch(effectivePetsProvider).value;
     if (pets == null) return const SizedBox.shrink();
     if (pets.isEmpty) {
-      return _Line(
+      return _Strip(
         text: '우리 아이를 등록하면 일기를 남길 수 있어요',
+        caption: '일기와 진료기록은 나만 볼 수 있어요',
         action: '등록',
         onTap: () => AccountPetActions.add(context, ref, uid),
       );
@@ -49,61 +54,63 @@ class TodayDiaryRow extends ConsumerWidget {
 
     final diary = ref.watch(todayDiaryProvider(pet.id)).value;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              diary == null ? '오늘 ${pet.name}의 하루를 남겨보세요' : '오늘 일기를 남겼어요',
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              if (diary == null) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [pet.id])),
-                );
-              } else {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id)),
-                );
-              }
-            },
-            child: Text(diary == null ? '쓰기' : '보기'),
-          ),
-        ],
-      ),
+    return _Strip(
+      text: diary == null ? '${pet.name}의 오늘, 한 줄만 남겨 볼까요?' : '${pet.name}의 오늘 일기를 남겼어요',
+      caption: '일기는 나만 볼 수 있어요',
+      action: diary == null ? '일기 쓰기' : '일기 보기',
+      onTap: () {
+        if (diary == null) {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [pet.id])));
+        } else {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id)));
+        }
+      },
     );
   }
 }
 
-/// 홈 우리 아이 영역의 안내 한 줄(문구 + 오른쪽 버튼).
-class _Line extends StatelessWidget {
+class _Strip extends StatelessWidget {
   final String text;
+  final String caption;
   final String action;
   final VoidCallback onTap;
 
-  const _Line({required this.text, required this.action, required this.onTap});
+  const _Strip({required this.text, required this.caption, required this.action, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 14, 16),
+      decoration: BoxDecoration(color: AppColors.warmBackground, borderRadius: BorderRadius.circular(AppRadius.card)),
       child: Row(
         children: [
+          const MascotImage(size: 60),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  keepWords(text),
+                  style: AppTextStyles.hand(size: 22, color: AppColors.textPrimary, height: 1.25),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(caption, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              ],
             ),
           ),
-          TextButton(onPressed: onTap, child: Text(action)),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: onTap,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+            child: Text(action),
+          ),
         ],
       ),
     );

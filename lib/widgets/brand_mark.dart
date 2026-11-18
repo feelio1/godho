@@ -10,7 +10,10 @@ class BrandMark extends StatelessWidget {
   final double fontSize;
   final Color? color;
 
-  const BrandMark({super.key, this.fontSize = 20, this.color});
+  /// 홈 헤더처럼 글자만 크게 쓸 때는 false("장구름의 수첩" 시안).
+  final bool showIcon;
+
+  const BrandMark({super.key, this.fontSize = 20, this.color, this.showIcon = true});
 
   @override
   Widget build(BuildContext context) {
@@ -18,16 +21,15 @@ class BrandMark extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: iconSize,
-          height: iconSize,
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(iconSize * 0.27),
+        if (showIcon) ...[
+          Container(
+            width: iconSize,
+            height: iconSize,
+            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(iconSize * 0.27)),
+            child: Icon(Icons.add, size: iconSize * 0.55, color: Colors.white),
           ),
-          child: Icon(Icons.add, size: iconSize * 0.55, color: Colors.white),
-        ),
-        SizedBox(width: iconSize * 0.27),
+          SizedBox(width: iconSize * 0.27),
+        ],
         Text(
           '펫클',
           style: TextStyle(
