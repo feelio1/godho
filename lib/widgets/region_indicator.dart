@@ -9,7 +9,10 @@ class RegionIndicator extends StatelessWidget {
   final RegionFilter region;
   final VoidCallback onTap;
 
-  const RegionIndicator({super.key, required this.region, required this.onTap});
+  /// 검색 결과 화면처럼 버튼이 여럿 나란히 있으면 핀 아이콘을 뺀다.
+  final bool showIcon;
+
+  const RegionIndicator({super.key, required this.region, required this.onTap, this.showIcon = true});
 
   @override
   Widget build(BuildContext context) {
@@ -26,11 +29,17 @@ class RegionIndicator extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text(
-                region.label,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              if (showIcon) ...[
+                const Icon(Icons.place_outlined, size: 18, color: AppColors.primary),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  region.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
               ),
               const SizedBox(width: 4),
               const Icon(Icons.keyboard_arrow_down, size: 20, color: AppColors.textPrimary),

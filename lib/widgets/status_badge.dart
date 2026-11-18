@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/hospital.dart';
 import '../models/hospital_status.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
 
 const String kOperationUnconfirmedLabel = '현재 영업 여부 확인 안 됨';
 
@@ -103,9 +104,9 @@ class _Chip extends StatelessWidget {
     // 글자 길이만큼만 차지한다 — Container에 alignment를 주면 부모 폭만큼
     // 늘어나 칩이 가로로 꽉 찼다. 폭이 모자라면 말줄임.
     return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(6)),
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(AppRadius.pill)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -114,11 +115,46 @@ class _Chip extends StatelessWidget {
               label,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w500),
+              style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 목록·상세의 상태 한 줄("장구름의 수첩", 3차 업데이트 J-3) — 영업 중 =
+/// 네이비 점 + 굵은 네이비 글자, 폐업·확인 안 됨 = 회색 칩. 빨강·초록 등
+/// 평가처럼 보이는 색은 쓰지 않는다.
+class HospitalStatusMark extends StatelessWidget {
+  final HospitalStatus status;
+
+  /// 영업 중일 때 글자(기본 "영업 중"). 상세는 "영업 중으로 등록돼 있어요".
+  final String openLabel;
+  final double fontSize;
+
+  const HospitalStatusMark({super.key, required this.status, this.openLabel = '영업 중', this.fontSize = 14});
+
+  @override
+  Widget build(BuildContext context) {
+    if (status != HospitalStatus.open) return StatusBadge(status: status);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(color: AppColors.openDot, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            openLabel,
+            style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700, color: AppColors.openText),
+          ),
+        ),
+      ],
     );
   }
 }
