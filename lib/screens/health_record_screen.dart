@@ -1,4 +1,3 @@
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,18 +5,15 @@ import 'package:intl/intl.dart';
 
 import '../models/medical_record.dart';
 import '../models/pet.dart';
-import '../models/signup_pet.dart';
-import '../providers/auth_provider.dart';
 import '../providers/effective_medical_records_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/record_appointment_flow.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
-import 'account_pet_actions.dart';
 import 'medical_record_form_screen.dart';
-import 'pet_profile_form_screen.dart';
 
 /// 진료기록 보기의 반려동물별 본문 — 원래 독립 탭이던 `HealthRecordScreen`의
 /// 내용이다("탭 개편" 지시서 B). 그 화면의 Scaffold/AppBar/게스트 게이팅/
@@ -39,179 +35,96 @@ class PetHealthBody extends ConsumerWidget {
     final records = ref.watch(effectiveRecordsForPetProvider(pet.id)).value ?? const [];
     final isAccountPet = isAccountPetId(pet.id);
 
-    return Column(
+    // "장구름의 수첩"(3차 업데이트 J-5): 네이비 요약 띠 → 월별 묶음(흰 카드
+    // 목록, 날짜 도장) → 저장 위치 안내, [진료기록 추가] 플로팅 버튼. 반려동물
+    // 정보 수정은 앱바의 반려동물 알약에서 연다.
+    final groups = <DateTime, List<MedicalRecord>>{};
+    for (final r in records) {
+      groups.putIfAbsent(DateTime(r.date.year, r.date.month), () => []).add(r);
+    }
+
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: Column(
-            children: [
-              _PetProfileCard(pet: pet, onDeleted: onPetDeleted),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.neutralBg,
-                  borderRadius: BorderRadius.circular(10),
+        ListView(
+          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 14, AppSpacing.page, 100),
+          children: [
+            _SummaryRow(records: records),
+            if (records.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 32),
+                child: MascotMessage(
+                  title: '아직 진료기록이 없어요',
+                  subtitle: '다녀온 날짜와 진료 내용, 비용을 남겨두면 다음 진료 때 꺼내 볼 수 있어요.',
+                  assetPath: MascotImage.emptyRecordAssetPath,
+                  overlayIcon: Icons.description_outlined,
+                  trailing: FilledButton.icon(
+                    onPressed: () => openRecordOrAppointmentEntry(context, petId: pet.id),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('첫 기록 남기기'),
+                  ),
                 ),
-                child: Row(
+              ),
+            for (final entry in groups.entries) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 22, 0, 10),
+                child: Text(
+                  DateFormat('yyyy년 M월').format(entry.key),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+                ),
+              ),
+              Card(
+                child: Column(
                   children: [
-                    Icon(
-                      isAccountPet ? Icons.cloud_outlined : Icons.smartphone_outlined,
-                      size: 18,
-                      color: AppColors.neutral,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        isAccountPet
-                            ? '이 기록은 계정에 저장됩니다. 다른 기기에서도 로그인하면 볼 수 있어요.'
-                            : '이 기록은 현재 기기에만 저장됩니다. 앱 삭제/기기 변경 시 사라질 수 있습니다.',
-                        style:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.neutral),
-                      ),
-                    ),
+                    for (var i = 0; i < entry.value.length; i++) ...[
+                      if (i > 0)
+                        const Divider(
+                          height: 1,
+                          indent: AppSpacing.cardLarge,
+                          endIndent: AppSpacing.cardLarge,
+                          color: AppColors.borderMuted,
+                        ),
+                      _RecordTile(record: entry.value[i], pet: pet),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              _SummaryRow(records: records),
             ],
-          ),
-        ),
-        Expanded(child: _RecordsTab(pet: pet, records: records)),
-      ],
-    );
-  }
-}
-
-class _RecordsTab extends StatelessWidget {
-  final Pet pet;
-  final List<MedicalRecord> records;
-
-  const _RecordsTab({required this.pet, required this.records});
-
-  @override
-  Widget build(BuildContext context) {
-    if (records.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: MascotMessage(
-            title: '아직 진료기록이 없어요',
-            subtitle: '다녀온 날짜와 진료 내용, 비용을 남겨두면 다음 진료 때 꺼내 볼 수 있어요.',
-            assetPath: MascotImage.emptyRecordAssetPath,
-            overlayIcon: Icons.description_outlined,
-            trailing: FilledButton.icon(
-              onPressed: () => openRecordOrAppointmentEntry(context, petId: pet.id),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('첫 기록 남기기'),
-            ),
-          ),
-        ),
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: () => openRecordOrAppointmentEntry(context, petId: pet.id),
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('진료 기록 추가'),
-          ),
-        ),
-        const SizedBox(height: 14),
-        ...records.map(
-          (r) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _RecordTile(record: r, pet: pet),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PetProfileCard extends ConsumerWidget {
-  final Pet pet;
-  final VoidCallback onDeleted;
-
-  const _PetProfileCard({required this.pet, required this.onDeleted});
-
-  /// 계정 반려동물 수정 — 사진 미리보기까지 온전한 원본([SignupPet])을
-  /// [accountSignupPetsProvider]에서 다시 찾아 폼에 넘긴다([Pet]으로
-  /// 변환하는 과정에서 photoUrl이 손실되기 때문이다, 펫클 "계정 반려동물
-  /// 추가/수정" 지시서 2). 실제 추가/수정/삭제 로직은 [AccountPetActions]
-  /// 공용 헬퍼가 맡는다(홈의 계정 메뉴와 동일한 코드 경로, "계정 메뉴에
-  /// 반려동물 관리 통합" 지시서).
-  Future<void> _editAccountPet(BuildContext context, WidgetRef ref, String uid) async {
-    final docId = accountDocIdFromPetId(pet.id);
-    final accountPets = await ref.read(accountSignupPetsProvider.future);
-    SignupPet existing;
-    try {
-      existing = accountPets.firstWhere((p) => p.id == docId);
-    } catch (_) {
-      // 목록에서 이미 사라진 반려동물(다른 화면/기기에서 먼저 삭제됨 등) —
-      // 수정할 대상이 없으니 조용히 무시한다.
-      return;
-    }
-    if (!context.mounted) return;
-
-    final deleted = await AccountPetActions.editOrDelete(context, ref, uid, existing);
-    if (deleted) onDeleted();
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final textTheme = Theme.of(context).textTheme;
-    final subtitleParts = <String>[
-      if (pet.breed != null && pet.breed!.isNotEmpty) pet.breed! else pet.species.label,
-      if (pet.ageLabel != null) pet.ageLabel!,
-      // 프로필 체중은 구간으로 보인다(옛 kg 값만 있으면 그 값의 구간).
-      ?pet.weightBandOrDerived?.label,
-    ];
-    final isAccountPet = isAccountPetId(pet.id);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundColor: AppColors.primarySoft,
-              backgroundImage: pet.photoPath != null ? FileImage(File(pet.photoPath!)) : null,
-              child: pet.photoPath == null
-                  ? const Icon(Icons.pets, size: 28, color: AppColors.primaryDark)
-                  : null,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(pet.name, style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                  Text(subtitleParts.join(' · '), style: textTheme.bodySmall),
-                ],
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () {
-                if (isAccountPet) {
-                  final uid = ref.read(authStateProvider).value?.uid;
-                  if (uid != null) _editAccountPet(context, ref, uid);
-                } else {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => PetProfileFormScreen(existing: pet)),
-                  );
-                }
-              },
+            const SizedBox(height: 18),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, top: 1),
+                  child: Icon(
+                    isAccountPet ? Icons.cloud_outlined : Icons.smartphone_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isAccountPet
+                        ? '이 기록은 계정에 저장됩니다. 다른 기기에서도 로그인하면 볼 수 있어요.'
+                        : '이 기록은 현재 기기에만 저장됩니다. 앱 삭제/기기 변경 시 사라질 수 있습니다.',
+                    style: const TextStyle(fontSize: 13.5, height: 1.5, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ),
+        Positioned(
+          right: AppSpacing.page,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'record_add_fab',
+            onPressed: () => openRecordOrAppointmentEntry(context, petId: pet.id),
+            icon: const Icon(Icons.add),
+            label: const Text('진료기록 추가', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -229,26 +142,26 @@ class _SummaryRow extends StatelessWidget {
     final latestWeight = records
         .firstWhere(
           (r) => r.weightKg != null,
-          orElse: () => MedicalRecord(id: '', petId: '', date: DateTime.fromMillisecondsSinceEpoch(0), hospitalName: ''),
+          orElse: () =>
+              MedicalRecord(id: '', petId: '', date: DateTime.fromMillisecondsSinceEpoch(0), hospitalName: ''),
         )
         .weightKg;
 
-    return Card(
-      color: AppColors.primarySoft,
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+    // 네이비 띠 요약 3칸(보조 글자 onNavyCaption) — 그래프·판정 없음.
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(AppRadius.card)),
+      child: IntrinsicHeight(
         child: Row(
           children: [
             _SummaryItem(label: '기록', value: '${records.length}건'),
+            const VerticalDivider(width: 1, color: AppColors.navyTint),
             _SummaryItem(
               label: '총 진료비',
               value: totalCost > 0 ? '${NumberFormat('#,###').format(totalCost)}원' : '기록 없음',
             ),
-            _SummaryItem(
-              label: '최근 몸무게',
-              value: latestWeight != null ? '${latestWeight}kg' : '기록 없음',
-            ),
+            const VerticalDivider(width: 1, color: AppColors.navyTint),
+            _SummaryItem(label: '최근 몸무게', value: latestWeight != null ? '${latestWeight}kg' : '기록 없음'),
           ],
         ),
       ),
@@ -267,16 +180,23 @@ class _SummaryItem extends StatelessWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(value, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.neutral)),
+          Text(label, style: const TextStyle(fontSize: 13.5, color: AppColors.onNavyCaption)),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: AppTextStyles.mono(size: 19, weight: FontWeight.w700, color: Colors.white),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-
+/// 진료기록 한 줄 — 왼쪽 날짜 도장(1.5px 네이비 테두리 "11.05 / 목") + 진료
+/// 내용·병원 + 오른쪽 금액·몸무게.
 class _RecordTile extends StatelessWidget {
   final MedicalRecord record;
   final Pet pet;
@@ -285,82 +205,76 @@ class _RecordTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final chips = <String>[
-      if (record.weightKg != null) '${record.weightKg}kg',
-      if (record.costWon != null) '${NumberFormat('#,###').format(record.costWon)}원',
-    ];
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => MedicalRecordFormScreen(petId: pet.id, existing: record),
-          ),
+    final title = record.category.isNotEmpty ? record.category : (record.memo.isNotEmpty ? record.memo : '진료');
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MedicalRecordFormScreen(petId: pet.id, existing: record),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      DateFormat('yyyy.MM.dd').format(record.date),
-                      style: AppTextStyles.mono(size: 12, color: AppColors.neutral),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            record.hospitalName,
-                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (record.category.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Chip(label: Text(record.category)),
-                        ],
-                      ],
-                    ),
-                    if (record.memo.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(record.memo,
-                          maxLines: 2, overflow: TextOverflow.ellipsis, style: textTheme.bodyMedium),
-                    ],
-                    if (chips.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: chips
-                            .map((c) => Chip(
-                                  label: Text(c, style: AppTextStyles.mono(size: 11, color: AppColors.textLabel)),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  padding: EdgeInsets.zero,
-                                ))
-                            .toList(),
-                      ),
-                    ],
-                  ],
-                ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardLarge),
+        child: Row(
+          children: [
+            Container(
+              width: 54,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.primary, width: 1.5),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(width: 10),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.primarySoft,
-                backgroundImage: pet.photoPath != null ? FileImage(File(pet.photoPath!)) : null,
-                child: pet.photoPath == null
-                    ? const Icon(Icons.pets, size: 18, color: AppColors.primaryDark)
-                    : null,
+              child: Column(
+                children: [
+                  Text(
+                    DateFormat('MM.dd').format(record.date),
+                    style: AppTextStyles.mono(size: 14, weight: FontWeight.w700, color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    DateFormat('E', 'ko_KR').format(record.date),
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.primary),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    record.hospitalName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (record.costWon != null)
+                  Text(
+                    '${NumberFormat('#,###').format(record.costWon)}원',
+                    style: AppTextStyles.mono(size: 16, weight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                if (record.weightKg != null) ...[
+                  const SizedBox(height: 4),
+                  Text('${record.weightKg}kg', style: AppTextStyles.mono(size: 13.5, color: AppColors.textSecondary)),
+                ],
+              ],
+            ),
+          ],
         ),
       ),
     );

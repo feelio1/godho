@@ -1,22 +1,23 @@
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../diary/screens/diary_form_screen.dart';
 import '../diary/screens/diary_list_body.dart';
-import '../diary/screens/diary_reminder_prompt_sheet.dart';
 import '../models/pet.dart';
 import '../providers/auth_provider.dart';
 import '../providers/calendar_focus_provider.dart';
 import '../providers/effective_pets_provider.dart';
 import '../providers/pet_tab_provider.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
-import '../utils/record_appointment_flow.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/inline_error_message.dart';
 import '../widgets/mascot_image.dart';
 import '../widgets/mascot_message.dart';
-import '../widgets/pet_switcher.dart';
 import 'account_pet_actions.dart';
+import 'pet_profile_form_screen.dart';
 import 'calendar_screen.dart' show PetCalendarBody;
 import 'health_record_screen.dart' show PetHealthBody;
 
@@ -58,29 +59,61 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
     ref.read(petTabViewProvider.notifier).state = PetTabView.diary;
   }
 
-  /// AppBar의 "+" 버튼 — 보고 있는 세그먼트 기준으로 다른 동작을 연다
-  /// ("일기를 기본 보기로" 지시서): 일기는 바로 일기 작성, 캘린더는 지금
-  /// 선택된 날짜로, 진료기록은 오늘로 통합 입력(기록/예약)을 연다.
-  Future<void> _handleAdd(PetTabView view, Pet selectedPet) async {
-    switch (view) {
-      case PetTabView.diary:
-        final saved = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (_) => DiaryFormScreen(defaultPetIds: [selectedPet.id], openGalleryOnStart: true),
-          ),
-        );
-        // 새 일기를 저장하고 돌아오면("일기 재수정" 지시서 3-1) 알림
-        // 동의 조건을 다시 확인한다.
-        if (saved == true && mounted) await maybeShowDiaryReminderPrompt(context, ref);
-        break;
-      case PetTabView.calendar:
-        final day = ref.read(petTabCalendarSelectedDayProvider);
-        openRecordOrAppointmentEntry(context, petId: selectedPet.id, initialDate: day);
-        break;
-      case PetTabView.records:
-        openRecordOrAppointmentEntry(context, petId: selectedPet.id);
-        break;
+  /// 반려동물 알약 → 아래 시트: 다른 아이로 바꾸기, 이 아이 정보 수정,
+  /// 반려동물 추가.
+  Future<void> _openPetSheet(String uid, List<Pet> pets, Pet selected) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final pet in pets)
+              ListTile(
+                leading: _PetFace(pet: pet, size: 40),
+                title: Text(pet.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                trailing: pet.id == selected.id ? const Icon(Icons.check, color: AppColors.primary) : null,
+                onTap: () => Navigator.of(sheetContext).pop('select:${pet.id}'),
+              ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text('${selected.name} 정보 수정'),
+              onTap: () => Navigator.of(sheetContext).pop('edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add),
+              title: const Text('반려동물 추가'),
+              onTap: () => Navigator.of(sheetContext).pop('add'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+    if (action.startsWith('select:')) {
+      setState(() => _selectedPetId = action.substring('select:'.length));
+    } else if (action == 'add') {
+      await _addAccountPet(uid);
+    } else if (action == 'edit') {
+      await _editPet(uid, selected);
     }
+  }
+
+  /// 반려동물 정보 수정 — 계정 반려동물은 사진까지 온전한 원본([SignupPet])을
+  /// 다시 찾아 공용 수정 화면으로, 로컬 반려동물은 기존 로컬 폼으로.
+  Future<void> _editPet(String uid, Pet pet) async {
+    if (!isAccountPetId(pet.id)) {
+      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PetProfileFormScreen(existing: pet)));
+      return;
+    }
+    final docId = accountDocIdFromPetId(pet.id);
+    final accountPets = await ref.read(accountSignupPetsProvider.future);
+    final existing = accountPets.where((p) => p.id == docId).firstOrNull;
+    if (existing == null || !mounted) return;
+    final deleted = await AccountPetActions.editOrDelete(context, ref, uid, existing);
+    if (deleted && mounted) setState(() => _selectedPetId = null);
   }
 
   @override
@@ -136,29 +169,25 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
         : pets.firstWhere((p) => p.id == _selectedPetId, orElse: () => pets.first);
 
     return Scaffold(
+      // "장구름의 수첩"(3차 업데이트 J-5): 큰 제목 + 오른쪽 반려동물 선택 알약.
+      // 새 기록은 각 보기의 [일기 쓰기]/[진료기록 추가] 플로팅 버튼과 캘린더의
+      // [이 날짜로 … 추가]에서 연다.
       appBar: AppBar(
-        title: const Text('우리 아이'),
+        toolbarHeight: 68,
+        title: const Text('우리 아이', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
         actions: [
-          if (selectedPet != null)
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: '추가',
-              onPressed: () => _handleAdd(view, selectedPet),
+          if (selectedPet != null && pets != null)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.page),
+              child: _PetPill(pet: selectedPet, onTap: () => _openPetSheet(uid, pets, selectedPet)),
             )
           else
-            IconButton(
-              icon: const Icon(Icons.add),
-              tooltip: '반려동물 추가',
-              onPressed: () => _addAccountPet(uid),
-            ),
+            IconButton(icon: const Icon(Icons.add), tooltip: '반려동물 추가', onPressed: () => _addAccountPet(uid)),
         ],
       ),
       body: petsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => InlineErrorMessage(
-          error: error,
-          onRetry: () => ref.invalidate(effectivePetsProvider),
-        ),
+        error: (error, _) => InlineErrorMessage(error: error, onRetry: () => ref.invalidate(effectivePetsProvider)),
         data: (pets) {
           if (pets.isEmpty) {
             // 반려동물 0마리 회원(가입 때 등록이 선택이 됨) — 세그먼트 없이
@@ -180,19 +209,10 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
               ),
             );
           }
-          final selected = pets.firstWhere(
-            (p) => p.id == _selectedPetId,
-            orElse: () => pets.first,
-          );
+          final selected = pets.firstWhere((p) => p.id == _selectedPetId, orElse: () => pets.first);
           return Column(
             children: [
               _ViewSegment(value: view),
-              if (pets.length > 1)
-                PetSwitcher(
-                  pets: pets,
-                  selectedId: selected.id,
-                  onSelect: (id) => setState(() => _selectedPetId = id),
-                ),
               Expanded(
                 child: IndexedStack(
                   index: switch (view) {
@@ -211,11 +231,7 @@ class _PetTabScreenState extends ConsumerState<PetTabScreen> {
                       pet: selected,
                       initialDate: _pendingFocusDate,
                     ),
-                    DiaryListBody(
-                      key: ValueKey('diary-${selected.id}'),
-                      selectedPet: selected,
-                      allPets: pets,
-                    ),
+                    DiaryListBody(key: ValueKey('diary-${selected.id}'), selectedPet: selected, allPets: pets),
                   ],
                 ),
               ),
@@ -235,28 +251,99 @@ class _ViewSegment extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 4),
-      child: SegmentedButton<PetTabView>(
-        segments: const [
-          ButtonSegment(
-            value: PetTabView.diary,
-            label: Text('일기'),
-            icon: Icon(Icons.edit_note),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 4, AppSpacing.page, 4),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<PetTabView>(
+          showSelectedIcon: false,
+          segments: const [
+            ButtonSegment(value: PetTabView.diary, label: Text('일기')),
+            ButtonSegment(value: PetTabView.calendar, label: Text('캘린더')),
+            ButtonSegment(value: PetTabView.records, label: Text('진료기록')),
+          ],
+          selected: {value},
+          onSelectionChanged: (selection) => ref.read(petTabViewProvider.notifier).state = selection.first,
+        ),
+      ),
+    );
+  }
+}
+
+/// 앱바 오른쪽 반려동물 선택 알약 — 사진(없으면 구름이 얼굴) + 이름 + ▾.
+class _PetPill extends StatelessWidget {
+  final Pet pet;
+  final VoidCallback onTap;
+
+  const _PetPill({required this.pet, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '반려동물 ${pet.name} 선택',
+      child: Material(
+        color: AppColors.surfaceLight,
+        shape: const StadiumBorder(side: BorderSide(color: AppColors.borderCard)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(5, 5, 12, 5),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _PetFace(pet: pet, size: 38),
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 96),
+                  child: Text(
+                    pet.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.keyboard_arrow_down, size: 20, color: AppColors.textPrimary),
+              ],
+            ),
           ),
-          ButtonSegment(
-            value: PetTabView.calendar,
-            label: Text('캘린더'),
-            icon: Icon(Icons.calendar_month_outlined),
-          ),
-          ButtonSegment(
-            value: PetTabView.records,
-            label: Text('진료기록'),
-            icon: Icon(Icons.medical_information_outlined),
-          ),
-        ],
-        selected: {value},
-        onSelectionChanged: (selection) =>
-            ref.read(petTabViewProvider.notifier).state = selection.first,
+        ),
+      ),
+    );
+  }
+}
+
+/// 반려동물 얼굴 — 구름 같은 옅은 하늘색 동그라미 속 사진, 사진이 없으면
+/// 구름이 얼굴. 계정 반려동물 사진은 원본([SignupPet.photoUrl])에서 찾는다.
+class _PetFace extends ConsumerWidget {
+  final Pet pet;
+  final double size;
+
+  const _PetFace({required this.pet, required this.size});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    String? photoUrl;
+    if (isAccountPetId(pet.id)) {
+      final docId = accountDocIdFromPetId(pet.id);
+      final accountPets = ref.watch(accountSignupPetsProvider).value ?? const [];
+      photoUrl = accountPets.where((p) => p.id == docId).firstOrNull?.photoUrl;
+    }
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(3),
+      decoration: const BoxDecoration(color: AppColors.feeRangeFill, shape: BoxShape.circle),
+      child: ClipOval(
+        child: photoUrl != null
+            ? CachedNetworkImage(imageUrl: photoUrl, fit: BoxFit.cover)
+            : pet.photoPath != null
+            ? Image.file(File(pet.photoPath!), fit: BoxFit.cover)
+            : Container(
+                color: AppColors.warmBackground,
+                child: MascotImage(size: size - 6, semanticLabel: pet.name),
+              ),
       ),
     );
   }

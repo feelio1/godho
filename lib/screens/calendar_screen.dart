@@ -10,6 +10,7 @@ import '../diary/screens/diary_detail_screen.dart';
 import '../models/appointment.dart';
 import '../models/medical_record.dart';
 import '../models/pet.dart';
+import '../models/reminder_offset.dart';
 import '../providers/effective_appointments_provider.dart';
 import '../providers/effective_medical_records_provider.dart';
 import '../providers/pet_tab_provider.dart';
@@ -89,6 +90,14 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
   /// 추가한다 — 모든 진입점이 공유하는 통합 입구를 그대로 쓴다("진료기록·
   /// 예약 통합 입력" 지시서 5). 어느 쪽으로 열렸든 폼 상단 세그먼트로
   /// 다시 바꿀 수 있다.
+  /// 달력 위 화살표 — 달력이 다룰 수 있는 범위(앞뒤 5년) 안에서만 움직인다.
+  void _moveMonth(int delta) {
+    final target = DateTime(_focusedDay.year, _focusedDay.month + delta, 1);
+    final now = DateTime.now();
+    if (target.isBefore(DateTime(now.year - 5)) || target.isAfter(DateTime(now.year + 5, 12, 1))) return;
+    setState(() => _focusedDay = target);
+  }
+
   void _addForSelectedDay() {
     openRecordOrAppointmentEntry(context, petId: widget.pet.id, initialDate: _selectedDay);
   }
@@ -116,177 +125,291 @@ class _PetCalendarBodyState extends ConsumerState<PetCalendarBody> {
     // 기준("진료기록·예약 통합 입력" 지시서 2, 5).
     final selectedIsFuture = isFutureDay(_selectedDay);
 
-    return Column(
+    final upcoming = appointments.where((a) => a.isUpcoming).toList()..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+    final isEmptyDay = selectedRecords.isEmpty && selectedAppointments.isEmpty && selectedDiaries.isEmpty;
+
+    // "장구름의 수첩"(3차 업데이트 J-5): 흰 카드 안 달력(날짜 칸 52dp) — 표시는
+    // 색+모양으로 구분(진료기록 = 네이비 작은 네모, 예약 = 네이비 테두리
+    // 동그라미, 일기 = 꿀색 점), 오늘 = 네이비 테두리, 선택한 날 = 네이비 채움.
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 14, AppSpacing.page, 32),
       children: [
-        TableCalendar<Object>(
-          locale: 'ko_KR',
-          // 과거 진료기록도 마커로 보여야 하니 범위를 넉넉히 잡는다.
-          firstDay: DateTime(_focusedDay.year - 5),
-          lastDay: DateTime(_focusedDay.year + 5),
-          focusedDay: _focusedDay,
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          eventLoader: (day) {
-            final key = dateOnly(day);
-            return [...?recordsByDate[key], ...?appointmentsByDate[key], ...?diariesByDate[key]];
-          },
-          onDaySelected: (selected, focused) {
-            final day = dateOnly(selected);
-            setState(() {
-              _selectedDay = day;
-              _focusedDay = focused;
-            });
-            _syncSelectedDayToTab(day);
-          },
-          onPageChanged: (focused) => _focusedDay = focused,
-          availableGestures: AvailableGestures.horizontalSwipe,
-          headerStyle: const HeaderStyle(
-            formatButtonVisible: false,
-            titleCentered: true,
-            titleTextStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary),
-          ),
-          daysOfWeekStyle: const DaysOfWeekStyle(
-            weekdayStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-            weekendStyle: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-          ),
-          calendarStyle: const CalendarStyle(
-            outsideDaysVisible: false,
-            todayDecoration: BoxDecoration(color: AppColors.primarySoft, shape: BoxShape.circle),
-            todayTextStyle: TextStyle(color: AppColors.primaryTextTone, fontWeight: FontWeight.w800),
-            selectedDecoration: BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-            selectedTextStyle: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
-          ),
-          // 진료기록(회색 점)·예약(블루 점)·일기(크림/앰버 점)을 색으로
-          // 구분한다 — 여러 종류가 있는 날은 점 여러 개(지시서 2 "과거/
-          // 미래를 색으로 구분", "방향 개편" 지시서 E에서 일기 점 추가).
-          calendarBuilders: CalendarBuilders<Object>(
-            markerBuilder: (context, day, events) {
-              if (events.isEmpty) return null;
-              final hasRecord = events.any((e) => e is MedicalRecord);
-              final hasAppointment = events.any((e) => e is Appointment);
-              final hasDiary = events.any((e) => e is Diary);
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    if (hasRecord) const _MarkerDot(color: AppColors.neutral),
-                    if (hasRecord && (hasAppointment || hasDiary)) const SizedBox(width: 3),
-                    if (hasAppointment) const _MarkerDot(color: AppColors.primary),
-                    if (hasAppointment && hasDiary) const SizedBox(width: 3),
-                    if (hasDiary) const _MarkerDot(color: AppColors.diaryAccent),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        DateFormat('yyyy년 M월').format(_focusedDay),
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: '이전 달',
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: () => _moveMonth(-1),
+                    ),
+                    IconButton(
+                      tooltip: '다음 달',
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: () => _moveMonth(1),
+                    ),
                   ],
                 ),
-              );
-            },
-          ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
-          child: Row(
-            children: const [
-              _LegendDot(color: AppColors.neutral, label: '진료기록'),
-              SizedBox(width: 16),
-              _LegendDot(color: AppColors.primary, label: '예약'),
-              SizedBox(width: 16),
-              _LegendDot(color: AppColors.diaryAccent, label: '일기'),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
-          child: Row(
-            children: [
-              Text(
-                DateFormat('M월 d일 (E)', 'ko_KR').format(_selectedDay),
-                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-              ),
-              const SizedBox(width: 8),
-              if (isSameDay(_selectedDay, dateOnly(DateTime.now())))
-                const _CalendarTag(label: '오늘', color: AppColors.primary),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 6),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _addForSelectedDay,
-              icon: Icon(selectedIsFuture ? Icons.add : Icons.edit_note, size: 18),
-              label: Text(selectedIsFuture ? '이 날짜로 예약 추가' : '이 날짜로 진료기록 추가'),
+                TableCalendar<Object>(
+                  locale: 'ko_KR',
+                  headerVisible: false,
+                  rowHeight: 56,
+                  daysOfWeekHeight: 30,
+                  // 과거 진료기록도 마커로 보여야 하니 범위를 넉넉히 잡는다.
+                  firstDay: DateTime(DateTime.now().year - 5),
+                  lastDay: DateTime(DateTime.now().year + 5, 12, 31),
+                  focusedDay: _focusedDay,
+                  selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                  eventLoader: (day) {
+                    final key = dateOnly(day);
+                    return [...?recordsByDate[key], ...?appointmentsByDate[key], ...?diariesByDate[key]];
+                  },
+                  onDaySelected: (selected, focused) {
+                    final day = dateOnly(selected);
+                    setState(() {
+                      _selectedDay = day;
+                      _focusedDay = focused;
+                    });
+                    _syncSelectedDayToTab(day);
+                  },
+                  onPageChanged: (focused) => setState(() => _focusedDay = focused),
+                  availableGestures: AvailableGestures.horizontalSwipe,
+                  daysOfWeekStyle: const DaysOfWeekStyle(
+                    weekdayStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    weekendStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                  ),
+                  calendarStyle: const CalendarStyle(outsideDaysVisible: false, markersAutoAligned: false),
+                  calendarBuilders: CalendarBuilders<Object>(
+                    defaultBuilder: (context, day, _) => _DayCell(day: day),
+                    todayBuilder: (context, day, _) => _DayCell(day: day, today: true),
+                    selectedBuilder: (context, day, _) => _DayCell(day: day, selected: true),
+                    markerBuilder: (context, day, events) {
+                      if (events.isEmpty) return null;
+                      final selected = isSameDay(_selectedDay, day);
+                      return Positioned(
+                        bottom: 9,
+                        child: _DayMarkers(
+                          hasRecord: events.any((e) => e is MedicalRecord),
+                          hasAppointment: events.any((e) => e is Appointment),
+                          hasDiary: events.any((e) => e is Diary),
+                          onNavy: selected,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const Divider(height: 20, color: AppColors.borderMuted),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _RecordMark(),
+                    SizedBox(width: 6),
+                    _LegendLabel('진료기록'),
+                    SizedBox(width: 16),
+                    _AppointmentMark(),
+                    SizedBox(width: 6),
+                    _LegendLabel('예약'),
+                    SizedBox(width: 16),
+                    _DiaryMark(),
+                    SizedBox(width: 6),
+                    _LegendLabel('일기'),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
-        Expanded(
-          child: (selectedRecords.isEmpty && selectedAppointments.isEmpty && selectedDiaries.isEmpty)
-              ? Center(
-                  child: Text(
-                    selectedIsFuture ? '이 날짜엔 예약이 없어요' : '이 날짜엔 기록이 없어요',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, 24),
-                  children: [
-                    ...selectedRecords.map(
-                      (r) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _DayRecordTile(record: r, petId: widget.pet.id),
-                      ),
-                    ),
-                    ...selectedAppointments.map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _DayAppointmentTile(appointment: a, petId: widget.pet.id),
-                      ),
-                    ),
-                    ...selectedDiaries.map(
-                      (d) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _DayDiaryTile(diary: d),
-                      ),
-                    ),
-                  ],
-                ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            Text(
+              DateFormat('M월 d일 (E)', 'ko_KR').format(_selectedDay),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.textPrimary),
+            ),
+            const SizedBox(width: 8),
+            if (isSameDay(_selectedDay, dateOnly(DateTime.now())))
+              const _CalendarTag(label: '오늘', color: AppColors.primary),
+          ],
         ),
+        const SizedBox(height: 12),
+        if (isEmptyDay)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              selectedIsFuture ? '이 날짜엔 예약이 없어요' : '이 날짜엔 기록이 없어요',
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+          )
+        else
+          Card(
+            child: Column(
+              children: [
+                for (final (i, tile) in [
+                  for (final r in selectedRecords) _DayRecordTile(record: r, petId: widget.pet.id),
+                  for (final a in selectedAppointments) _DayAppointmentTile(appointment: a, petId: widget.pet.id),
+                  for (final d in selectedDiaries) _DayDiaryTile(diary: d),
+                ].indexed) ...[
+                  if (i > 0)
+                    const Divider(
+                      height: 1,
+                      indent: AppSpacing.cardLarge,
+                      endIndent: AppSpacing.cardLarge,
+                      color: AppColors.borderMuted,
+                    ),
+                  tile,
+                ],
+              ],
+            ),
+          ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _addForSelectedDay,
+          icon: const Icon(Icons.add, size: 20),
+          label: Text(selectedIsFuture ? '이 날짜로 예약 추가' : '이 날짜로 진료기록 추가'),
+        ),
+        if (upcoming.isNotEmpty) ...[
+          const SizedBox(height: 28),
+          const Text(
+            '다가오는 예약',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 12),
+          for (final a in upcoming.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _UpcomingAppointmentCard(appointment: a, petId: widget.pet.id),
+            ),
+        ],
       ],
     );
   }
 }
 
-class _MarkerDot extends StatelessWidget {
-  final Color color;
+/// 달력 날짜 칸 — 선택한 날 = 네이비 채움(흰 글자), 오늘 = 네이비 테두리.
+class _DayCell extends StatelessWidget {
+  final DateTime day;
+  final bool today;
+  final bool selected;
 
-  const _MarkerDot({required this.color});
+  const _DayCell({required this.day, this.today = false, this.selected = false});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 5,
-      height: 5,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      margin: const EdgeInsets.all(2),
+      alignment: const Alignment(0, -0.45),
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primary : null,
+        border: today && !selected ? Border.all(color: AppColors.primary, width: 1.5) : null,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '${day.day}',
+        style: AppTextStyles.mono(
+          size: 16,
+          weight: selected || today ? FontWeight.w700 : FontWeight.w500,
+          color: selected ? Colors.white : AppColors.textPrimary,
+        ),
+      ),
     );
   }
 }
 
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
+class _DayMarkers extends StatelessWidget {
+  final bool hasRecord;
+  final bool hasAppointment;
+  final bool hasDiary;
+  final bool onNavy;
 
-  const _LegendDot({required this.color, required this.label});
+  const _DayMarkers({
+    required this.hasRecord,
+    required this.hasAppointment,
+    required this.hasDiary,
+    this.onNavy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final marks = <Widget>[
+      if (hasRecord) _RecordMark(onNavy: onNavy),
+      if (hasAppointment) _AppointmentMark(onNavy: onNavy),
+      if (hasDiary) _DiaryMark(onNavy: onNavy),
+    ];
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+        for (var i = 0; i < marks.length; i++) ...[if (i > 0) const SizedBox(width: 3), marks[i]],
       ],
     );
   }
+}
+
+/// 진료기록 — 네이비 작은 네모.
+class _RecordMark extends StatelessWidget {
+  final bool onNavy;
+
+  const _RecordMark({this.onNavy = false});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 7,
+    height: 7,
+    decoration: BoxDecoration(
+      color: onNavy ? Colors.white : AppColors.primary,
+      borderRadius: BorderRadius.circular(1.5),
+    ),
+  );
+}
+
+/// 예약 — 네이비 테두리 동그라미.
+class _AppointmentMark extends StatelessWidget {
+  final bool onNavy;
+
+  const _AppointmentMark({this.onNavy = false});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(color: onNavy ? Colors.white : AppColors.primary, width: 1.5),
+    ),
+  );
+}
+
+/// 일기 — 꿀색 점(네이비 칸 위에서는 버터색).
+class _DiaryMark extends StatelessWidget {
+  final bool onNavy;
+
+  const _DiaryMark({this.onNavy = false});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 7,
+    height: 7,
+    decoration: BoxDecoration(color: onNavy ? AppColors.butter : AppColors.diaryAccent, shape: BoxShape.circle),
+  );
+}
+
+class _LegendLabel extends StatelessWidget {
+  final String text;
+
+  const _LegendLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(text, style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary));
 }
 
 class _CalendarTag extends StatelessWidget {
@@ -300,13 +423,87 @@ class _CalendarTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(AppRadius.pill)),
-      child: Text(label, style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color)),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+      ),
     );
   }
 }
 
-/// 진료기록 화면의 기록 카드와 같은 정보를 보여준다 — 탭하면 같은 수정
-/// 폼으로 연결된다(지시서 4 "하나의 데이터, 두 개의 뷰").
+/// 선택한 날의 항목 한 줄 — 아이콘 상자 + 제목 + 보조 글 + 오른쪽 금액.
+class _DayItemRow extends StatelessWidget {
+  final IconData icon;
+  final Color boxColor;
+  final Color iconColor;
+  final Widget title;
+  final String subtitle;
+  final String? trailing;
+  final VoidCallback onTap;
+
+  const _DayItemRow({
+    required this.icon,
+    required this.boxColor,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.card),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.cardLarge),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: boxColor, borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, size: 20, color: iconColor),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  title,
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                trailing!,
+                style: AppTextStyles.mono(size: 16, weight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Text _rowTitle(String text) => Text(
+  text,
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+);
+
+/// 진료기록 — 탭하면 같은 수정 폼으로 연결된다(지시서 4 "하나의 데이터, 두 개의 뷰").
 class _DayRecordTile extends StatelessWidget {
   final MedicalRecord record;
   final String petId;
@@ -315,75 +512,25 @@ class _DayRecordTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final chips = <String>[
-      if (record.weightKg != null) '${record.weightKg}kg',
-      if (record.costWon != null) '${NumberFormat('#,###').format(record.costWon)}원',
-    ];
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => MedicalRecordFormScreen(petId: petId, existing: record)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.description_outlined, size: 18, color: AppColors.neutral),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            record.hospitalName,
-                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (record.category.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Chip(label: Text(record.category)),
-                        ],
-                      ],
-                    ),
-                    if (record.memo.isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Text(record.memo, maxLines: 2, overflow: TextOverflow.ellipsis, style: textTheme.bodyMedium),
-                    ],
-                    if (chips.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: chips
-                            .map((c) => Chip(
-                                  label: Text(c, style: AppTextStyles.mono(size: 11, color: AppColors.textLabel)),
-                                  visualDensity: VisualDensity.compact,
-                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  padding: EdgeInsets.zero,
-                                ))
-                            .toList(),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
+    final title = record.category.isNotEmpty ? record.category : (record.memo.isNotEmpty ? record.memo : '진료');
+    final details = [record.hospitalName, if (record.weightKg != null) '${record.weightKg}kg'];
+    return _DayItemRow(
+      icon: Icons.medical_information_outlined,
+      boxColor: AppColors.primarySoft,
+      iconColor: AppColors.primary,
+      title: _rowTitle(title),
+      subtitle: details.join(' · '),
+      trailing: record.costWon != null ? '${NumberFormat('#,###').format(record.costWon)}원' : null,
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MedicalRecordFormScreen(petId: petId, existing: record),
         ),
       ),
     );
   }
 }
 
-/// 진료기록 화면에서 쓰던 예약 카드와 같은 정보 — 탭하면 같은
-/// [AppointmentFormScreen]으로 수정하러 간다(지시서 4).
+/// 예약 — 탭하면 같은 [AppointmentFormScreen]으로 수정하러 간다(지시서 4).
 class _DayAppointmentTile extends StatelessWidget {
   final Appointment appointment;
   final String petId;
@@ -392,64 +539,22 @@ class _DayAppointmentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      margin: EdgeInsets.zero,
-      color: AppColors.primarySoft,
-      elevation: 0,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AppointmentFormScreen(petId: petId, existing: appointment),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    DateFormat('HH:mm').format(appointment.dateTime),
-                    style: AppTextStyles.mono(size: 12.5, color: AppColors.neutral),
-                  ),
-                  if (appointment.isUpcoming) ...[
-                    const SizedBox(width: 8),
-                    const _CalendarTag(label: '다가오는 예약', color: AppColors.primaryTextTone),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                appointment.hospitalName,
-                style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (appointment.reason.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(appointment.reason, style: textTheme.bodyMedium),
-              ],
-              if (appointment.memo.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  appointment.memo,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                ),
-              ],
-            ],
-          ),
+    return _DayItemRow(
+      icon: Icons.event_outlined,
+      boxColor: AppColors.primarySoft,
+      iconColor: AppColors.primary,
+      title: _rowTitle(appointment.reason.isNotEmpty ? appointment.reason : '예약'),
+      subtitle: '${DateFormat('a h:mm', 'ko_KR').format(appointment.dateTime)} · ${appointment.hospitalName}',
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AppointmentFormScreen(petId: petId, existing: appointment),
         ),
       ),
     );
   }
 }
 
-/// 일기 목록 카드와 같은 정보 — 탭하면 일기 상세로 이어진다("방향 개편"
-/// 지시서 E).
+/// 일기 — 손글씨 한 줄 미리보기, 탭하면 일기 상세로("방향 개편" 지시서 E).
 class _DayDiaryTile extends StatelessWidget {
   final Diary diary;
 
@@ -457,32 +562,109 @@ class _DayDiaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     final preview = diary.text.trim();
-    return Card(
-      margin: EdgeInsets.zero,
-      color: AppColors.warmBackground,
-      elevation: 0,
+    return _DayItemRow(
+      icon: Icons.edit_outlined,
+      boxColor: AppColors.warmBackground,
+      iconColor: AppColors.diaryAccent,
+      title: Text(
+        preview.isNotEmpty ? preview : '일기',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.hand(size: 22, color: AppColors.textPrimary),
+      ),
+      subtitle: '일기',
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id))),
+    );
+  }
+}
+
+/// "다가오는 예약" — 1.5px 네이비 테두리 카드, 왼쪽 날짜 상자, 알림 시각 한 줄.
+class _UpcomingAppointmentCard extends StatelessWidget {
+  final Appointment appointment;
+  final String petId;
+
+  const _UpcomingAppointmentCard({required this.appointment, required this.petId});
+
+  static String _reminderLabel(ReminderOffset r) {
+    final day = switch (r.daysBefore) {
+      0 => '당일',
+      1 => '하루 전',
+      final n => '$n일 전',
+    };
+    final time = DateFormat(
+      'a h시${r.minute == 0 ? '' : ' m분'}',
+      'ko_KR',
+    ).format(DateTime(2000, 1, 1, r.hour, r.minute));
+    return '$day $time에 알려드려요';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dt = appointment.dateTime;
+    return Material(
+      color: AppColors.surfaceLight,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id)),
+          MaterialPageRoute(
+            builder: (_) => AppointmentFormScreen(petId: petId, existing: appointment),
+          ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(AppSpacing.cardLarge),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.edit_note, size: 18, color: AppColors.diaryAccent),
-              const SizedBox(width: 10),
+              Container(
+                width: 56,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+                child: Column(
+                  children: [
+                    Text(
+                      '${dt.month}월',
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary),
+                    ),
+                    Text(
+                      '${dt.day}',
+                      style: AppTextStyles.mono(size: 22, weight: FontWeight.w700, color: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('일기', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                    if (preview.isNotEmpty) ...[
+                    _rowTitle(appointment.reason.isNotEmpty ? appointment.reason : '예약'),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${DateFormat('EEEE a h:mm', 'ko_KR').format(dt)} · ${appointment.hospitalName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    ),
+                    if (appointment.reminders.isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis, style: textTheme.bodyMedium),
+                      Row(
+                        children: [
+                          const Icon(Icons.notifications_none, size: 16, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              _reminderLabel(appointment.reminders.first),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13.5, color: AppColors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ],
                 ),

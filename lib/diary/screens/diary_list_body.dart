@@ -7,6 +7,7 @@ import '../../diary_book/screens/diary_book_setup_screen.dart';
 import '../../models/pet.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
+import '../../theme/app_text_styles.dart';
 import '../../widgets/inline_error_message.dart';
 import '../../widgets/mascot_image.dart';
 import '../../widgets/mascot_message.dart';
@@ -73,9 +74,9 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
   /// [maybeShowDiaryReminderPrompt]가 맡는다(이미 물었거나 조건이 안
   /// 맞으면 조용히 아무 일도 하지 않는다).
   Future<void> _openForm() async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [widget.selectedPet.id])),
-    );
+    final saved = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [widget.selectedPet.id])));
     if (saved == true && mounted) await maybeShowDiaryReminderPrompt(context, ref);
   }
 
@@ -85,99 +86,127 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
         ? ref.watch(diariesPageProvider).whenData((page) => page.diaries)
         : ref.watch(diariesForPetProvider(widget.selectedPet.id));
 
-    return Column(
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 0),
-          child: Row(
-            children: [
-              const Icon(Icons.lock_outline, size: 13, color: AppColors.textSecondary),
-              const SizedBox(width: 4),
-              const Expanded(
-                child: Text('일기는 나만 볼 수 있어요', style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
-              ),
-              // 그림일기 진입점 — config/book 스위치가 열렸을 때만(fail-closed).
-              if (ref.watch(diaryBookVisibleProvider))
-                TextButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => DiaryBookSetupScreen(initialPetId: widget.selectedPet.id)),
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page - 8, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.lock_outline, size: 16, color: AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  const Expanded(
+                    child: Text('일기는 나만 볼 수 있어요', style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
                   ),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-                  ),
-                  icon: const Icon(Icons.menu_book_outlined, size: 16),
-                  label: const Text('그림일기 만들기'),
-                ),
-            ],
-          ),
-        ),
-        const _MonthlyDiaryTracker(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 8, AppSpacing.page, 6),
-          child: Row(
-            children: [
-              if (widget.allPets.length > 1) ...[
-                Expanded(
-                  child: Row(
-                    children: [
-                      ChoiceChip(
-                        label: Text(widget.selectedPet.name),
-                        selected: !_showAll,
-                        onSelected: (_) => setState(() => _showAll = false),
+                  // 그림일기 진입점 — config/book 스위치가 열렸을 때만(fail-closed).
+                  if (ref.watch(diaryBookVisibleProvider))
+                    TextButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => DiaryBookSetupScreen(initialPetId: widget.selectedPet.id)),
                       ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: const Text('전체'),
-                        selected: _showAll,
-                        onSelected: (_) => setState(() => _showAll = true),
+                      style: TextButton.styleFrom(
+                        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                       ),
-                    ],
-                  ),
-                ),
-              ] else
-                const Spacer(),
-              FilledButton.icon(
-                onPressed: _openForm,
-                icon: const Icon(Icons.edit_note, size: 18),
-                label: const Text('일기 쓰기'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: diariesAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => InlineErrorMessage(
-              error: error,
-              onRetry: () => ref.invalidate(diariesPageProvider),
-            ),
-            data: (diaries) {
-              if (diaries.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: MascotMessage(
-                      title: '오늘 ${widget.selectedPet.name}의 하루를 남겨보세요',
-                      subtitle: '오늘 하루 있었던 일을 사진과 함께 가볍게 남겨두세요.',
-                      assetPath: MascotImage.emptyRecordAssetPath,
-                      overlayIcon: Icons.edit_note,
-                      trailing: FilledButton.icon(
-                        onPressed: _openForm,
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('첫 일기 쓰기'),
-                      ),
+                      icon: const Icon(Icons.menu_book_outlined, size: 18),
+                      label: const Text('그림일기 만들기'),
                     ),
-                  ),
-                );
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 24),
-                itemCount: diaries.length,
-                separatorBuilder: (context, i) => const SizedBox(height: 10),
-                itemBuilder: (context, i) => _DiaryCard(diary: diaries[i]),
-              );
-            },
+                ],
+              ),
+            ),
+            const _MonthlyDiaryTracker(),
+            if (widget.allPets.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.page, 10, AppSpacing.page, 0),
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: Text(widget.selectedPet.name),
+                      selected: !_showAll,
+                      onSelected: (_) => setState(() => _showAll = false),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('전체'),
+                      selected: _showAll,
+                      onSelected: (_) => setState(() => _showAll = true),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: diariesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) =>
+                    InlineErrorMessage(error: error, onRetry: () => ref.invalidate(diariesPageProvider)),
+                data: (diaries) {
+                  if (diaries.isEmpty) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: MascotMessage(
+                          title: '오늘 ${widget.selectedPet.name}의 하루를 남겨보세요',
+                          subtitle: '오늘 하루 있었던 일을 사진과 함께 가볍게 남겨두세요.',
+                          assetPath: MascotImage.emptyRecordAssetPath,
+                          overlayIcon: Icons.edit_note,
+                          trailing: FilledButton.icon(
+                            onPressed: _openForm,
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('첫 일기 쓰기'),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  // 달이 바뀌는 곳마다 "2026년 11월" 제목을 끼운다(목록 순서는 그대로).
+                  final items = <Object>[];
+                  DateTime? month;
+                  for (final diary in diaries) {
+                    final m = DateTime(diary.date.year, diary.date.month);
+                    if (m != month) {
+                      items.add(m);
+                      month = m;
+                    }
+                    items.add(diary);
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.page, 6, AppSpacing.page, 96),
+                    itemCount: items.length,
+                    itemBuilder: (context, i) {
+                      final item = items[i];
+                      if (item is DateTime) {
+                        return Padding(
+                          padding: EdgeInsets.only(top: i == 0 ? 10 : 24, bottom: 12),
+                          child: Text(
+                            DateFormat('yyyy년 M월').format(item),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        );
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: _DiaryCard(diary: item as Diary),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        // [일기 쓰기] — 네이비 알약 56dp, 연필 아이콘.
+        Positioned(
+          right: AppSpacing.page,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'diary_write_fab',
+            onPressed: _openForm,
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('일기 쓰기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           ),
         ),
       ],
@@ -206,7 +235,7 @@ class _MonthlyDiaryTracker extends ConsumerWidget {
         children: [
           Text(
             '이번 달 ${recordedDays.length}일 기록했어요',
-            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary),
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 6),
           Wrap(
@@ -221,7 +250,7 @@ class _MonthlyDiaryTracker extends ConsumerWidget {
                     shape: BoxShape.circle,
                     color: recordedDays.contains(DateTime(now.year, now.month, day))
                         ? AppColors.diaryAccent
-                        : AppColors.borderInput,
+                        : AppColors.notebookLine,
                   ),
                 ),
             ],
@@ -232,10 +261,16 @@ class _MonthlyDiaryTracker extends ConsumerWidget {
   }
 }
 
+/// 일기 한 편 — 그림일기 장처럼("장구름의 수첩", 3차 업데이트 J-5): 1.5px 잉크색
+/// 테두리 카드(반지름 10), 위 칸에 손글씨 날짜 + 날씨 아이콘(고른 것만 버터색
+/// 동그라미), 사진 칸(여러 장이면 "1 / 3"), 손글씨 글을 점선 줄 위에(최대 4줄),
+/// 아래 활동 도장. 그림일기 PDF 렌더러와는 무관한 목록 화면 모양이다.
 class _DiaryCard extends ConsumerWidget {
   final Diary diary;
 
   const _DiaryCard({required this.diary});
+
+  static const _ink = AppColors.textPrimary;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -250,89 +285,206 @@ class _DiaryCard extends ConsumerWidget {
     );
     final thumb = displayPhotos.isEmpty ? null : displayPhotos.first;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id)),
+    return Material(
+      color: AppColors.surfaceLight,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: _ink, width: 1.5),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.card),
-        decoration: BoxDecoration(
-          color: AppColors.warmBackground,
-          borderRadius: BorderRadius.circular(AppRadius.card),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () =>
+            Navigator.of(context).push(MaterialPageRoute(builder: (_) => DiaryDetailScreen(diaryId: diary.id))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(AppRadius.field),
-              child: thumb == null
-                  ? Container(
-                      width: 64,
-                      height: 64,
-                      color: AppColors.surfaceLight,
-                      alignment: Alignment.center,
-                      child: const MascotImage(size: 32),
-                    )
-                  : DiaryDisplayImage(
-                      photo: thumb,
-                      width: 64,
-                      height: 64,
-                      fit: BoxFit.cover,
-                      // 보이는 크기(64·기기 배율)만큼만 디코딩한다 —
-                      // 상세 PageView와 같은 절약("일기 수정" 지시서 2-3).
-                      memCacheWidth: (64 * MediaQuery.of(context).devicePixelRatio).round(),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 10, 8),
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        DateFormat('M월 d일 (E)', 'ko_KR').format(diary.date),
-                        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                      ),
-                      if (diary.weather != null) ...[
-                        const SizedBox(width: 6),
-                        Icon(diaryWeatherIcon(diary.weather!), size: 15, color: AppColors.textSecondary),
-                      ],
-                    ],
-                  ),
-                  if (diary.activities.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: diary.activities
-                          .map((a) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceLight,
-                                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                                ),
-                                child: Text(a.label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-                              ))
-                          .toList(),
-                    ),
-                  ],
-                  if (preview.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      preview,
-                      maxLines: 2,
+                  Expanded(
+                    child: Text(
+                      DateFormat('M월 d일 EEEE', 'ko_KR').format(diary.date),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, height: 1.4),
+                      style: AppTextStyles.hand(size: 26, color: _ink),
                     ),
-                  ],
+                  ),
+                  for (final weather in DiaryWeather.values)
+                    _WeatherMark(weather: weather, selected: diary.weather == weather),
                 ],
               ),
             ),
+            const Divider(height: 1.5, thickness: 1.5, color: _ink),
+            if (thumb != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    foregroundDecoration: BoxDecoration(
+                      border: Border.all(color: _ink, width: 1.5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 10,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          LayoutBuilder(
+                            builder: (context, constraints) => DiaryDisplayImage(
+                              photo: thumb,
+                              fit: BoxFit.cover,
+                              // 보이는 크기(기기 배율)만큼만 디코딩한다.
+                              memCacheWidth: (constraints.maxWidth * MediaQuery.of(context).devicePixelRatio).round(),
+                            ),
+                          ),
+                          if (displayPhotos.length > 1)
+                            Positioned(
+                              right: 10,
+                              bottom: 10,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: _ink.withValues(alpha: 0.85),
+                                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                                ),
+                                child: Text(
+                                  '1 / ${displayPhotos.length}',
+                                  style: AppTextStyles.mono(size: 13, weight: FontWeight.w700, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (preview.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: _LinedHandText(text: preview),
+              ),
+            if (diary.activities.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    for (final a in diary.activities)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.diaryAccent, width: 1.5),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          a.label,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.diaryAccent,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
+}
+
+class _WeatherMark extends StatelessWidget {
+  final DiaryWeather weather;
+  final bool selected;
+
+  const _WeatherMark({required this.weather, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: selected ? '날씨 ${weather.label}' : null,
+      excludeSemantics: !selected,
+      child: Container(
+        width: 32,
+        height: 32,
+        margin: const EdgeInsets.only(left: 2),
+        decoration: selected
+            ? BoxDecoration(
+                color: AppColors.warmBackground,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.diaryAccent),
+              )
+            : null,
+        child: Icon(
+          diaryWeatherIcon(weather),
+          size: 18,
+          color: selected ? AppColors.diaryAccent : AppColors.textPlaceholder,
+        ),
+      ),
+    );
+  }
+}
+
+/// 손글씨 글을 공책처럼 점선 줄 위에 — 최대 4줄 미리보기.
+class _LinedHandText extends StatelessWidget {
+  final String text;
+
+  const _LinedHandText({required this.text});
+
+  static const _maxLines = 4;
+  static const _fontSize = 22.0;
+  static const _lineHeight = 1.85;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTextStyles.hand(size: _fontSize, color: AppColors.textPrimary, height: _lineHeight);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: style),
+          maxLines: _maxLines,
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout(maxWidth: constraints.maxWidth);
+        final lines = painter.computeLineMetrics().length.clamp(1, _maxLines);
+        final lineHeight = painter.preferredLineHeight;
+        painter.dispose();
+        return CustomPaint(
+          foregroundPainter: _DashedLinesPainter(lines: lines, lineHeight: lineHeight),
+          child: Text(text, maxLines: _maxLines, overflow: TextOverflow.ellipsis, style: style),
+        );
+      },
+    );
+  }
+}
+
+class _DashedLinesPainter extends CustomPainter {
+  final int lines;
+  final double lineHeight;
+
+  _DashedLinesPainter({required this.lines, required this.lineHeight});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.notebookLine
+      ..strokeWidth = 1.2;
+    for (var i = 1; i <= lines; i++) {
+      final y = lineHeight * i - 1;
+      for (var x = 0.0; x < size.width; x += 7) {
+        canvas.drawLine(Offset(x, y), Offset((x + 4).clamp(0, size.width), y), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinesPainter oldDelegate) =>
+      oldDelegate.lines != lines || oldDelegate.lineHeight != lineHeight;
 }
