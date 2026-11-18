@@ -135,12 +135,14 @@ class AppTheme {
         ),
         checkmarkColor: AppColors.primary,
         // 칩 라벨도 앱 기본 글꼴로(지정하지 않으면 기기 시스템 글꼴로 대체된다).
-        labelStyle: WidgetStateTextStyle.resolveWith(
-          (states) => TextStyle(
-            fontFamily: AppTextStyles.fontFamily,
-            fontSize: 13,
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
-            color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textPrimary,
+        // 칩 글자는 굵게(w600) 두고, 선택되면 네이비 글자 — Chip은 글자 굵기를
+        // 상태별로 바꿔 주지 않아 색으로 구분한다(테두리·바탕도 함께 바뀜).
+        labelStyle: TextStyle(
+          fontFamily: AppTextStyles.fontFamily,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textPrimary,
           ),
         ),
         secondaryLabelStyle: const TextStyle(

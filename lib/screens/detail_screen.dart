@@ -11,6 +11,7 @@ import '../providers/designated_provider.dart';
 import '../providers/recent_provider.dart';
 import '../providers/saved_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_dimens.dart';
 import '../theme/app_text_styles.dart';
 import '../utils/external_links.dart';
 import '../utils/phone_format.dart';
@@ -18,7 +19,6 @@ import '../widgets/compare_floating_bar.dart';
 import '../widgets/fee_hospital_section.dart';
 import '../widgets/guest_gate.dart';
 import '../widgets/hospital_mini_map.dart';
-import '../widgets/source_footer.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timeline_view.dart';
 
@@ -44,11 +44,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
   /// 누르면 먼저 로그인하도록 안내하고, 로그인에 성공하면 그 자리에서 바로
   /// 저장까지 이어간다.
   Future<void> _toggleSaved(String hospitalId) async {
-    final ok = await requireLogin(
-      context,
-      ref,
-      message: '로그인하면 관심 있는 병원을 저장해두고 언제든 다시 찾아볼 수 있어요.',
-    );
+    final ok = await requireLogin(context, ref, message: '로그인하면 관심 있는 병원을 저장해두고 언제든 다시 찾아볼 수 있어요.');
     if (!ok) return;
     ref.read(savedHospitalsProvider.notifier).toggle(hospitalId);
   }
@@ -94,51 +90,36 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
       ),
       bottomNavigationBar: const SafeArea(
         top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [CompareFloatingBar(), GlobalBannerAd(inline: true)],
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [CompareFloatingBar(), GlobalBannerAd(inline: true)]),
       ),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.page, 4, AppSpacing.page, 32),
           children: [
-            _Header(
-              hospital: hospital,
-              recordCount: recordCount,
-              isDesignated: isDesignated,
-              generatedAt: bundle?.generatedAt,
-            ),
-            const SizedBox(height: 20),
+            _Header(hospital: hospital, isDesignated: isDesignated),
+            const SizedBox(height: 18),
             _ActionRow(
               hospital: hospital,
               isInCompare: isInCompare,
               onCompareTap: () => _onCompareTap(context, hospital.id, isInCompare),
             ),
-            // 액션 버튼(전화/길찾기/비교/예약) 바로 아래에 지역 시세를
-            // 둔다(펫클 3단계 지시서 3 — 예전엔 타임라인 아래, 화면 한참
-            // 밑에 있어 눈에 잘 안 띄었다). 폐업 병원은 시세 자체를 달지
-            // 않는다(기존 FeeContextChip과 같은 규칙).
-            if (hospital.status != HospitalStatus.closed) ...[
-              const SizedBox(height: 24),
-              FeeHospitalSection(hospital: hospital),
-            ],
-            const SizedBox(height: 24),
-            _OperatingInfoSection(
+            const SizedBox(height: 32),
+            _RecordSection(
               hospital: hospital,
               source: bundle?.source ?? '지방행정 인허가 데이터',
               generatedAt: bundle?.generatedAt,
             ),
             if (timeline != null) ...[
-              const SizedBox(height: 24),
-              TimelineView(timeline: timeline),
+              const SizedBox(height: 32),
+              TimelineView(timeline: timeline, recordCount: recordCount),
             ],
-            const SizedBox(height: 24),
+            // 폐업 병원은 지역 시세 자체를 달지 않는다(기존 규칙).
+            if (hospital.status != HospitalStatus.closed) ...[
+              const SizedBox(height: 32),
+              FeeHospitalSection(hospital: hospital),
+            ],
+            const SizedBox(height: 28),
             _ExternalLinksSection(hospital: hospital),
-            SourceFooter(
-              source: bundle?.source ?? '지방행정 인허가 데이터',
-              lastUpdated: bundle?.generatedAt,
-            ),
           ],
         ),
       ),
@@ -153,62 +134,47 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     }
     final added = notifier.add(id);
     if (!added) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('비교는 최대 3곳까지 담을 수 있습니다.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('비교는 최대 3곳까지 담을 수 있습니다.')));
     }
   }
 }
 
-/// 헤더 — "펫클 앱 디자인" 캔버스 시안(Detail.dc.html) 그대로: 칩 한 줄
-/// (운영기간/상태 + 같은 주소 기록 건수) → 병원명(큰 제목) → 주소 순.
-/// "저장"은 앱바 아이콘으로 옮겨서 여기엔 없다.
+/// 헤더("장구름의 수첩", 3차 업데이트 J-4) — 이름 26sp 굵게 / 주소 / 상태 한
+/// 줄(영업 중 = 네이비 점 + "영업 중으로 등록돼 있어요", 폐업·확인 안 됨 =
+/// 회색 칩) / 작은 지도(좌표 없으면 숨김) / 지정 병원 칩. 저장·공유는 앱바.
 class _Header extends ConsumerWidget {
   final Hospital hospital;
-  final int recordCount;
   final bool isDesignated;
-  final DateTime? generatedAt;
 
-  const _Header({
-    required this.hospital,
-    required this.recordCount,
-    required this.isDesignated,
-    this.generatedAt,
-  });
+  const _Header({required this.hospital, required this.isDesignated});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final textTheme = Theme.of(context).textTheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            HospitalStatusTag(hospital: hospital),
-            if (recordCount > 1) Chip(label: Text('같은 주소 기록 $recordCount건')),
-          ],
-        ),
-        const SizedBox(height: 10),
         Text(
           hospital.name,
-          style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.5),
-        ),
-        const SizedBox(height: 4),
-        Text(hospital.displayAddr, style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary)),
-        const SizedBox(height: 10),
-        HospitalMiniMap(hospital: hospital),
-        if (hospital.hasCoordinates) const SizedBox(height: 10),
-        // "저장(bookmark)"과는 별개인 지정(단골) 병원 등록. 아이콘만으로는
-        // 잘 안 보인다는 스프린트 9 피드백(지시서 2)에 따라, 글자 라벨이
-        // 있는 칩으로 확실히 눈에 띄게 하고 눌렀을 때 스낵바로 확인해준다.
-        FilterChip(
-          avatar: Icon(
-            isDesignated ? Icons.push_pin : Icons.push_pin_outlined,
-            size: 18,
-            color: isDesignated ? Theme.of(context).colorScheme.onPrimaryContainer : null,
+          style: const TextStyle(
+            fontSize: 26,
+            height: 1.3,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
+            color: AppColors.textPrimary,
           ),
+        ),
+        const SizedBox(height: 6),
+        Text(hospital.displayAddr, style: const TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+        const SizedBox(height: 12),
+        HospitalStatusMark(status: hospital.status, openLabel: '영업 중으로 등록돼 있어요', fontSize: 15),
+        const SizedBox(height: 16),
+        HospitalMiniMap(hospital: hospital),
+        if (hospital.hasCoordinates) const SizedBox(height: 12),
+        // "저장(bookmark)"과는 별개인 지정(단골) 병원 등록. 글자 라벨이 있는
+        // 칩으로 확실히 눈에 띄게 하고 눌렀을 때 스낵바로 확인해준다.
+        FilterChip(
+          avatar: Icon(isDesignated ? Icons.push_pin : Icons.push_pin_outlined, size: 18, color: AppColors.primary),
+          showCheckmark: false,
           label: Text(isDesignated ? '지정 병원' : '지정 병원으로 등록'),
           selected: isDesignated,
           onSelected: (_) => _toggleDesignated(context, ref),
@@ -219,72 +185,73 @@ class _Header extends ConsumerWidget {
 
   void _toggleDesignated(BuildContext context, WidgetRef ref) {
     ref.read(designatedHospitalsProvider.notifier).toggle(hospital.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isDesignated ? '지정 병원에서 해제했어요.' : '지정 병원으로 등록했어요. 진료기록·예약을 쓸 때 맨 위에 나와요.'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(isDesignated ? '지정 병원에서 해제했어요.' : '지정 병원으로 등록했어요. 진료기록·예약을 쓸 때 맨 위에 나와요.')));
   }
 }
 
-/// 액션 4버튼 — 1행 4열 아이콘 그리드: 전화 · 길찾기 · 비교 담기 ·
-/// 리뷰·영업시간. "공유"는 앱바 아이콘. 넷째 칸은 예전 "예약 준비 중"
-/// 자리였는데, 쓸 수 없는 버튼 대신 네이버 지도 검색(리뷰·영업시간)으로
-/// 바꿨다(2차 업데이트 G) — 예약·제휴 없음 고지는 이용안내로 옮겼다.
-/// 전화번호가 없는 병원은 "전화" 대신 "전화번호 찾기"(같은 네이버 검색).
+/// 행동 — [전화하기] 큰 주요 버튼(56dp) 한 줄 + 아래 흰 카드 버튼 3칸
+/// [길찾기] [리뷰·영업시간] [비교 담기]. 전화번호가 없으면 큰 버튼이 "전화번호
+/// 찾기"(네이버 지도 검색, 2차 업데이트 G). 예약·제휴 없음 고지는 이용안내.
 class _ActionRow extends StatelessWidget {
   final Hospital hospital;
   final bool isInCompare;
   final VoidCallback onCompareTap;
 
-  const _ActionRow({
-    required this.hospital,
-    required this.isInCompare,
-    required this.onCompareTap,
-  });
+  const _ActionRow({required this.hospital, required this.isInCompare, required this.onCompareTap});
 
   @override
   Widget build(BuildContext context) {
     final hasPhone = ExternalLinks.sanitizedPhone(hospital.phone) != null;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: hasPhone
-              ? _ActionButton(
-                  icon: Icons.call_outlined,
-                  label: '전화',
-                  onTap: () => ExternalLinks.call(context, hospital.phone),
-                )
-              : _ActionButton(
-                  icon: Icons.phone_in_talk_outlined,
-                  label: '전화번호 찾기',
-                  onTap: () => ExternalLinks.openNaverMapReviews(hospital),
-                ),
+        hasPhone
+            ? FilledButton.icon(
+                onPressed: () => ExternalLinks.call(context, hospital.phone),
+                icon: const Icon(Icons.call_outlined),
+                label: const Text('전화하기'),
+              )
+            : FilledButton.icon(
+                onPressed: () => ExternalLinks.openNaverMapReviews(hospital),
+                icon: const Icon(Icons.phone_in_talk_outlined),
+                label: const Text('전화번호 찾기'),
+              ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionButton(
+                icon: Icons.navigation_outlined,
+                label: '길찾기',
+                onTap: () => ExternalLinks.openDirections(hospital),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ActionButton(
+                icon: Icons.schedule_outlined,
+                label: '리뷰·영업시간',
+                onTap: () => ExternalLinks.openNaverMapReviews(hospital),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ActionButton(
+                icon: isInCompare ? Icons.check_circle_outline : Icons.view_column_outlined,
+                label: isInCompare ? '비교에 담음' : '비교 담기',
+                active: isInCompare,
+                onTap: onCompareTap,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.directions_outlined,
-            label: '길찾기',
-            onTap: () => ExternalLinks.openDirections(hospital),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _ActionButton(
-            icon: isInCompare ? Icons.check_circle_outline : Icons.compare_arrows,
-            label: '비교 담기',
-            active: isInCompare,
-            onTap: onCompareTap,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.storefront_outlined,
-            label: '리뷰·영업시간',
-            onTap: () => ExternalLinks.openNaverMapReviews(hospital),
-          ),
+        const SizedBox(height: 10),
+        const Text(
+          '리뷰와 영업시간은 네이버지도에서 열려요. 펫클은 병원을 평가하지 않아요.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.textSecondary),
         ),
       ],
     );
@@ -297,123 +264,135 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool active;
 
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.active = false,
-  });
+  const _ActionButton({required this.icon, required this.label, required this.onTap, this.active = false});
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.primary : AppColors.textPrimary;
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        foregroundColor: color,
-        side: const BorderSide(color: AppColors.borderCard),
+    return Material(
+      color: active ? AppColors.primarySoft : AppColors.surfaceLight,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        side: active
+            ? const BorderSide(color: AppColors.primary, width: 2)
+            : const BorderSide(color: AppColors.borderCard),
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: color),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.card)),
+        child: SizedBox(
+          height: 68,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 22, color: AppColors.primary),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OperatingInfoSection extends StatelessWidget {
-  final Hospital hospital;
-  final String source;
-  final DateTime? generatedAt;
-
-  const _OperatingInfoSection({
-    required this.hospital,
-    required this.source,
-    this.generatedAt,
-  });
-
-  static String _fmt(DateTime? d) => d != null ? DateFormat('yyyy.MM.dd').format(d) : '확인 불가';
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('운영 정보', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            _InfoRow('개설신고일', _fmt(hospital.openDate), mono: true),
-            _InfoRow('상태', hospital.status.label),
-            _InfoRow('운영기간', hospitalOperatingLabel(hospital)),
-            // 표시만 하이픈 형식으로 — 전화 걸기는 저장된 원래 값으로.
-            if (hospital.phone != null) _InfoRow('전화', formatPhoneNumber(hospital.phone!), mono: true),
-            _InfoRow('출처', source),
-            _InfoRow('최종갱신', _fmt(generatedAt), mono: true, last: true),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.neutralBg,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                '운영기간은 공개된 인허가 기록상 계속 등록된 시점을 기준으로 계산한 값이며, '
-                '병원의 신뢰도나 진료 품질과는 관련이 없습니다.',
-                style: textTheme.bodySmall?.copyWith(color: AppColors.neutral, height: 1.4),
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
+/// "이 병원의 기록" — 수첩 줄 모양: 왼쪽 항목명(회색) · 가운데 점선 · 오른쪽
+/// 값(굵게). 문 연 날(개설신고일), 운영 기간, 등록 상태, 전화. 아래 출처·최종
+/// 갱신일과 "운영 기간 ≠ 신뢰도" 안내.
+class _RecordSection extends StatelessWidget {
+  final Hospital hospital;
+  final String source;
+  final DateTime? generatedAt;
 
-  /// 날짜·전화번호처럼 숫자가 섞인 값은 모노스페이스로("펫클 앱 디자인"
-  /// 캔버스 시안의 `.mono`).
-  final bool mono;
+  const _RecordSection({required this.hospital, required this.source, this.generatedAt});
 
-  /// 마지막 행은 하단 구분선을 긋지 않는다(시안 `.row:last-child`).
-  final bool last;
-
-  const _InfoRow(this.label, this.value, {this.mono = false, this.last = false});
+  static String _fmt(DateTime? d) => d != null ? DateFormat('yyyy.MM.dd').format(d) : '확인 불가';
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: last
-          ? null
-          : const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.borderMuted))),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(label, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
+    final statusLabel = hospital.status == HospitalStatus.open ? '영업 중' : hospital.status.label;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionTitle('이 병원의 기록'),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.cardLarge, 10, AppSpacing.cardLarge, AppSpacing.cardLarge),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _NotebookRow('문 연 날 (개설신고일)', _fmt(hospital.openDate)),
+                _NotebookRow('운영 기간', hospitalOperatingLabel(hospital)),
+                _NotebookRow('등록 상태', statusLabel),
+                // 표시만 하이픈 형식으로 — 전화 걸기는 저장된 원래 값으로.
+                if (hospital.phone != null) _NotebookRow('전화', formatPhoneNumber(hospital.phone!)),
+                const SizedBox(height: 8),
+                const Divider(height: 1, color: AppColors.borderMuted),
+                const SizedBox(height: 12),
+                Text(
+                  '출처 $source · 최종 갱신 ${_fmt(generatedAt)}',
+                  style: AppTextStyles.mono(size: 13, color: AppColors.textSecondary, height: 1.5),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '운영 기간은 공개된 인허가 기록상 계속 등록된 시점을 기준으로 계산한 값이며, '
+                  '병원의 신뢰도나 진료 품질과는 관련이 없습니다.',
+                  style: TextStyle(fontSize: 12.5, height: 1.5, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
           ),
-          Text(
-            value,
-            textAlign: TextAlign.right,
-            style: mono
-                ? AppTextStyles.mono(size: 14, color: AppColors.textPrimary)
-                : const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+    );
+  }
+}
+
+/// 수첩 줄 한 칸 — 항목명 · 점선(notebookLine) · 값.
+class _NotebookRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _NotebookRow(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textSecondary)),
+          const SizedBox(width: 8),
+          const Expanded(child: _DottedLine()),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 0,
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AppTextStyles.mono(size: 16, weight: FontWeight.w700, color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
@@ -421,6 +400,30 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+class _DottedLine extends StatelessWidget {
+  const _DottedLine();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(size: const Size(double.infinity, 2), painter: _DotsPainter());
+  }
+}
+
+class _DotsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = AppColors.notebookLine;
+    const step = 4.0;
+    for (var x = 1.0; x < size.width; x += step) {
+      canvas.drawCircle(Offset(x, size.height / 2), 0.9, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 맨 아래 외부 지도 — 네이버지도·카카오맵 흰 알약 2개(리뷰는 외부에서만).
 class _ExternalLinksSection extends StatelessWidget {
   final Hospital hospital;
 
@@ -428,53 +431,43 @@ class _ExternalLinksSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final style = OutlinedButton.styleFrom(
+      minimumSize: const Size(0, 52),
+      backgroundColor: AppColors.surfaceLight,
+      foregroundColor: AppColors.textPrimary,
+      side: const BorderSide(color: AppColors.borderCard),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            const SizedBox(height: 8),
-            Text('외부 링크', style: textTheme.titleSmall),
-            const SizedBox(height: 2),
-            Text(
-              '네이버·카카오 리뷰로 바로 이동합니다. 펫클은 평가·별점을 자체적으로 제공하지 않습니다.',
-              style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            Expanded(
+              child: OutlinedButton(
+                style: style,
+                onPressed: () => ExternalLinks.openNaverMapReviews(hospital),
+                child: const Text('네이버지도에서 보기'),
+              ),
             ),
-            const SizedBox(height: 4),
-            _LinkTile(
-              label: '네이버지도에서 리뷰 보기',
-              onTap: () => ExternalLinks.openNaverMapReviews(hospital),
-            ),
-            _LinkTile(
-              label: '카카오맵에서 리뷰 보기',
-              onTap: () => ExternalLinks.openKakaoMapReviews(hospital),
-            ),
-            _LinkTile(
-              label: '국가동물보호정보시스템',
-              onTap: ExternalLinks.openAnimalProtectionSystem,
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton(
+                style: style,
+                onPressed: () => ExternalLinks.openKakaoMapReviews(hospital),
+                child: const Text('카카오맵에서 보기'),
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _LinkTile extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _LinkTile({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(label),
-      trailing: const Icon(Icons.open_in_new, size: 18),
-      onTap: onTap,
+        const SizedBox(height: 6),
+        Center(
+          child: TextButton.icon(
+            onPressed: ExternalLinks.openAnimalProtectionSystem,
+            icon: const Icon(Icons.open_in_new, size: 16),
+            label: const Text('국가동물보호정보시스템'),
+          ),
+        ),
+      ],
     );
   }
 }

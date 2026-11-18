@@ -1,7 +1,7 @@
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
 import '../config/kakao_map_config.dart';
@@ -67,11 +67,20 @@ class _HospitalMiniMapState extends State<HospitalMiniMap> {
     }
   }
 
+  /// 마커 — 지도 탭과 같은 새 구름이 마커(`assets/mascot/marker.png`, 정사각
+  /// 원본이라 정사각 크기로 그려 비율이 유지된다). 그림을 못 읽으면 네이비 점.
   Future<PoiStyle> _buildMarkerStyle() async {
-    const size = 32.0;
-    final bytes = await _dotBytes(size);
-    return PoiStyle(icon: KImage.fromData(bytes, size.toInt(), size.toInt()));
+    const size = 44.0;
+    try {
+      await rootBundle.load(_markerAssetPath);
+      return PoiStyle(icon: KImage.fromAsset(_markerAssetPath, size.toInt(), size.toInt()));
+    } catch (_) {
+      final bytes = await _dotBytes(32);
+      return PoiStyle(icon: KImage.fromData(bytes, 32, 32));
+    }
   }
+
+  static const _markerAssetPath = 'assets/mascot/marker.png';
 
   static Future<Uint8List> _dotBytes(double diameter) async {
     final recorder = ui.PictureRecorder();
@@ -106,10 +115,7 @@ class _HospitalMiniMapState extends State<HospitalMiniMap> {
         child: Stack(
           children: [
             KakaoMap(
-              option: KakaoMapOption(
-                position: LatLng(hospital.lat!, hospital.lng!),
-                zoomLevel: _zoomLevel,
-              ),
+              option: KakaoMapOption(position: LatLng(hospital.lat!, hospital.lng!), zoomLevel: _zoomLevel),
               forceGesture: false,
               onMapReady: _onMapReady,
               onMapError: (error) {

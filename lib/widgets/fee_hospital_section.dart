@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../models/fee.dart';
 import '../models/fee_bundle.dart';
@@ -9,6 +10,8 @@ import '../providers/fee_provider.dart';
 import '../providers/region_provider.dart';
 import '../screens/fee_overview_screen.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
+import '../theme/app_dimens.dart';
 import '../utils/fee_no_data_message.dart';
 import 'fee_context_chip.dart';
 import 'fee_format.dart';
@@ -35,59 +38,64 @@ class FeeHospitalSection extends ConsumerWidget {
     final hasRegionData = bundle.hasAnyDataFor(hospital.sido, hospital.sigungu);
     final representative = hasRegionData ? _representativeItems(bundle, weight) : const [];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '이 지역 진료비 시세',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                Text(
-                  '${hospital.sigungu} · ${weight.label}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (!hasRegionData)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  feeNoRegionDataSubtitle(hospital.sigungu, hospital.sigungu),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
-                ),
-              )
-            else if (representative.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  '이 지역은 이 항목들의 조사 자료가 아직 없어요.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textPlaceholder),
-                ),
-              )
-            else
-              for (var i = 0; i < representative.length; i++) ...[
-                if (i > 0) const Divider(height: 1),
-                _FeeCompactRow(item: representative[i].$1, value: representative[i].$2),
-              ],
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => _openOtherItems(context, ref, bundle),
-                child: const Text('다른 항목 보기'),
-              ),
-            ),
-          ],
+    // "장구름의 수첩"(3차 업데이트 J-4): 제목 + "이 병원의 가격이 아니라…"
+    // + 흰 카드(항목별 가운데 값 + 가장 낮은 곳 ~ 가장 높은 곳) + [다른 항목 보기].
+    final sigungu = hospital.sigungu;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          '$sigungu 진료비 시세',
+          style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
         ),
-      ),
+        const SizedBox(height: 8),
+        Text(
+          '이 병원의 가격이 아니라, $sigungu 병원들이 공개한 가격이에요. ${weight.label} 기준 가운데 값이에요.',
+          style: const TextStyle(fontSize: 14, height: 1.55, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.cardLarge, 6, AppSpacing.cardLarge, AppSpacing.cardLarge),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (!hasRegionData)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      feeNoRegionDataSubtitle(sigungu, sigungu),
+                      style: const TextStyle(fontSize: 14, height: 1.5, color: AppColors.textSecondary),
+                    ),
+                  )
+                else if (representative.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      '이 지역은 이 항목들의 조사 자료가 아직 없어요.',
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    ),
+                  )
+                else
+                  for (var i = 0; i < representative.length; i++) ...[
+                    if (i > 0) const Divider(height: 1, color: AppColors.borderMuted),
+                    _FeeCompactRow(item: representative[i].$1, value: representative[i].$2),
+                  ],
+                const SizedBox(height: 10),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 50),
+                    backgroundColor: AppColors.primarySoft,
+                    foregroundColor: AppColors.primary,
+                  ),
+                  onPressed: () => _openOtherItems(context, ref, bundle),
+                  child: const Text('다른 항목 보기'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -96,13 +104,9 @@ class FeeHospitalSection extends ConsumerWidget {
     if (picked == null || !context.mounted) return;
     // 이 화면은 병원 자체 주소의 시/군/구 기준이므로, 21로 넘어갈 때도
     // 전역 지역을 이 병원의 지역으로 맞춰 값이 어긋나 보이지 않게 한다.
-    await ref
-        .read(regionProvider.notifier)
-        .selectRegion(RegionFilter(sido: hospital.sido, sigungu: hospital.sigungu));
+    await ref.read(regionProvider.notifier).selectRegion(RegionFilter(sido: hospital.sido, sigungu: hospital.sigungu));
     if (!context.mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => FeeOverviewScreen(initialItemId: picked.id)),
-    );
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => FeeOverviewScreen(initialItemId: picked.id)));
   }
 
   List<(FeeItem, FeeValue)> _representativeItems(FeeBundle bundle, FeeWeightBucket weight) {
@@ -111,12 +115,7 @@ class FeeHospitalSection extends ConsumerWidget {
     for (final id in candidateIds) {
       final item = bundle.itemById(id);
       if (item == null) continue;
-      final value = bundle.lookup(
-        sido: hospital.sido,
-        sigungu: hospital.sigungu,
-        itemId: id,
-        weight: weight,
-      );
+      final value = bundle.lookup(sido: hospital.sido, sigungu: hospital.sigungu, itemId: id, weight: weight);
       if (value == null) continue;
       result.add((item, value));
       if (result.length >= 3) break;
@@ -137,35 +136,41 @@ class _FeeCompactRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Text(item.name, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
             children: [
-              Text(
-                value.sampleLow ? '참고용' : '중간 ${feeWonLabel(value.mid)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: value.sampleLow ? AppColors.textPlaceholder : AppColors.primaryTextTone,
+              Expanded(
+                child: Text(
+                  item.name,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                 ),
               ),
-              if (!value.sampleLow) ...[
-                const SizedBox(height: 2),
-                Text(
-                  '범위 ${feeWonRangeLabel(value.min, value.max)}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                value.sampleLow ? '참고용' : feeWonLabel(value.mid),
+                style: AppTextStyles.mono(
+                  size: value.sampleLow ? 14 : 20,
+                  weight: FontWeight.w700,
+                  color: value.sampleLow ? AppColors.textSecondary : AppColors.textPrimary,
                 ),
-              ],
+              ),
             ],
           ),
+          if (!value.sampleLow) ...[
+            const SizedBox(height: 4),
+            Text(
+              '가장 낮은 곳 ${_won.format(value.min)}원 ~ 가장 높은 곳 ${_won.format(value.max)}원',
+              textAlign: TextAlign.right,
+              style: AppTextStyles.mono(size: 13, color: AppColors.textSecondary),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
+final _won = NumberFormat('#,###');

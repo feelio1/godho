@@ -27,7 +27,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'fees.json에 데이터가 있는 구(서구)는 중간값과 범위를 함께 보여준다 — 평균 아님(제품 헌법)',
+    'fees.json에 데이터가 있는 구(서구)는 가운데 값과 가장 낮은~높은 곳을 함께 보여준다 — 평균 아님(제품 헌법)',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -53,10 +53,12 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.textContaining('이 지역 진료비 시세'), findsOneWidget);
-      expect(find.textContaining('서구'), findsWidgets);
-      expect(find.textContaining('중간'), findsWidgets);
-      expect(find.textContaining('범위'), findsWidgets);
+      // 3차 업데이트 J-4: "{구} 진료비 시세" + "이 병원의 가격이 아니라…" +
+      // 가운데 값 + "가장 낮은 곳 ~ 가장 높은 곳".
+      expect(find.text('서구 진료비 시세'), findsOneWidget);
+      expect(find.textContaining('이 병원의 가격이 아니라'), findsOneWidget);
+      expect(find.textContaining('가운데 값'), findsWidgets);
+      expect(find.textContaining('가장 낮은 곳'), findsWidgets);
       // "평균"이라는 표현은 절대 쓰지 않는다(중간값만 대표값).
       expect(find.textContaining('평균'), findsNothing);
     },
