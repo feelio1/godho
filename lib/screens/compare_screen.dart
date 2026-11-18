@@ -272,14 +272,18 @@ class _ActionsRow extends StatelessWidget {
             width: _valueColumnWidth,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
+              // 칸 폭을 꽉 채우는 보조 버튼(좁은 칸에서도 글자가 잘리지 않게).
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   OutlinedButton(
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
                     onPressed: () => ExternalLinks.call(context, h.phone),
                     child: const Text('전화'),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton(
+                    style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
                     onPressed: () => ExternalLinks.openDirections(h),
                     child: const Text('길찾기'),
                   ),

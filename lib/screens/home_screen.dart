@@ -461,7 +461,7 @@ class _NeighborhoodCardState extends ConsumerState<_NeighborhoodCard> {
         borderRadius: BorderRadius.circular(AppRadius.card),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
             '우리 동네를 알려주세요',
@@ -470,27 +470,20 @@ class _NeighborhoodCardState extends ConsumerState<_NeighborhoodCard> {
           const SizedBox(height: 4),
           const Text('진료비 시세와 가까운 병원을 보여드려요', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  key: const ValueKey('neighborhood_locate'),
-                  onPressed: _locating ? null : _useCurrentLocation,
-                  icon: _locating
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.my_location, size: 18),
-                  label: const Text('현재 위치로 찾기'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('neighborhood_pick'),
-                  onPressed: _locating ? null : _pickRegion,
-                  child: const Text('직접 선택'),
-                ),
-              ),
-            ],
+          // 좁은 폭에서도 글자가 줄바꿈되지 않게 두 버튼을 위아래로 둔다.
+          FilledButton.icon(
+            key: const ValueKey('neighborhood_locate'),
+            onPressed: _locating ? null : _useCurrentLocation,
+            icon: _locating
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.my_location, size: 18),
+            label: const Text('현재 위치로 찾기'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const ValueKey('neighborhood_pick'),
+            onPressed: _locating ? null : _pickRegion,
+            child: const Text('직접 선택'),
           ),
         ],
       ),

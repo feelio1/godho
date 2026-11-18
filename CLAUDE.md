@@ -18,6 +18,11 @@
 - 색상: 빨강은 시스템 오류에만. 폐업·신규·정보부족은 모두 회색(중립) — 그 자리가 문제 있어 보이지 않게. 이 "평가처럼 보이는 색 금지" 규칙은 쇼핑 주문 상태 배지 등 병원 관련이 아닌 화면에도 그대로 적용한다.
 - 가입·온보딩 문구에 과장·혜택 미끼("또래 반려인 기준" 류의 담백한 통계 안내는 예외)를 쓰지 않는다.
 
+## 디자인 ("장구름의 수첩", 1.0.0+4)
+- 색은 `lib/theme/app_colors.dart` 토큰만 쓴다(네이비 `primary` 주색, 버터 `warmBackground`/`butter`는 우리 아이·구름이 자리, 고지문 바탕 `softPanel`, 점선·공책 줄 `notebookLine`). 영업 중 = 네이비 점·글자, 폐업·확인 안 됨 = 회색 칩.
+- 숫자는 IBM Plex Sans KR + tabular figures(`AppTextStyles.mono` — 이름만 남았고 IBM Plex Mono는 화면에 쓰지 않는다). 손글씨 한 줄은 `AppTextStyles.hand`(나눔손글씨 펜).
+- 주요 버튼 56dp 알약, 보조 버튼 48dp 1.5px 네이비 알약, 카드 그림자 없음·반지름 22, 입력칸 라벨은 칸 위. 짧은 제목·손글씨 한 줄은 `keepWords()`(lib/utils/keep_words.dart)로 낱말 단위 줄바꿈.
+
 ## 기술 스택
 - Flutter (Android 우선), Dart. `intl`은 **0.20.3에 고정** — 다른 패키지 추가/갱신 때문에 버전이 바뀌지 않게 항상 확인한다.
 - 폰트 라이선스(SIL OFL 1.1, 폰트와 함께 배포 — pubspec assets에 등록): IBM Plex Sans KR·Mono는 `assets/fonts/OFL.txt`(IBM/plex 저장소 원문), 나눔손글씨 펜은 `assets/fonts/nanum_pen_script/OFL.txt`. 폰트를 추가하면 라이선스 파일도 같이 넣는다.
