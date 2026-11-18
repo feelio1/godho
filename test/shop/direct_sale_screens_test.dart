@@ -98,6 +98,8 @@ void main() {
       );
       await tester.pumpWidget(_app([product], const ProductDetailScreen(productId: 'kennel')));
       await tester.pumpAndSettle();
+      // 3차 업데이트 J-6: 위에 정사각 큰 사진이 있어 아래로 내려 본다.
+      await tester.scrollUntilVisible(find.text('10개부터 주문할 수 있어요'), 200, scrollable: find.byType(Scrollable).first);
 
       expect(find.text('다른 상품과 따로 배송돼요 · 배송비 4,000원'), findsOneWidget);
       expect(find.text('10개부터 주문할 수 있어요'), findsOneWidget);
@@ -108,11 +110,11 @@ void main() {
 
       // 수량은 10에서 시작하고, 10에서는 줄일 수 없다.
       expect(find.text('10'), findsOneWidget);
-      IconButton minus() => tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove_circle_outline));
-      expect(minus().onPressed, isNull);
-      await tester.ensureVisible(find.widgetWithIcon(IconButton, Icons.add_circle_outline));
+      IconButton minus() => tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove));
+      await tester.ensureVisible(find.widgetWithIcon(IconButton, Icons.add));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithIcon(IconButton, Icons.add_circle_outline));
+      expect(minus().onPressed, isNull);
+      await tester.tap(find.widgetWithIcon(IconButton, Icons.add));
       await tester.pump();
       expect(find.text('11'), findsOneWidget);
       expect(minus().onPressed, isNotNull);
@@ -146,6 +148,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(find.text('상품정보제공고시'), 200, scrollable: find.byType(Scrollable).first);
+      await tester.ensureVisible(find.text('상품정보제공고시'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('상품정보제공고시'));
       await tester.pumpAndSettle();
 
@@ -171,6 +175,8 @@ void main() {
     await tester.pumpWidget(_app([product], const ProductDetailScreen(productId: 'p1')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('상품정보제공고시'), 200, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('상품정보제공고시'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('상품정보제공고시'));
     await tester.pumpAndSettle();
 
@@ -220,7 +226,11 @@ void main() {
       ], const ShopHomeScreen()));
       await tester.pumpAndSettle();
 
-      final chips = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip)).map((c) => (c.label as Text).data).toList();
+      // 3차 업데이트 J-6: 카테고리는 알약 탭(선택 = 네이비 채움).
+      final chips = tester
+          .widgetList<Text>(find.descendant(of: find.byKey(const ValueKey('shop_category_chips')), matching: find.byType(Text)))
+          .map((t) => t.data)
+          .toList();
       expect(chips, ['전체', '간식', '옷']);
       expect(find.text('사료'), findsNothing);
       expect(find.text('영양제'), findsNothing);

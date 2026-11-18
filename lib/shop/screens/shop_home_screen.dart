@@ -25,7 +25,8 @@ class ShopHomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('쇼핑'),
+        toolbarHeight: 68,
+        title: const Text('쇼핑', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
         actions: [
           Stack(
             alignment: Alignment.center,
@@ -33,20 +34,24 @@ class ShopHomeScreen extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.shopping_cart_outlined),
                 tooltip: '장바구니',
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const CartScreen()),
-                ),
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CartScreen())),
               ),
               if (cartCount > 0)
                 Positioned(
                   right: 6,
                   top: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(AppRadius.pill)),
+                    constraints: const BoxConstraints(minWidth: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      border: Border.all(color: AppColors.backgroundLight, width: 1.5),
+                    ),
                     child: Text(
                       cartCount > 99 ? '99+' : '$cartCount',
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white),
                     ),
                   ),
                 ),
@@ -55,8 +60,9 @@ class ShopHomeScreen extends ConsumerWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.only(top: 4, bottom: 16),
         children: [
+          const _ShippingStrip(),
           const _CategoryChips(),
           recommendedAsync.maybeWhen(
             data: (products) => products.isEmpty
@@ -75,10 +81,7 @@ class ShopHomeScreen extends ConsumerWidget {
                 padding: EdgeInsets.symmetric(vertical: 40),
                 child: Center(child: CircularProgressIndicator()),
               ),
-              error: (error, _) => InlineErrorMessage(
-                error: error,
-                onRetry: () => ref.invalidate(productsProvider),
-              ),
+              error: (error, _) => InlineErrorMessage(error: error, onRetry: () => ref.invalidate(productsProvider)),
               data: (page) => page.products.isEmpty
                   ? const Padding(
                       padding: EdgeInsets.symmetric(vertical: 40),
@@ -90,7 +93,7 @@ class ShopHomeScreen extends ConsumerWidget {
                       builder: (context, constraints) {
                         // 카드 높이 = 카드 폭(정사각 이미지) + 글자 영역 — 비율로
                         // 정하면 좁은 폭에서 글자 영역이 모자라 넘친다.
-                        const spacing = 14.0;
+                        const spacing = 16.0;
                         final cardWidth = (constraints.maxWidth - spacing) / 2;
                         return GridView.builder(
                           shrinkWrap: true,
@@ -100,7 +103,8 @@ class ShopHomeScreen extends ConsumerWidget {
                             crossAxisCount: 2,
                             mainAxisSpacing: spacing,
                             crossAxisSpacing: spacing,
-                            mainAxisExtent: cardWidth +
+                            mainAxisExtent:
+                                cardWidth +
                                 _ProductCard.textAreaHeight(
                                   context,
                                   withStrikePrice: page.products.any((p) => p.isOnSale),
@@ -110,6 +114,13 @@ class ShopHomeScreen extends ConsumerWidget {
                         );
                       },
                     ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.section, AppSpacing.page, 0),
+            child: Text(
+              '판매자는 아깽이상점이고, 상품은 공급업체에서 직접 보내요.',
+              style: TextStyle(fontSize: 13.5, height: 1.5, color: AppColors.textSecondary),
             ),
           ),
           const SizedBox(height: AppSpacing.section),
@@ -130,8 +141,10 @@ class _CategoryChips extends ConsumerWidget {
     // 카테고리는 상품이 사라져도 칩을 남겨 선택을 풀 수 있게 한다.
     final available = ref.watch(availableShopCategoriesProvider).value ?? const <ProductCategory>{};
     final categories = visibleShopCategories({...available, ?selected});
+    // 카테고리 알약 탭 — 선택 = 네이비 채움(흰 글자), 안 선택 = 흰 바탕.
     return SizedBox(
-      height: 40,
+      key: const ValueKey('shop_category_chips'),
+      height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
@@ -139,10 +152,31 @@ class _CategoryChips extends ConsumerWidget {
         separatorBuilder: (context, i) => const SizedBox(width: 8),
         itemBuilder: (context, i) {
           final category = i == 0 ? null : categories[i - 1];
-          return ChoiceChip(
-            label: Text(category?.label ?? '전체'),
-            selected: selected == category,
-            onSelected: (_) => ref.read(shopCategoryFilterProvider.notifier).state = category,
+          final isSelected = selected == category;
+          return Semantics(
+            selected: isSelected,
+            button: true,
+            child: Material(
+              color: isSelected ? AppColors.primary : AppColors.surfaceLight,
+              shape: StadiumBorder(side: BorderSide(color: isSelected ? AppColors.primary : AppColors.borderCard)),
+              child: InkWell(
+                customBorder: const StadiumBorder(),
+                onTap: () => ref.read(shopCategoryFilterProvider.notifier).state = category,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Center(
+                    child: Text(
+                      category?.label ?? '전체',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? Colors.white : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),
@@ -179,22 +213,36 @@ class _RecommendedSection extends StatelessWidget {
   }
 }
 
+/// 상품 카드("장구름의 수첩", 3차 업데이트 J-6) — 테두리 없이 정사각 사진
+/// (반지름 20) + 이름 14sp + 가격 17sp 굵게 + 옵션 수(회색). 정가 취소선·
+/// 할인율 연출은 하지 않는다(price만, CLAUDE.md).
 class _ProductCard extends StatelessWidget {
   final Product product;
 
   const _ProductCard({required this.product});
 
-  static const _textPadding = 10.0;
-  static const _nameGap = 6.0;
-  static const _strikeGap = 2.0;
-  static const _nameStyle = TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary);
-  static const _priceStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary);
-  static const _strikeStyle =
-      TextStyle(fontSize: 11.5, color: AppColors.textPlaceholder, decoration: TextDecoration.lineThrough);
+  static const _nameGap = 4.0;
+  static const _priceGap = 2.0;
+  static const _nameStyle = TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static const _priceStyle = TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.w700,
+    color: AppColors.textPrimary,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+  static const _optionStyle = TextStyle(fontSize: 13, color: AppColors.textSecondary);
 
-  /// 이미지 아래 글자 영역 높이 — 상품명 2줄 + 가격 1줄(+ 할인 전 가격 줄) +
-  /// 여백을 실제 글꼴·글자 크기 설정으로 재서 정한다(카드 높이를 이 값으로
-  /// 고정하므로 어떤 폭·글꼴에서도 넘치지 않는다).
+  /// 옵션 수 안내 — 옵션 이름이 "색 / 사이즈" 꼴이면 "색상·사이즈 N가지".
+  static String? optionLabel(Product product) {
+    final count = product.options.length;
+    if (count < 2) return null;
+    final paired = product.options.every((o) => o.name.contains('/'));
+    return paired ? '색상·사이즈 $count가지' : '옵션 $count가지';
+  }
+
+  /// 이미지 아래 글자 영역 높이 — 상품명 2줄 + 가격 1줄 + 옵션 1줄 + 여백을
+  /// 실제 글꼴·글자 크기 설정으로 재서 정한다(카드 높이를 이 값으로 고정하므로
+  /// 어떤 폭·글꼴에서도 넘치지 않는다).
   static double textAreaHeight(BuildContext context, {bool withStrikePrice = false}) {
     final base = DefaultTextStyle.of(context).style;
     final scaler = MediaQuery.textScalerOf(context);
@@ -210,35 +258,24 @@ class _ProductCard extends StatelessWidget {
       return height;
     }
 
-    return _textPadding * 2 +
-        lines(_nameStyle, 2) +
-        _nameGap +
-        (withStrikePrice ? lines(_strikeStyle, 1) + _strikeGap : 0) +
-        lines(_priceStyle, 1) +
-        // 테두리(위·아래 1px)와 반올림 여유.
-        4;
+    return 10 + lines(_nameStyle, 2) + _nameGap + lines(_priceStyle, 1) + _priceGap + lines(_optionStyle, 1) + 4;
   }
 
   @override
   Widget build(BuildContext context) {
     final soldOut = product.status == ProductStatus.soldout;
+    final options = optionLabel(product);
     return InkWell(
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ProductDetailScreen(productId: product.id)),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
-          border: Border.all(color: AppColors.borderCard),
-          borderRadius: BorderRadius.circular(AppRadius.card),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 1,
+      borderRadius: BorderRadius.circular(20),
+      onTap: () =>
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProductDetailScreen(productId: product.id))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AspectRatio(
+            aspectRatio: 1,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -249,37 +286,63 @@ class _ProductCard extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(color: AppColors.closedBg, borderRadius: BorderRadius.circular(AppRadius.pill)),
-                        child: const Text('품절', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.closedText)),
+                        decoration: BoxDecoration(
+                          color: AppColors.closedBg,
+                          borderRadius: BorderRadius.circular(AppRadius.pill),
+                        ),
+                        child: const Text(
+                          '품절',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.closedText),
+                        ),
                       ),
                     ),
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(_textPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: _nameStyle,
-                  ),
-                  const SizedBox(height: _nameGap),
-                  if (product.isOnSale) ...[
-                    Text(
-                      '${NumberFormat('#,###').format(product.price)}원',
-                      style: _strikeStyle,
-                    ),
-                    const SizedBox(height: _strikeGap),
-                  ],
-                  Text(
-                    '${NumberFormat('#,###').format(product.displayPrice)}원',
-                    style: _priceStyle,
-                  ),
-                ],
+          ),
+          const SizedBox(height: 10),
+          Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: _nameStyle),
+          const SizedBox(height: _nameGap),
+          Text('${NumberFormat('#,###').format(product.displayPrice)}원', style: _priceStyle),
+          if (options != null) ...[
+            const SizedBox(height: _priceGap),
+            Text(options, maxLines: 1, overflow: TextOverflow.ellipsis, style: _optionStyle),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 배송 안내 띠 — 판매자 배송 정책 그대로("3만 원 이상 무료배송, 그 아래는
+/// 3,000원"). 판매자 정보를 못 읽으면 그리지 않는다.
+class _ShippingStrip extends ConsumerWidget {
+  const _ShippingStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 직판형이라 판매자는 한 곳 — 목록의 상품이 가리키는 판매자의 정책을 쓴다.
+    final sellerId = ref.watch(productsProvider).value?.products.firstOrNull?.sellerId;
+    if (sellerId == null) return const SizedBox.shrink();
+    final seller = ref.watch(sellerProvider(sellerId)).value;
+    if (seller == null) return const SizedBox.shrink();
+    final policy = seller.shipping;
+    final fee = '${NumberFormat('#,###').format(policy.baseFee)}원';
+    final freeOver = policy.freeOver;
+    final text = freeOver == null ? '배송비 $fee' : '${_wonShort(freeOver)} 이상 무료배송, 그 아래는 $fee';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, 14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(AppRadius.panel)),
+        child: Row(
+          children: [
+            const Icon(Icons.local_shipping_outlined, size: 20, color: AppColors.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               ),
             ),
           ],
@@ -287,6 +350,8 @@ class _ProductCard extends StatelessWidget {
       ),
     );
   }
+
+  static String _wonShort(int won) => won % 10000 == 0 ? '${won ~/ 10000}만 원' : '${NumberFormat('#,###').format(won)}원';
 }
 
 class _ProductImage extends StatelessWidget {

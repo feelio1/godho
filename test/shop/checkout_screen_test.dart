@@ -108,10 +108,14 @@ void main() {
     expect(find.text('결제 준비 중이에요'), findsOneWidget);
 
     // 배송지를 전부 채운다.
-    await tester.enterText(find.widgetWithText(TextField, '받는 사람'), '홍길동');
-    await tester.enterText(find.widgetWithText(TextField, '연락처'), '01000000000');
+    // 3차 업데이트 J-6: 라벨은 칸 위, 칸 안은 예시 글(힌트). 우편번호 검색이
+    // 아직 없어 [주소 검색]을 누르면 우편번호·기본 주소를 직접 입력하게 열린다.
+    await tester.enterText(find.widgetWithText(TextField, '이름'), '홍길동');
+    await tester.enterText(find.widgetWithText(TextField, '010-0000-0000'), '01000000000');
+    await tester.tap(find.text('주소 검색'));
+    await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '우편번호'), '12345');
-    await tester.enterText(find.widgetWithText(TextField, '주소'), '서울시 어딘가');
+    await tester.enterText(find.widgetWithText(TextField, '기본 주소'), '서울시 어딘가');
     await tester.pumpAndSettle();
 
     // 필수 동의 2개를 모두 체크한다(ListView 아래쪽이라 스크롤부터).
@@ -126,7 +130,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 그래도 결제 버튼은 비활성이다(게이트웨이가 없어서).
-    final button = tester.widget<FilledButton>(find.widgetWithText(FilledButton, '결제하기'));
+    final button = tester.widget<FilledButton>(find.byKey(const ValueKey('checkout_pay')));
+    expect(find.textContaining('원 결제하기'), findsOneWidget);
     expect(button.onPressed, isNull);
 
     expect(fakeRepo.createPendingOrderCallCount, 0);
