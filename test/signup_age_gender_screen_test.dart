@@ -149,7 +149,7 @@ void main() {
         final state = container.read(signupFlowProvider);
         expect(state.ageGroup, AgeGroup.thirties);
         expect(state.gender, Gender.male);
-        expect(find.text('반려동물 등록'), findsOneWidget);
+        expect(find.text('나중에 등록할게요'), findsOneWidget);
       });
     },
   );

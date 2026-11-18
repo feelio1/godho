@@ -37,9 +37,9 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))));
     await tester.pumpAndSettle();
 
-    expect(find.text('병원 행정 기록 · 지역 시세 확인'), findsOneWidget);
-    expect(find.text('우리 아이 진료기록 · 예약 알림'), findsOneWidget);
-    expect(find.text('병원 저장 · 캘린더'), findsOneWidget);
+    expect(find.text('병원 기록 · 동네 진료비'), findsOneWidget);
+    expect(find.text('우리 아이 일기 · 진료기록'), findsOneWidget);
+    expect(find.text('예약 알림 · 캘린더'), findsOneWidget);
     expect(find.text('이미 계정이 있어요 · 로그인'), findsOneWidget);
   });
 }

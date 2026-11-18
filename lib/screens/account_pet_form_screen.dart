@@ -321,26 +321,29 @@ class _AccountPetFormScreenState extends State<AccountPetFormScreen> {
                     onTap: _pickBreed,
                   ),
                   const SizedBox(height: AppSpacing.formField),
-                  const _FieldTitle('생년월'),
+                  const _FieldTitle('태어난 해·달'),
                   Row(
                     children: [
                       Expanded(
                         child: _SelectField(
                           icon: Icons.calendar_today_outlined,
-                          label: _birthMonth != null ? DateFormat('yyyy.MM').format(_birthMonth!) : '모름',
+                          label: _birthMonth != null ? DateFormat('yyyy.MM').format(_birthMonth!) : '연·월 고르기',
                           placeholder: _birthMonth == null,
                           onTap: _pickBirthMonth,
                         ),
                       ),
-                      if (_birthMonth != null)
-                        TextButton(
-                          onPressed: () => setState(() => _birthMonth = null),
-                          child: const Text('모름'),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: PetFormChoiceButton(
+                          label: '모름',
+                          selected: _birthMonth == null,
+                          onTap: () => setState(() => _birthMonth = null),
                         ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.formField),
-                  const _FieldTitle('체중'),
+                  const _FieldTitle('몸무게'),
                   _WeightBandGrid(
                     value: _weightBand,
                     onChanged: (band) => setState(() => _weightBand = band),
@@ -407,21 +410,18 @@ class _FieldTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 라벨은 칸 위에 13.5sp 굵게, 고르지 않아도 되는 칸만 "(선택)".
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textLabel)),
-          const SizedBox(width: 6),
-          Text(
-            required ? '필수' : '선택',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: required ? AppColors.primary : AppColors.textPlaceholder,
-            ),
-          ),
-        ],
+      child: Text.rich(
+        TextSpan(
+          text: label,
+          children: [
+            if (!required)
+              const TextSpan(text: ' (선택)', style: TextStyle(fontWeight: FontWeight.w400, color: AppColors.textSecondary)),
+          ],
+        ),
+        style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
       ),
     );
   }
@@ -445,11 +445,19 @@ class _WeightBandGrid extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             backgroundColor: selected ? AppColors.primarySoft : AppColors.surfaceLight,
             foregroundColor: selected ? AppColors.primaryTextTone : AppColors.textPrimary,
-            side: BorderSide(color: selected ? AppColors.primary : AppColors.borderInput, width: selected ? 1.5 : 1),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field)),
+            side: BorderSide(color: selected ? AppColors.primary : AppColors.borderInput, width: selected ? 2 : 1),
+            shape: const StadiumBorder(),
+            minimumSize: const Size(0, 52),
             padding: const EdgeInsets.symmetric(vertical: 12),
           ),
-          child: Text(band.label, style: TextStyle(fontWeight: selected ? FontWeight.w800 : FontWeight.w600)),
+          child: Text(
+            band.label,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: AppColors.textPrimary,
+            ),
+          ),
         ),
       );
     }
@@ -457,9 +465,9 @@ class _WeightBandGrid extends StatelessWidget {
     const bands = PetWeightBand.values;
     return Column(
       children: [
-        Row(children: [cell(bands[0]), const SizedBox(width: 8), cell(bands[1])]),
+        Row(children: [cell(bands[0]), const SizedBox(width: 10), cell(bands[1])]),
         const SizedBox(height: 8),
-        Row(children: [cell(bands[2]), const SizedBox(width: 8), cell(bands[3])]),
+        Row(children: [cell(bands[2]), const SizedBox(width: 10), cell(bands[3])]),
       ],
     );
   }
@@ -497,38 +505,64 @@ class _SegmentRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.inputFill,
-        borderRadius: BorderRadius.circular(AppRadius.field),
-      ),
-      child: Row(
-        children: options.map((option) {
-          final selected = option == value;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(option),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.surfaceLight : Colors.transparent,
-                  borderRadius: BorderRadius.circular(AppRadius.field - 2),
-                  boxShadow: selected ? AppShadows.segment : null,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  labelOf(option),
-                  style: TextStyle(
-                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    color: selected ? AppColors.primaryTextTone : AppColors.textSecondary,
-                  ),
+    // 선택 버튼("장구름의 수첩", 3차 업데이트 J-7): 선택 = 2px 네이비 테두리 +
+    // primarySoft + 굵은 글자, 안 선택 = 1px borderInput + 흰 바탕.
+    return Row(
+      children: [
+        for (var i = 0; i < options.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(
+            child: PetFormChoiceButton(
+              label: labelOf(options[i]),
+              selected: options[i] == value,
+              onTap: () => onChanged(options[i]),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// 반려동물 입력 폼의 알약 선택 버튼(높이 52dp).
+class PetFormChoiceButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const PetFormChoiceButton({super.key, required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? AppColors.primarySoft : AppColors.surfaceLight,
+        shape: StadiumBorder(
+          side: selected
+              ? const BorderSide(color: AppColors.primary, width: 2)
+              : const BorderSide(color: AppColors.borderInput),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            height: 52,
+            child: Center(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
-          );
-        }).toList(),
+          ),
+        ),
       ),
     );
   }

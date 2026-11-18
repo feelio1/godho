@@ -95,7 +95,13 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
 
   Widget _buildScreen(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: const Padding(
+          padding: EdgeInsets.only(right: AppSpacing.page),
+          child: SignupSteps(step: 1, label: '계정 정보'),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(
@@ -105,8 +111,6 @@ class _SignupEmailScreenState extends ConsumerState<SignupEmailScreen> {
             24,
           ),
           children: [
-            const SignupSteps(step: 1, label: '계정 정보'),
-            const SizedBox(height: 4),
             const Text(
               '이메일로 가입할게요',
               style: TextStyle(

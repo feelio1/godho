@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
-/// 가입 플로우 3단계 진행 표시 — "펫클 앱 디자인" 캔버스 시안
-/// (SignupEmail/SignupProfile/SignupPet.dc.html)의 3칸 바 + "N / 3 · 제목"
-/// 모노 캡션. SignupEmailScreen → SignupAgeGenderScreen → SignupPetScreen
-/// 세 화면이 함께 쓴다.
+/// 가입 플로우 3단계 진행 표시("장구름의 수첩", 3차 업데이트 J-7) — 앱바에
+/// 뒤로 버튼과 나란히 3칸 진행 막대 + "n / 3". [label]은 화면 읽기용.
+/// SignupEmailScreen → SignupAgeGenderScreen → SignupPetScreen이 함께 쓴다.
 class SignupSteps extends StatelessWidget {
   final int step; // 1, 2, 3
   final String label;
@@ -15,30 +14,27 @@ class SignupSteps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: List.generate(3, (i) {
-            final on = i < step;
-            return Expanded(
-              child: Container(
-                margin: EdgeInsets.only(right: i == 2 ? 0 : 6),
-                height: 4,
-                decoration: BoxDecoration(
-                  color: on ? AppColors.primary : AppColors.borderCard,
-                  borderRadius: BorderRadius.circular(2),
+    return Semantics(
+      label: '가입 $step / 3 단계 · $label',
+      child: ExcludeSemantics(
+        child: Row(
+          children: [
+            for (var i = 0; i < 3; i++)
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: i < step ? AppColors.primary : AppColors.borderCard,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
                 ),
               ),
-            );
-          }),
+            const SizedBox(width: 6),
+            Text('$step / 3', style: AppTextStyles.mono(size: 14, weight: FontWeight.w700, color: AppColors.textSecondary)),
+          ],
         ),
-        const SizedBox(height: 10),
-        Text(
-          '$step / 3 · $label',
-          style: AppTextStyles.mono(size: 12, color: AppColors.textSecondary),
-        ),
-      ],
+      ),
     );
   }
 }

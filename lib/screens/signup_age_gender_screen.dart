@@ -78,7 +78,13 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
 
   Widget _buildScreen(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: const Padding(
+          padding: EdgeInsets.only(right: AppSpacing.page),
+          child: SignupSteps(step: 2, label: '기본 정보'),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -91,8 +97,6 @@ class _SignupAgeGenderScreenState extends ConsumerState<SignupAgeGenderScreen> {
                   24,
                 ),
                 children: [
-                  const SignupSteps(step: 2, label: '기본 정보'),
-                  const SizedBox(height: 4),
                   const Text(
                     '기본 정보를 알려주세요',
                     style: TextStyle(

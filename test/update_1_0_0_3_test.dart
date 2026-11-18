@@ -229,7 +229,7 @@ void main() {
     testWidgets('순서는 이름 → 종류 → 품종 → 생년월 → 체중, 체중은 4개 구간 + 안내', (tester) async {
       await openForm(tester);
       final ys = [
-        for (final t in ['이름', '종류', '품종', '생년월', '체중']) tester.getTopLeft(find.text(t).first).dy,
+        for (final t in ['이름', '종류', '품종 (선택)', '태어난 해·달 (선택)', '몸무게 (선택)']) tester.getTopLeft(find.text(t).first).dy,
       ];
       expect([...ys]..sort(), ys);
       for (final band in PetWeightBand.values) {

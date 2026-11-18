@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
-import '../theme/app_text_styles.dart';
 import '../widgets/mascot_image.dart';
 import 'login_screen.dart';
 
@@ -20,115 +19,98 @@ class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key, required this.onDone});
 
   Future<void> _login(BuildContext context) async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LoginScreen()));
     if (context.mounted) onDone();
   }
 
   @override
   Widget build(BuildContext context) {
+    // "장구름의 수첩"(3차 업데이트 J-7): 위 300dp 버터색 바탕(아래쪽 둥근
+    // 모서리)에 구름이와 고양이 그림, 제목·설명, 할 수 있는 것 3줄, 맨 아래
+    // 공공데이터 안내 + [시작하기] + 로그인.
     return Scaffold(
-      backgroundColor: AppColors.surfaceLight,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.page,
-            24,
-            AppSpacing.page,
-            16,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 220,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: AppColors.backgroundLight,
-                  borderRadius: BorderRadius.circular(AppRadius.card),
-                ),
-                alignment: Alignment.center,
-                child: const MascotImage(size: 120),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 300 + MediaQuery.paddingOf(context).top,
+              padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top + 16, bottom: 12),
+              decoration: const BoxDecoration(
+                color: AppColors.warmBackground,
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
               ),
-              const SizedBox(height: AppSpacing.section),
-              const Text(
-                '동물병원 가기 전에\n확인하세요',
-                style: TextStyle(
-                  fontSize: 27,
-                  height: 1.35,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.5,
-                  color: AppColors.textPrimary,
-                ),
+              child: Image.asset(
+                'assets/mascot/home_banner.png',
+                fit: BoxFit.contain,
+                semanticLabel: '구름이와 고양이',
+                errorBuilder: (context, error, stackTrace) => const Center(child: MascotImage(size: 140)),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                '펫클은 정부 공공데이터로 병원의 개원 시기와 같은 주소의 인허가 기록, 지역 진료비 시세를 보여드려요.',
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.6,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.section),
-              const _OnboardingStep(
-                number: '01',
-                title: '병원 행정 기록 · 지역 시세 확인',
-                subtitle: '로그인 없이 바로 검색할 수 있어요',
-              ),
-              const SizedBox(height: 16),
-              const _OnboardingStep(
-                number: '02',
-                title: '우리 아이 진료기록 · 예약 알림',
-                subtitle: '로그인하면 계정에 저장돼요',
-              ),
-              const SizedBox(height: 16),
-              const _OnboardingStep(
-                number: '03',
-                title: '병원 저장 · 캘린더',
-                subtitle: '다니는 병원과 일정을 한곳에서',
-              ),
-              const SizedBox(height: AppSpacing.section),
-              Text(
-                '공공데이터 기반 · 병원으로부터 비용을 받지 않습니다',
-                textAlign: TextAlign.center,
-                style: AppTextStyles.src(AppColors.textSecondary),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton(
-                  onPressed: onDone,
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.field),
-                    ),
-                  ),
-                  child: const Text(
-                    '시작하기',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: TextButton(
-                  onPressed: () => _login(context),
-                  child: const Text(
-                    '이미 계정이 있어요 · 로그인',
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.page, 28, AppSpacing.page, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '동물병원 가기 전에\n확인하세요',
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textLabel,
+                      fontSize: 28,
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '언제 문 열었는지, 영업 중으로 등록돼 있는지, 이 동네 진료비는 얼마쯤인지 정부 공공데이터로 보여드려요.',
+                    style: TextStyle(fontSize: 15, height: 1.6, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 24),
+                  const _OnboardingStep(icon: Icons.search, title: '병원 기록 · 동네 진료비', subtitle: '로그인 없이 바로 볼 수 있어요'),
+                  const SizedBox(height: 14),
+                  const _OnboardingStep(
+                    icon: Icons.edit_outlined,
+                    title: '우리 아이 일기 · 진료기록',
+                    subtitle: '로그인하면 계정에 저장돼요',
+                  ),
+                  const SizedBox(height: 14),
+                  const _OnboardingStep(
+                    icon: Icons.calendar_today_outlined,
+                    title: '예약 알림 · 캘린더',
+                    subtitle: '다니는 병원 일정을 한곳에서',
+                  ),
+                  const SizedBox(height: 28),
+                  const SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      '공공데이터 기반 · 병원으로부터 비용을 받지 않아요',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13.5, color: AppColors.textSecondary),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(onPressed: onDone, child: const Text('시작하기')),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => _login(context),
+                      child: const Text(
+                        '이미 계정이 있어요 · 로그인',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: MediaQuery.paddingOf(context).bottom),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -136,37 +118,21 @@ class OnboardingScreen extends StatelessWidget {
 }
 
 class _OnboardingStep extends StatelessWidget {
-  final String number;
+  final IconData icon;
   final String title;
   final String subtitle;
 
-  const _OnboardingStep({
-    required this.number,
-    required this.title,
-    required this.subtitle,
-  });
+  const _OnboardingStep({required this.icon, required this.title, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: AppColors.primarySoft,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            number,
-            style: AppTextStyles.mono(
-              size: 13,
-              weight: FontWeight.w500,
-              color: AppColors.primary,
-            ),
-          ),
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+          child: Icon(icon, size: 22, color: AppColors.primary),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -175,20 +141,10 @@ class _OnboardingStep extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
               ),
               const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-              ),
+              Text(subtitle, style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)),
             ],
           ),
         ),

@@ -10,6 +10,9 @@ import '../providers/pet_tab_provider.dart';
 import '../providers/signup_flow_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
+import '../widgets/signup_steps.dart';
+import '../widgets/mascot_image.dart';
+import '../utils/keep_words.dart';
 import '../utils/network_error.dart';
 import 'account_pet_form_screen.dart';
 import 'signup_done_screen.dart';
@@ -36,9 +39,9 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
   bool _saving = false;
 
   Future<void> _addPet() async {
-    final result = await Navigator.of(context).push<AccountPetFormResult>(
-      MaterialPageRoute(builder: (_) => const AccountPetFormScreen()),
-    );
+    final result = await Navigator.of(
+      context,
+    ).push<AccountPetFormResult>(MaterialPageRoute(builder: (_) => const AccountPetFormScreen()));
     // 가입 중엔 아직 등록된 반려동물이 없으니 삭제 신호는 올 수 없다 —
     // pet이 있을 때만 누적한다.
     if (result != null && !result.isDelete && result.pet != null) {
@@ -63,9 +66,7 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
     final firebaseUser = ref.read(authRepositoryProvider).currentUser;
     if (firebaseUser == null) {
       // 세션이 끊긴 드문 경우 — 처음부터 다시 로그인하게 한다.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인 정보가 만료됐어요. 다시 로그인해주세요.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('로그인 정보가 만료됐어요. 다시 로그인해주세요.')));
       Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
@@ -77,7 +78,9 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
       await userRepo.createUser(
         AppUser(
           uid: firebaseUser.uid,
-          loginType: _loginTypeOf(firebaseUser.providerData.isNotEmpty ? firebaseUser.providerData.first.providerId : null),
+          loginType: _loginTypeOf(
+            firebaseUser.providerData.isNotEmpty ? firebaseUser.providerData.first.providerId : null,
+          ),
           email: firebaseUser.email,
           displayName: firebaseUser.displayName,
           ageGroup: state.ageGroup,
@@ -136,9 +139,7 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(actionFailureMessage(e, '저장'))),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(actionFailureMessage(e, '저장'))));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -152,8 +153,17 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
 
   Widget _buildScreen(BuildContext context) {
     final pets = ref.watch(signupFlowProvider).pets;
+    // "장구름의 수첩"(3차 업데이트 J-7): 진행 막대 3/3, 버터색 띠(손 흔드는
+    // 구름이 + 제목), 등록한 아이 목록 + [반려동물 추가](2차 D항 순서의 입력
+    // 화면), 하단 [등록하고 시작하기] + "나중에 등록할게요".
     return Scaffold(
-      appBar: AppBar(title: const Text('반려동물 등록')),
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: const Padding(
+          padding: EdgeInsets.only(right: AppSpacing.page),
+          child: SignupSteps(step: 3, label: '반려동물'),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -161,14 +171,49 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(AppSpacing.page),
                 children: [
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                    decoration: BoxDecoration(
+                      color: AppColors.warmBackground,
+                      borderRadius: BorderRadius.circular(AppRadius.card),
+                    ),
+                    child: Row(
+                      children: [
+                        const MascotImage(size: 72, assetPath: MascotImage.emptyRecordAssetPath),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                keepWords('함께 사는 아이를 알려주세요'),
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                '나중에 등록해도 괜찮아요',
+                                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   const Text(
                     '지금 등록하지 않아도 돼요. 일기나 진료기록을 처음 쓸 때 등록할 수 있어요.',
-                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                    style: TextStyle(fontSize: 13.5, height: 1.5, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: AppSpacing.section),
                   for (var i = 0; i < pets.length; i++)
                     Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.formField),
+                      padding: const EdgeInsets.only(bottom: 10),
                       child: _PetSummaryCard(
                         pending: pets[i],
                         onRemove: () => ref.read(signupFlowProvider.notifier).removePetAt(i),
@@ -177,13 +222,13 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
                   OutlinedButton.icon(
                     onPressed: _addPet,
                     icon: const Icon(Icons.add),
-                    label: const Text('반려동물 추가'),
+                    label: Text(pets.isEmpty ? '반려동물 추가' : '한 마리 더 추가'),
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.page, AppSpacing.page, AppSpacing.page, 8),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.page, 12, AppSpacing.page, 4),
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
@@ -194,12 +239,12 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('완료'),
+                      : const Text('등록하고 시작하기'),
                 ),
               ),
             ),
             // 반려동물 없이 가입을 끝낸다(2차 업데이트 결정 2) — 등록한 게 있으면
-            // "완료"를 쓰므로 0마리일 때만 보인다.
+            // [등록하고 시작하기]를 쓰므로 0마리일 때만 보인다.
             if (pets.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, AppSpacing.page),
@@ -207,13 +252,19 @@ class _SignupPetScreenState extends ConsumerState<SignupPetScreen> {
                   width: double.infinity,
                   child: TextButton(
                     key: const ValueKey('signup_pet_later'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      minimumSize: const Size(0, 48),
+                    ),
                     onPressed: _saving ? null : _complete,
                     child: _saving
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Text('나중에 등록할게요'),
                   ),
                 ),
-              ),
+              )
+            else
+              const SizedBox(height: AppSpacing.page),
           ],
         ),
       ),
@@ -250,10 +301,7 @@ class _PetSummaryCard extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  pet.summary,
-                  style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
-                ),
+                Text(pet.summary, style: const TextStyle(fontSize: 12.5, color: AppColors.textSecondary)),
               ],
             ),
           ),
