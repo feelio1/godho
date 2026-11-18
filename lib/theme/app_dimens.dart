@@ -25,9 +25,17 @@ class AppSpacing {
 class AppRadius {
   const AppRadius._();
 
-  /// "펫클 앱 디자인" 캔버스 시안의 `.card`/`.sec` 공통 반경(14px).
-  static const double card = 14;
-  static const double field = 10;
+  /// 카드 반경 — "장구름의 수첩"(3차 업데이트 J-1)에서 14 → 22.
+  static const double card = 22;
+
+  /// 입력칸 반경(14). 버튼은 알약([button]).
+  static const double field = 14;
+
+  /// 주요 버튼(56dp) 알약 반경.
+  static const double button = 28;
+
+  /// 작은 띠·상자(시세 띠, 사진 칸 등) 반경.
+  static const double panel = 16;
   static const double pill = 999;
   static const double avatar = 14;
 }
@@ -37,15 +45,11 @@ class AppShadows {
 
   /// 기본 카드 그림자 — 시안 톤(`rgba(17,26,36,…)`, 구 `#0F172A`에서
   /// [AppColors.textPrimary] `#111A24`로 교체)으로 맞췄다.
-  static const List<BoxShadow> card = [
-    BoxShadow(color: Color(0x0A111A24), offset: Offset(0, 1), blurRadius: 2),
-    BoxShadow(color: Color(0x0D111A24), offset: Offset(0, 4), blurRadius: 14),
-  ];
+  /// "장구름의 수첩"(3차 업데이트 J-1): 카드는 그림자 없이 1px 테두리만.
+  static const List<BoxShadow> card = [];
 
   /// 검색 세트 카드 전용, 조금 더 뚜렷한 그림자.
-  static const List<BoxShadow> searchSet = [
-    BoxShadow(color: Color(0x0F111A24), offset: Offset(0, 8), blurRadius: 22),
-  ];
+  static const List<BoxShadow> searchSet = [];
 
   /// 세그먼트 컨트롤의 활성 pill에 쓰는 옅은 그림자.
   static const List<BoxShadow> segment = [

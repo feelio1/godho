@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'app_dimens.dart';
+import 'app_text_styles.dart';
 
 /// Builds the app's [ThemeData] from [AppColors]/[AppSpacing]/[AppRadius]
 /// tokens — screens should pull styling from `Theme.of(context)` rather
 /// than hardcoding values, so the whole app stays visually consistent
 /// from one place.
 ///
-/// "펫클 앱 디자인" 캔버스 시안(2026.10) — IBM Plex Sans KR 폰트(숫자·
-/// 날짜는 IBM Plex Mono, [AppTextStyles.mono] 참고), 네이비 블루 액센트,
-/// 흰 카드 + 옅은 회색 페이지 배경.
+/// "장구름의 수첩"(3차 업데이트 J-1) — IBM Plex Sans KR 하나(숫자는
+/// tabular figures, [AppTextStyles.mono]), 네이비 블루 액센트, 그림자 없는
+/// 흰 카드(1px 테두리) + 옅은 회색 페이지 배경, 알약 모양 버튼.
 class AppTheme {
   const AppTheme._();
 
@@ -62,6 +63,7 @@ class AppTheme {
           letterSpacing: letterSpacing,
           color: color,
           height: height,
+          fontFeatures: AppTextStyles.tabular,
         );
 
     // IBM Plex Sans KR은 400/500/600/700 네 굵기만 번들링돼 있다(시안
@@ -106,7 +108,8 @@ class AppTheme {
         titleTextStyle: textTheme.titleLarge,
       ),
       cardTheme: CardThemeData(
-        // Petcli 카드: 흰 배경 + 또렷한 둥근 모서리 + 옅은 2단 그림자.
+        // "장구름의 수첩"(3차 업데이트 J-1): 그림자 없이 흰 바탕 + 1px
+        // borderCard + 반지름 22.
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -118,34 +121,48 @@ class AppTheme {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        // "펫클 앱 디자인" 캔버스 시안의 `.chip`은 알약(pill)이 아니라
-        // radius 6의 살짝 둥근 사각형이다 — 이전 스테이디움(완전 캡슐)
-        // 모양을 걷어낸다.
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        side: BorderSide.none,
-        backgroundColor: AppColors.closedBg,
-        selectedColor: AppColors.primarySoft,
+        // 선택 칩: 선택됨 = 2px 네이비 테두리 + primarySoft + 굵은 글자,
+        // 안 선택 = 1px borderInput + 흰 바탕. 정보만 보여 주는 칩(상태·
+        // 건수)은 각 화면에서 회색 바탕을 직접 준다.
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+        side: WidgetStateBorderSide.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? const BorderSide(color: AppColors.primary, width: 2)
+              : const BorderSide(color: AppColors.borderInput),
+        ),
+        color: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? AppColors.primarySoft : AppColors.surfaceLight,
+        ),
+        checkmarkColor: AppColors.primary,
         // 칩 라벨도 앱 기본 글꼴로(지정하지 않으면 기기 시스템 글꼴로 대체된다).
-        labelStyle: const TextStyle(
-          fontFamily: 'IBM Plex Sans KR',
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textLabel,
+        labelStyle: WidgetStateTextStyle.resolveWith(
+          (states) => TextStyle(
+            fontFamily: AppTextStyles.fontFamily,
+            fontSize: 13,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textPrimary,
+          ),
         ),
         secondaryLabelStyle: const TextStyle(
-          fontFamily: 'IBM Plex Sans KR',
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontFamily: AppTextStyles.fontFamily,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
           color: AppColors.primaryTextTone,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        // 입력칸이 페이지 배경(연회색)과 구분되게 흰 바탕 + 1px 테두리.
+        // 흰 바탕 + 1px borderInput(대비 3:1 이상), 반지름 14, 높이 약 52dp.
         fillColor: isDark ? AppColors.inputFill : AppColors.surfaceLight,
         hintStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textPlaceholder),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        labelStyle: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+        floatingLabelStyle: const TextStyle(
+          fontFamily: AppTextStyles.fontFamily,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primary,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.field),
           borderSide: const BorderSide(color: AppColors.borderInput),
@@ -156,55 +173,95 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.field),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.field),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.field),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
+        // 주요 버튼: 높이 56dp, 알약(반지름 28), 네이비 바탕 흰 글자.
         style: FilledButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field)),
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          textStyle: textTheme.labelLarge,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.borderCard,
+          disabledForegroundColor: AppColors.textPlaceholder,
+          minimumSize: const Size(64, 56),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+          textStyle: textTheme.labelLarge?.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
+        // 보조 버튼: 높이 48dp, 알약, 1.5px 네이비 테두리 + 네이비 글자.
         style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field)),
-          side: const BorderSide(color: AppColors.borderInput),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-          foregroundColor: AppColors.textLabel,
-          textStyle: textTheme.labelMedium,
+          minimumSize: const Size(48, 48),
+          shape: const StadiumBorder(),
+          side: const BorderSide(color: AppColors.primary, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          foregroundColor: AppColors.primary,
+          textStyle: textTheme.labelLarge?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
+        // 텍스트 버튼도 터치 높이 44dp 이상.
         style: TextButton.styleFrom(
+          minimumSize: const Size(44, 44),
+          foregroundColor: AppColors.primary,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        extendedSizeConstraints: BoxConstraints.tightFor(height: 56),
+        shape: StadiumBorder(),
+      ),
       segmentedButtonTheme: SegmentedButtonThemeData(
-        style: SegmentedButton.styleFrom(
-          backgroundColor: AppColors.inputFill,
-          selectedBackgroundColor: AppColors.surfaceLight,
-          selectedForegroundColor: AppColors.primaryTextTone,
-          foregroundColor: AppColors.textSecondary,
-          side: BorderSide.none,
-          textStyle: textTheme.labelMedium,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.field - 2)),
+        // 세그먼트: closedBg 둥근 막대 안에 선택 칸만 흰색·굵게.
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? AppColors.surfaceLight : AppColors.closedBg,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? AppColors.textPrimary : AppColors.textSecondary,
+          ),
+          side: const WidgetStatePropertyAll(BorderSide(color: AppColors.closedBg, width: 3)),
+          textStyle: WidgetStateProperty.resolveWith(
+            (states) => textTheme.labelMedium?.copyWith(
+              fontSize: 14,
+              fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          minimumSize: const WidgetStatePropertyAll(Size(48, 44)),
+          shape: const WidgetStatePropertyAll(StadiumBorder()),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
+        // 하단 탭: 선택 = feeRangeFill 알약 + 네이비 아이콘·굵은 글자,
+        // 안 선택 = textSecondary(옅은 회색 아님). 라벨 12sp.
         backgroundColor: colorScheme.surface,
-        indicatorColor: Colors.transparent,
+        indicatorColor: AppColors.feeRangeFill,
+        indicatorShape: const StadiumBorder(),
         elevation: 0,
-        height: 74,
+        height: 76,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
-            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w600 : FontWeight.w400,
-            color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textPlaceholder,
+            fontSize: 12,
+            fontWeight: states.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textSecondary,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(
           (states) => IconThemeData(
-            color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textPlaceholder,
+            color: states.contains(WidgetState.selected) ? AppColors.primary : AppColors.textSecondary,
           ),
         ),
       ),

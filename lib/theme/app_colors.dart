@@ -65,12 +65,18 @@ class AppColors {
   static const textPrimary = Color(0xFF111A24); // 제목
   static const textLabel = Color(0xFF34404D); // 폼 라벨 등
   static const textSecondary = Color(0xFF4A5562); // 보조
-  static const textPlaceholder = Color(0xFF8A94A0); // placeholder
+  /// 입력칸 힌트·보조 글자 — 흰 바탕 대비를 위해 #8A94A0에서 짙게 바꿨다
+  /// (3차 업데이트 J-1, "장구름의 수첩").
+  static const textPlaceholder = Color(0xFF5B6573);
 
   // Borders — 카드/구분선/입력 필드에서 쓰임새가 조금씩 다른 세 톤.
   static const borderCard = Color(0xFFE2E6EB);
   static const borderMuted = Color(0xFFEEF1F4);
-  static const borderInput = Color(0xFFD5DAE0);
+  /// 입력칸·안 선택 칩 테두리 — 배경 대비 3:1 이상(3차 업데이트 J-1).
+  static const borderInput = Color(0xFF7B8694);
+
+  /// 점선·공책 줄(병원 기록 수첩 줄, 일기 원고 줄 등).
+  static const notebookLine = Color(0xFFC5CCD6);
 
   // Surfaces.
   static const backgroundLight = Color(0xFFF5F6F8); // 페이지 배경
@@ -82,13 +88,26 @@ class AppColors {
   /// 네이비는 여전히 주색이고, 이 크림 톤은 장구름 인사 영역처럼 친근함을
   /// 담당하는 좁은 자리에만 쓴다. 병원 데이터 카드는 계속 흰 배경
   /// ([surfaceLight])을 쓴다 — 신뢰가 중요한 영역에 감성 톤을 섞지 않는다.
-  static const warmBackground = Color(0xFFFFF8EC);
+  static const warmBackground = Color(0xFFFFF6CC); // 구름이 버터색
+
+  /// 네이비 바탕 위 버튼(버터색) — 홈 검색 카드의 화살표 버튼 등.
+  static const butter = Color(0xFFFFE58A);
+
+  /// 네이비 바탕 위 칩 바탕.
+  static const navyTint = Color(0xFF2F5F9E);
+
+  /// 네이비 바탕 위 보조 글자.
+  static const onNavyCaption = Color(0xFFD6E2F3);
+
+  /// 고지문 상자 바탕(타임라인 필수 고지, 치수 안내 등).
+  static const softPanel = Color(0xFFF1F3F6);
 
   /// 일기 전용 강조색("방향 개편" 지시서 E) — 캘린더에서 진료기록(회색)·
   /// 예약(네이비)과 구분되는 세 번째 점/배지 색. 평가·경고 의미가 없는
   /// 순수 구분색이라 [warmBackground]와 같은 "온기" 계열의 호박색을
   /// 쓴다 — 빨강(시스템 오류 전용)과는 전혀 다른 계열.
-  static const diaryAccent = Color(0xFFC98A3E);
+  /// 흰 바탕 글자 대비 5:1 이상이 되도록 짙은 꿀색(3차 업데이트 J-1).
+  static const diaryAccent = Color(0xFF8A5A12);
   /// 폐업 병원 카드 배경 — [backgroundLight]와 같은 톤이라 카드가 페이지
   /// 배경 위에서 옅게 가라앉아 보이되 완전히 묻히지는 않는다.
   static const closedCardBg = Color(0xFFF5F6F8);
