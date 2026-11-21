@@ -99,6 +99,8 @@ flutter:
     - assets/fees.json
     - assets/mascot/
     - assets/legal/
+    # 빈 일기 화면의 견본 그림일기 장(tool/diary_sample/make_sample_page.dart로 생성).
+    - assets/diary/
     # 구글 로그인 버튼의 공식 G 로고(Google 브랜드 가이드 원본, 다시 그리지 않음).
     - assets/brand/
     # 손글씨 폰트(나눔손글씨 펜) 라이선스 — SIL OFL 1.1, 폰트와 함께 배포.

@@ -8,6 +8,7 @@ import '../../models/pet.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
 import '../../theme/app_text_styles.dart';
+import '../../utils/keep_words.dart';
 import '../../widgets/inline_error_message.dart';
 import '../../widgets/mascot_image.dart';
 import '../../widgets/mascot_message.dart';
@@ -139,6 +140,10 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
                     InlineErrorMessage(error: error, onRetry: () => ref.invalidate(diariesPageProvider)),
                 data: (diaries) {
                   if (diaries.isEmpty) {
+                    // 그림일기 스위치가 열렸으면 위에 견본 그림일기 장(4차 업데이트 K-6).
+                    if (ref.watch(diaryBookVisibleProvider)) {
+                      return _SampleDiaryPageEmpty(petName: widget.selectedPet.name, onWrite: _openForm);
+                    }
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
@@ -485,4 +490,76 @@ class _DashedLinesPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _DashedLinesPainter oldDelegate) =>
       oldDelegate.lines != lines || oldDelegate.lineHeight != lineHeight;
+}
+
+/// 일기가 0편일 때의 견본 그림일기 장 — 실제 엔진·렌더러로 미리 만든 에셋
+/// (`assets/diary/sample_page.png`, tool/diary_sample/make_sample_page.dart)에
+/// 회색 "견본" 칩, 손글씨 한 줄, [첫 일기 쓰기].
+class _SampleDiaryPageEmpty extends StatelessWidget {
+  final String petName;
+  final VoidCallback onWrite;
+
+  const _SampleDiaryPageEmpty({required this.petName, required this.onWrite});
+
+  static const assetPath = 'assets/diary/sample_page.png';
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      key: const ValueKey('diary_sample_page'),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.page, 16, AppSpacing.page, 96),
+      children: [
+        Center(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.borderCard),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset(assetPath, width: 240, semanticLabel: '견본 그림일기 장'),
+              ),
+              Positioned(
+                left: 8,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.closedBg,
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
+                  ),
+                  child: const Text(
+                    '견본',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.closedText),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          keepWords('일기를 쓰면 이렇게 그림일기 장이 돼요'),
+          textAlign: TextAlign.center,
+          style: AppTextStyles.hand(size: 24, color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '오늘 $petName의 하루를 남겨보세요',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: FilledButton.icon(
+            onPressed: onWrite,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('첫 일기 쓰기'),
+          ),
+        ),
+      ],
+    );
+  }
 }

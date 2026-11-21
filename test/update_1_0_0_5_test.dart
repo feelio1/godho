@@ -19,6 +19,8 @@ import 'package:petcliniccheck/diary/data/diary_repository.dart';
 import 'package:petcliniccheck/diary/models/diary.dart';
 import 'package:petcliniccheck/diary/providers/diary_providers.dart';
 import 'package:petcliniccheck/diary/screens/diary_detail_screen.dart';
+import 'package:petcliniccheck/diary/screens/diary_list_body.dart';
+import 'package:petcliniccheck/diary/screens/today_diary_row.dart';
 import 'package:petcliniccheck/diary_book/book_input.dart';
 import 'package:petcliniccheck/diary_book/book_layout.dart';
 import 'package:petcliniccheck/diary_book/book_layout_engine.dart';
@@ -474,6 +476,115 @@ void main() {
       await pumpSaved(tester, diaries: [_diary()], bookOn: false);
       expect(find.byKey(const ValueKey('first_diary_page_sheet')), findsNothing);
       expect(find.text('그림일기 장으로 볼 수 있어요'), findsNothing);
+    });
+  });
+
+  group('K-5 홈 일기 띠 캡션 · K-6 견본 그림일기 장', () {
+    late Directory dir;
+    setUpAll(() => initializeDateFormatting('ko_KR'));
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      dir = await Directory.systemTemp.createTemp('k5');
+    });
+    tearDown(() => dir.delete(recursive: true));
+
+    const pet = Pet(id: 'account:p1', name: '구름이', species: PetSpecies.dog);
+
+    List<Override> overrides({required bool bookOn, required List<Diary> diaries}) => [
+      authStateProvider.overrideWith((ref) => Stream<User?>.value(_FakeUser())),
+      diaryRepositoryProvider.overrideWithValue(_FakeDiaryRepository(diaries)),
+      diaryBookEnabledProvider.overrideWith((ref) => Stream.value(bookOn)),
+      effectivePetsProvider.overrideWith((ref) async => const [pet]),
+      userRepositoryProvider.overrideWithValue(UserRepository(firestore: FakeFirebaseFirestore())),
+      diaryPageImageServiceProvider.overrideWithValue(_FakePageService(dir)),
+    ];
+
+    test('장 수는 목록이 끝까지 들어왔을 때만, 그 반려동물 일기만 센다', () {
+      final page = DiaryPage(
+        diaries: [
+          _diary(),
+          _diary(id: 'd2'),
+        ],
+      );
+      expect(homeDiaryPageCount(page, 'account:p1'), 2);
+      expect(homeDiaryPageCount(page, 'account:other'), isNull);
+      expect(homeDiaryPageCount(DiaryPage(diaries: [_diary()], hasMore: true), 'account:p1'), isNull);
+      expect(homeDiaryPageCount(null, 'account:p1'), isNull);
+    });
+
+    Future<void> pumpRow(WidgetTester tester, {required bool bookOn}) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides(
+            bookOn: bookOn,
+            diaries: [
+              _diary(),
+              _diary(id: 'd2'),
+              _diary(id: 'd3'),
+            ],
+          ),
+          child: const MaterialApp(home: Scaffold(body: TodayDiaryRow())),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('스위치가 열리면 "그림일기 3장이 모였어요 · 나만 볼 수 있어요"(압박 낱말 없음)', (tester) async {
+      await pumpRow(tester, bookOn: true);
+      expect(find.text('그림일기 3장이 모였어요'), findsOneWidget);
+      expect(find.text(' · 나만 볼 수 있어요'), findsOneWidget);
+      expect(find.text('일기는 나만 볼 수 있어요'), findsNothing);
+      for (final word in ['연속', '더 쓰면', '놓치지', '남았', '목표']) {
+        expect(find.textContaining(word), findsNothing, reason: word);
+      }
+      await tester.tap(find.byKey(const ValueKey('home_diary_page_count')));
+      await tester.pumpAndSettle();
+      expect(find.text('그림일기 만들기'), findsWidgets, reason: '그림일기 만들기 흐름으로');
+    });
+
+    testWidgets('스위치가 닫히면 기존 캡션', (tester) async {
+      await pumpRow(tester, bookOn: false);
+      expect(find.text('일기는 나만 볼 수 있어요'), findsOneWidget);
+      expect(find.textContaining('장이 모였어요'), findsNothing);
+    });
+
+    Future<void> pumpEmptyList(WidgetTester tester, {required bool bookOn}) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides(bookOn: bookOn, diaries: const []),
+          child: const MaterialApp(
+            home: Scaffold(
+              body: DiaryListBody(selectedPet: pet, allPets: [pet]),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('일기 0편 + 스위치 열림: 견본 그림일기 장 + "견본" 칩 + 손글씨 한 줄 + [첫 일기 쓰기]', (tester) async {
+      await pumpEmptyList(tester, bookOn: true);
+      expect(find.byKey(const ValueKey('diary_sample_page')), findsOneWidget);
+      expect(find.text('견본'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data?.replaceAll('\u2060', '') == '일기를 쓰면 이렇게 그림일기 장이 돼요'),
+        findsOneWidget,
+      );
+      expect(find.text('첫 일기 쓰기'), findsOneWidget);
+      final image = tester.widget<Image>(find.byType(Image).first);
+      expect((image.image as AssetImage).assetName, 'assets/diary/sample_page.png');
+    });
+
+    testWidgets('일기 0편 + 스위치 닫힘: 견본 없이 지금 화면 그대로', (tester) async {
+      await pumpEmptyList(tester, bookOn: false);
+      expect(find.byKey(const ValueKey('diary_sample_page')), findsNothing);
+      expect(find.text('견본'), findsNothing);
+      expect(find.text('첫 일기 쓰기'), findsOneWidget);
+    });
+
+    test('견본 에셋 1x·2x가 있다', () {
+      expect(File('assets/diary/sample_page.png').existsSync(), isTrue);
+      expect(File('assets/diary/2.0x/sample_page.png').existsSync(), isTrue);
     });
   });
 }

@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/effective_pets_provider.dart';
 import '../../screens/account_pet_actions.dart';
+import '../../diary_book/providers/diary_book_switch.dart';
+import '../../diary_book/screens/diary_book_setup_screen.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
 import '../../theme/app_text_styles.dart';
 import '../../utils/keep_words.dart';
 import '../../widgets/mascot_image.dart';
 import '../../utils/appointment_calendar.dart' show dateOnly;
+import '../data/diary_repository.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_detail_screen.dart';
@@ -53,10 +56,19 @@ class TodayDiaryRow extends ConsumerWidget {
     final pet = pets.first;
 
     final diary = ref.watch(todayDiaryProvider(pet.id)).value;
+    // 그림일기 장 수(4차 업데이트 K-5) — 이미 불러온 최신 일기 목록으로 센다.
+    // 목록이 다 들어왔을 때(더 없음)만 정확히 셀 수 있어 그때만 보여 주고,
+    // 아니면 기존 캡션. 개수만 — 목표·남은 개수·연속 기록은 없다.
+    final count = ref.watch(diaryBookVisibleProvider)
+        ? homeDiaryPageCount(ref.watch(diariesPageProvider).value, pet.id)
+        : null;
 
     return _Strip(
       text: diary == null ? '${pet.name}의 오늘, 한 줄만 남겨 볼까요?' : '${pet.name}의 오늘 일기를 남겼어요',
       caption: '일기는 나만 볼 수 있어요',
+      pageCount: count,
+      onPageCountTap: () =>
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => DiaryBookSetupScreen(initialPetId: pet.id))),
       action: diary == null ? '일기 쓰기' : '일기 보기',
       onTap: () {
         if (diary == null) {
@@ -69,13 +81,32 @@ class TodayDiaryRow extends ConsumerWidget {
   }
 }
 
+/// 홈 일기 띠의 그림일기 장 수 — 목록이 끝까지 들어왔을 때만 센다(아니면 null).
+int? homeDiaryPageCount(DiaryPage? page, String petId) {
+  if (page == null || page.hasMore) return null;
+  final n = page.diaries.where((d) => d.petIds.contains(petId)).length;
+  return n >= 1 ? n : null;
+}
+
 class _Strip extends StatelessWidget {
   final String text;
   final String caption;
   final String action;
+
+  /// 있으면 캡션이 "그림일기 {n}장이 모였어요 · 나만 볼 수 있어요"가 되고,
+  /// 앞부분을 누르면 [onPageCountTap](그림일기 만들기).
+  final int? pageCount;
+  final VoidCallback? onPageCountTap;
   final VoidCallback onTap;
 
-  const _Strip({required this.text, required this.caption, required this.action, required this.onTap});
+  const _Strip({
+    required this.text,
+    required this.caption,
+    required this.action,
+    required this.onTap,
+    this.pageCount,
+    this.onPageCountTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -98,7 +129,34 @@ class _Strip extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(caption, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                if (pageCount == null)
+                  Text(caption, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))
+                else
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Semantics(
+                        button: true,
+                        child: InkWell(
+                          key: const ValueKey('home_diary_page_count'),
+                          onTap: onPageCountTap,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Text(
+                              '그림일기 $pageCount장이 모였어요',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Text(' · 나만 볼 수 있어요', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    ],
+                  ),
               ],
             ),
           ),
