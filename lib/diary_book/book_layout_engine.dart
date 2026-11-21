@@ -61,6 +61,17 @@ BookLayoutResult layoutBook(BookInput input, {BookSpec spec = BookSpec.a5}) {
   return BookLayoutOk(BookLayout(pages));
 }
 
+/// 일기 한 편만 그림일기 장으로 배치한다(4차 업데이트 K-1) — 책과 완전히
+/// 같은 규칙(원고지 12칸, 사진 1~5장, 0장이면 원고지 줄 증가, 6장 이상은 앞
+/// 5장, 넘치면 "(이어서)" 쪽)으로, 일기 쪽과 이어지는 쪽만 돌려준다. 표지·
+/// 메모·"함께한 날들" 쪽은 없고, 쪽 번호는 렌더러에서 그리지 않는다
+/// (`renderBookPdf(pageNumbers: false)`).
+List<BookPage> layoutSingleDiary(BookDiaryEntry entry, {BookSpec spec = BookSpec.a5}) {
+  final pages = <BookPage>[];
+  _addDiaryPages(spec, entry, pages);
+  return pages;
+}
+
 BookPhoto? _findCoverPhoto(BookInput input, List<BookDiaryEntry> sorted) {
   final all = [for (final e in sorted) ...e.photos];
   if (input.coverPhotoId != null) {

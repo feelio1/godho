@@ -103,34 +103,9 @@ DiaryBookSource buildDiaryBookSource({
   final entries = <BookDiaryEntry>[];
   var missing = 0;
   for (final diary in diaries) {
-    final localPending = pendingByDiary[diary.id] ?? const <DiaryPhotoQueueItem>[];
-    // 아직 올라가는 중인 사진 중 이 기기 대기열에도 없는 것 = 다른 기기의 사진.
-    final remotePending = diary.pendingPhotoCount - localPending.length;
-    if (remotePending > 0) missing += remotePending;
-    final photos = <(int, BookPhoto)>[];
-    for (final p in sortedDiaryPhotos(diary.photos)) {
-      if (p.path.isEmpty) continue;
-      photos.add((p.order, BookPhoto(id: p.path, widthPx: p.width, heightPx: p.height)));
-      thumbnails[p.path] = p.displayThumbPath;
-    }
-    for (final item in localPending) {
-      final id = '$kBookLocalPhotoPrefix${item.mainFilePath}';
-      photos.add((item.order, BookPhoto(id: id, widthPx: item.width, heightPx: item.height)));
-      thumbnails[id] = '$kBookLocalPhotoPrefix${item.thumbFilePath}';
-    }
-    final ordered = photos.indexed.toList()
-      ..sort((a, b) {
-        final diff = a.$2.$1 - b.$2.$1;
-        return diff != 0 ? diff : a.$1 - b.$1;
-      });
-    entries.add(BookDiaryEntry(
-      id: diary.id,
-      date: diary.date,
-      weather: _weather(diary.weather),
-      activities: [for (final a in diary.activities) a.label],
-      text: diary.text,
-      photos: [for (final o in ordered) o.$2.$2],
-    ));
+    final built = buildBookDiaryEntry(diary, pendingByDiary[diary.id] ?? const [], thumbnails: thumbnails);
+    missing += built.missingPhotoCount;
+    entries.add(built.entry);
   }
   return DiaryBookSource(
     input: BookInput(
@@ -143,6 +118,64 @@ DiaryBookSource buildDiaryBookSource({
     thumbnails: thumbnails,
     missingPhotoCount: missing,
   );
+}
+
+/// 일기 한 편 → 엔진 입력 한 편. 책 만들기와 일기 한 장 보기(4차 K-1)가 같은
+/// 변환을 쓴다 — 사진은 올라간 것(다운로드 URL)과 이 기기 업로드 대기 중인
+/// 것(로컬 파일)을 [DiaryPhoto.order] 순서로 합치고, 다른 기기에서 아직
+/// 올리는 중이라 이 기기에 파일이 없는 사진은 빼고 그 수를 센다.
+({BookDiaryEntry entry, int missingPhotoCount}) buildBookDiaryEntry(
+  Diary diary,
+  List<DiaryPhotoQueueItem> localPending, {
+  Map<String, String>? thumbnails,
+}) {
+  // 아직 올라가는 중인 사진 중 이 기기 대기열에도 없는 것 = 다른 기기의 사진.
+  final remotePending = diary.pendingPhotoCount - localPending.length;
+  final photos = <(int, BookPhoto)>[];
+  for (final p in sortedDiaryPhotos(diary.photos)) {
+    if (p.path.isEmpty) continue;
+    photos.add((p.order, BookPhoto(id: p.path, widthPx: p.width, heightPx: p.height)));
+    thumbnails?[p.path] = p.displayThumbPath;
+  }
+  for (final item in localPending) {
+    final id = '$kBookLocalPhotoPrefix${item.mainFilePath}';
+    photos.add((item.order, BookPhoto(id: id, widthPx: item.width, heightPx: item.height)));
+    thumbnails?[id] = '$kBookLocalPhotoPrefix${item.thumbFilePath}';
+  }
+  final ordered = photos.indexed.toList()
+    ..sort((a, b) {
+      final diff = a.$2.$1 - b.$2.$1;
+      return diff != 0 ? diff : a.$1 - b.$1;
+    });
+  return (
+    entry: BookDiaryEntry(
+      id: diary.id,
+      date: diary.date,
+      weather: _weather(diary.weather),
+      activities: [for (final a in diary.activities) a.label],
+      text: diary.text,
+      photos: [for (final o in ordered) o.$2.$2],
+    ),
+    missingPhotoCount: remotePending > 0 ? remotePending : 0,
+  );
+}
+
+/// 일기 한 장 보기 캐시 키 — 일기 글·날씨·활동·사진·판형·렌더러 버전·용도
+/// (화면 보기/공유)가 같으면 같은 키.
+String diaryPageCacheKey(BookDiaryEntry e, BookSpec spec, {required bool share}) {
+  final buffer = StringBuffer()
+    ..writeln('page-v$kBookRendererVersion')
+    ..writeln(share ? 'share' : 'view')
+    ..writeln(spec.cacheKey)
+    ..writeln(e.id)
+    ..writeln(e.date.toIso8601String())
+    ..writeln(e.weather?.name ?? '')
+    ..writeln(e.activities.join(','))
+    ..writeln(jsonEncode(e.text));
+  for (final p in e.photos) {
+    buffer.writeln('${p.id}|${p.widthPx}x${p.heightPx}');
+  }
+  return sha1.convert(utf8.encode(buffer.toString())).toString();
 }
 
 /// 같은 조건이면 같은 키 — 일기 글·날씨·활동·사진·제목·표지·판형·렌더러

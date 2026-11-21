@@ -67,7 +67,22 @@ const _cacheFolder = 'diary_book_preview';
 /// 그림일기 임시 PDF를 전부 지운다 — 로그아웃·회원 탈퇴 때 부른다(다른
 /// 계정이 이 기기에서 이전 사람의 미리보기를 보지 않게). 실패해도 예외를
 /// 던지지 않는다.
-Future<void> clearDiaryBookCache() => DiaryBookPdfService().clearCache();
+Future<void> clearDiaryBookCache() async {
+  await DiaryBookPdfService().clearCache();
+  // 일기 한 장 보기·공유 이미지(4차 K-1)도 함께.
+  try {
+    final dir = await diaryPageCacheDirectory();
+    if (await dir.exists()) await dir.delete(recursive: true);
+  } catch (e) {
+    debugPrint('[clearDiaryBookCache] 그림일기 장 캐시 삭제 실패(무시): $e');
+  }
+}
+
+/// 일기 한 장 보기·공유 PNG를 두는 앱 캐시 폴더.
+Future<Directory> diaryPageCacheDirectory() async {
+  final base = await getApplicationCacheDirectory();
+  return Directory('${base.path}/diary_page_preview');
+}
 
 Future<Directory> diaryBookCacheDirectory() async {
   final base = await getApplicationCacheDirectory();
@@ -95,7 +110,7 @@ class DiaryBookPdfService implements DiaryBookPdfGenerator {
       return DiaryBookPdf(path: file.path, bytes: await file.readAsBytes());
     }
 
-    final photoPaths = await _resolvePhotoFiles(layout, onProgress);
+    final photoPaths = await resolveBookPhotoFiles(bookLayoutPhotoIds(layout.pages), onProgress);
     final fonts = BookRenderFonts(
       handwriting: (await rootBundle.load(handwritingFontAsset)).buffer.asUint8List(),
       label: (await rootBundle.load(labelFontAsset)).buffer.asUint8List(),
@@ -118,40 +133,6 @@ class DiaryBookPdfService implements DiaryBookPdfGenerator {
     }
   }
 
-  /// 쪽에 실제로 쓰이는 사진만, 하나씩 로컬 파일로 준비한다 — 올라간 사진은
-  /// 이미지 디스크 캐시(`cached_network_image`와 같은 캐시)를 재사용하고
-  /// 없을 때만 원본을 받는다. 업로드 대기 중 사진은 로컬 파일 그대로.
-  /// 준비하지 못한 사진은 빼고(그 칸은 빈 칸으로 그린다) 계속한다.
-  Future<Map<String, String>> _resolvePhotoFiles(
-    BookLayout layout,
-    void Function(DiaryBookProgress progress)? onProgress,
-  ) async {
-    final ids = <String>{
-      for (final page in layout.pages)
-        ...switch (page) {
-          CoverPage(:final photo) => [if (photo != null) photo.photo.id],
-          DiaryEntryPage(:final photos) => [for (final p in photos) p.photo.id],
-          _ => const <String>[],
-        },
-    }.toList();
-    final paths = <String, String>{};
-    for (final (i, id) in ids.indexed) {
-      onProgress?.call(DiaryBookProgress(DiaryBookPhase.photos, i, ids.length));
-      try {
-        if (id.startsWith(kBookLocalPhotoPrefix)) {
-          final path = id.substring(kBookLocalPhotoPrefix.length);
-          if (await File(path).exists()) paths[id] = path;
-        } else {
-          paths[id] = (await DefaultCacheManager().getSingleFile(id)).path;
-        }
-      } catch (e) {
-        debugPrint('[DiaryBookPdfService] 사진 준비 실패(빈 칸으로 그림): $e');
-      }
-    }
-    onProgress?.call(DiaryBookProgress(DiaryBookPhase.photos, ids.length, ids.length));
-    return paths;
-  }
-
   Future<void> _deleteOthers(Directory dir, {required String keep}) async {
     try {
       await for (final entity in dir.list()) {
@@ -163,6 +144,42 @@ class DiaryBookPdfService implements DiaryBookPdfGenerator {
   }
 }
 
+/// 쪽에 실제로 쓰이는 사진 id.
+List<String> bookLayoutPhotoIds(List<BookPage> pages) => <String>{
+      for (final page in pages)
+        ...switch (page) {
+          CoverPage(:final photo) => [if (photo != null) photo.photo.id],
+          DiaryEntryPage(:final photos) => [for (final p in photos) p.photo.id],
+          _ => const <String>[],
+        },
+    }.toList();
+
+/// 쪽에 실제로 쓰이는 사진만, 하나씩 로컬 파일로 준비한다 — 올라간 사진은
+/// 이미지 디스크 캐시(`cached_network_image`와 같은 캐시)를 재사용하고
+/// 없을 때만 원본을 받는다. 업로드 대기 중 사진은 로컬 파일 그대로.
+/// 준비하지 못한 사진은 빼고(그 칸은 빈 칸으로 그린다) 계속한다.
+Future<Map<String, String>> resolveBookPhotoFiles(
+  List<String> ids,
+  void Function(DiaryBookProgress progress)? onProgress,
+) async {
+  final paths = <String, String>{};
+  for (final (i, id) in ids.indexed) {
+    onProgress?.call(DiaryBookProgress(DiaryBookPhase.photos, i, ids.length));
+    try {
+      if (id.startsWith(kBookLocalPhotoPrefix)) {
+        final path = id.substring(kBookLocalPhotoPrefix.length);
+        if (await File(path).exists()) paths[id] = path;
+      } else {
+        paths[id] = (await DefaultCacheManager().getSingleFile(id)).path;
+      }
+    } catch (e) {
+      debugPrint('[resolveBookPhotoFiles] 사진 준비 실패(빈 칸으로 그림): $e');
+    }
+  }
+  onProgress?.call(DiaryBookProgress(DiaryBookPhase.photos, ids.length, ids.length));
+  return paths;
+}
+
 /// isolate로 넘기는 작업 — 결과 PDF는 [outPath]에 쓴다(큰 바이트를 다시
 /// 메인 isolate로 복사하지 않게).
 class DiaryBookRenderJob {
@@ -172,12 +189,20 @@ class DiaryBookRenderJob {
   final Map<String, String> photoPaths;
   final String outPath;
 
+  /// false면 쪽 번호를 그리지 않는다(일기 한 장 보기·공유).
+  final bool pageNumbers;
+
+  /// 공유 이미지에만 넣는 하단 표시(null이면 없음).
+  final String? shareFooter;
+
   const DiaryBookRenderJob({
     required this.layout,
     required this.spec,
     required this.fonts,
     required this.photoPaths,
     required this.outPath,
+    this.pageNumbers = true,
+    this.shareFooter,
   });
 }
 
@@ -224,6 +249,8 @@ Future<void> _renderEntry((DiaryBookRenderJob, SendPort) args) async {
         }
       },
       onProgress: (done, total) => send.send(('progress', done, total)),
+      pageNumbers: job.pageNumbers,
+      shareFooter: job.shareFooter,
     );
     final tmp = File('${job.outPath}.part');
     await tmp.writeAsBytes(bytes, flush: true);

@@ -43,6 +43,9 @@ class BookPalette {
   static const sun = PdfColor.fromInt(0xFFF2B33D);
   static const cloud = PdfColor.fromInt(0xFFB9C7DA);
   static const snow = PdfColor.fromInt(0xFF3D7CC9);
+
+  /// 공유 이미지 하단 표시 글자 — 앱의 textSecondary(#4A5562).
+  static const footerGrey = PdfColor.fromInt(0xFF4A5562);
 }
 
 const double _mm = PdfPageFormat.mm;
@@ -50,18 +53,31 @@ const double _mm = PdfPageFormat.mm;
 /// 렌더러 버전 — 그리는 방식이 바뀌면 올려서 캐시된 미리보기를 무효화한다.
 const int kBookRendererVersion = 2;
 
+/// 공유 이미지 맨 아래 바깥 여백(mm)과 그 안의 글자 크기(pt) — 글자 높이가
+/// 이미지 높이의 약 2%가 되게(4차 업데이트 K-4).
+const double kShareFooterMm = 9;
+const double kShareFooterFontPt = 11;
+
+/// 공유 이미지에만 넣는 하단 표시.
+const String kShareFooterText = '펫클로 만든 그림일기';
+
 Future<Uint8List> renderBookPdf(
   BookLayout layout, {
   required BookSpec spec,
   required BookRenderFonts fonts,
   required BookPhotoLoader loadPhoto,
   BookRenderProgress? onProgress,
+  bool pageNumbers = true,
+  String? shareFooter,
 }) async {
   final hand = pw.Font.ttf(ByteData.sublistView(fonts.handwriting));
   final label = pw.Font.ttf(ByteData.sublistView(fonts.label));
-  final r = _Renderer(spec: spec, hand: hand, label: label, loadPhoto: loadPhoto);
+  final r = _Renderer(spec: spec, hand: hand, label: label, loadPhoto: loadPhoto, pageNumbers: pageNumbers);
   final doc = pw.Document(title: layout.pages.whereType<CoverPage>().firstOrNull?.title, creator: 'Petcli');
-  final format = PdfPageFormat(spec.widthMm * _mm, spec.heightMm * _mm, marginAll: 0);
+  // 공유 이미지는 쪽 아래에 바깥 여백을 더해 그 안에만 [shareFooter]를 쓴다 —
+  // 쪽 안의 배치·그림은 그대로다.
+  final footerMm = shareFooter == null ? 0.0 : kShareFooterMm;
+  final format = PdfPageFormat(spec.widthMm * _mm, (spec.heightMm + footerMm) * _mm, marginAll: 0);
   final total = layout.pages.length;
   for (final page in layout.pages) {
     doc.addPage(pw.Page(
@@ -70,7 +86,7 @@ Future<Uint8List> renderBookPdf(
       // 실제 배치·그리기는 save() 때 쪽 순서대로 일어난다 — 진행 표시와
       // 사진 읽기를 여기서 해 사진을 한 번에 다 들고 있지 않게 한다.
       build: (context) {
-        final widget = r.page(page);
+        final widget = shareFooter == null ? r.page(page) : r.withShareFooter(r.page(page), shareFooter);
         onProgress?.call(page.pageNumber, total);
         return widget;
       },
@@ -145,7 +161,30 @@ class _Renderer {
   final pw.Font label;
   final BookPhotoLoader loadPhoto;
 
-  _Renderer({required this.spec, required this.hand, required this.label, required this.loadPhoto});
+  /// false면 쪽 번호("— 1 —")를 그리지 않는다(일기 한 장 보기·공유).
+  final bool pageNumbers;
+
+  _Renderer({
+    required this.spec,
+    required this.hand,
+    required this.label,
+    required this.loadPhoto,
+    this.pageNumbers = true,
+  });
+
+  /// 쪽 아래 흰 바깥 여백 + 가운데 작은 회색 글자(공유 이미지 전용).
+  pw.Widget withShareFooter(pw.Widget page, String footer) => pw.Column(
+        children: [
+          pw.SizedBox(width: spec.widthMm * _mm, height: spec.heightMm * _mm, child: page),
+          pw.Container(
+            width: spec.widthMm * _mm,
+            height: kShareFooterMm * _mm,
+            color: PdfColors.white,
+            alignment: pw.Alignment.center,
+            child: pw.Text(footer, style: _label(kShareFooterFontPt, BookPalette.footerGrey)),
+          ),
+        ],
+      );
 
   pw.TextStyle _hand(double pt, PdfColor color) =>
       pw.TextStyle(font: hand, fontSize: pt, color: color, fontFallback: [label]);
@@ -171,7 +210,7 @@ class _Renderer {
         painters.add(_paper);
         _summary(page, overlays);
     }
-    final pageLabel = page.pageLabel;
+    final pageLabel = pageNumbers ? page.pageLabel : null;
     if (pageLabel != null) {
       final rect = MmRect(spec.safeMm, spec.heightMm - spec.safeMm - 5, spec.contentWidthMm, 5);
       overlays.add(_text(rect, pageLabel, _label(7, BookPalette.muted)));
