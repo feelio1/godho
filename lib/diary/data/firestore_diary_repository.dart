@@ -26,6 +26,12 @@ class FirestoreDiaryRepository implements DiaryRepository {
   final FirebaseStorage? _storageOverride;
   FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
 
+  @override
+  Future<int> countDiariesForPet(String uid, String petId) async {
+    final snapshot = await _diaries(uid).where('petIds', arrayContains: petId).count().get();
+    return snapshot.count ?? 0;
+  }
+
   CollectionReference<Map<String, dynamic>> _diaries(String uid) =>
       _firestore.collection('users').doc(uid).collection('diaries');
 

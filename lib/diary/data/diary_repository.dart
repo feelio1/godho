@@ -34,6 +34,10 @@ abstract class DiaryRepository {
 
   Future<Diary?> fetchDiary(String uid, String diaryId);
 
+  /// 이 반려동물([petId])이 들어간 일기 수 — Firestore count() 집계 조회
+  /// (문서를 내려받지 않는다). 홈 "그림일기 n장" 캡션이 쓴다.
+  Future<int> countDiariesForPet(String uid, String petId);
+
   /// [diary.photos]는 보통 빈 목록이다(사진이 있어도 아직 올라가지
   /// 않았으므로) — [pendingPhotoCount]만큼 "올리는 중"으로 표시된다.
   /// 새로 생성된 문서 id를 돌려준다. 네트워크를 기다리지 않아 거의

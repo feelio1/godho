@@ -36,7 +36,6 @@ class BookPalette {
   static const cream = PdfColor.fromInt(0xFFFFF8EC);
   static const creamFrame = PdfColor.fromInt(0xFFFFF4E0);
   static const paperDot = PdfColor.fromInt(0xFFF3E6CF);
-  static const coral = PdfColor.fromInt(0xFFE07A5F);
   static const ink = PdfColor.fromInt(0xFF3A3A3A);
   static const muted = PdfColor.fromInt(0xFF8A8A8A);
   static const placeholder = PdfColor.fromInt(0xFFE8E2D6);
@@ -51,7 +50,7 @@ class BookPalette {
 const double _mm = PdfPageFormat.mm;
 
 /// 렌더러 버전 — 그리는 방식이 바뀌면 올려서 캐시된 미리보기를 무효화한다.
-const int kBookRendererVersion = 2;
+const int kBookRendererVersion = 3;
 
 /// 공유 이미지 맨 아래 바깥 여백(mm)과 그 안의 글자 크기(pt) — 글자 높이가
 /// 이미지 높이의 약 2%가 되게(4차 업데이트 K-4).
@@ -361,7 +360,7 @@ class _Renderer {
       final mark = page.weatherMark;
       if (mark != null) {
         c.circle(mark.centerX, mark.centerY, mark.radiusMm);
-        c.stroke(BookPalette.coral, 0.4);
+        c.stroke(BookPalette.navy, 0.4);
       }
       // 오늘 한 일 아래 점선.
       c.g.setLineDashPattern([1.2 * _mm, 1.0 * _mm]);

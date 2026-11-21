@@ -12,7 +12,6 @@ import '../../theme/app_text_styles.dart';
 import '../../utils/keep_words.dart';
 import '../../widgets/mascot_image.dart';
 import '../../utils/appointment_calendar.dart' show dateOnly;
-import '../data/diary_repository.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_detail_screen.dart';
@@ -56,11 +55,10 @@ class TodayDiaryRow extends ConsumerWidget {
     final pet = pets.first;
 
     final diary = ref.watch(todayDiaryProvider(pet.id)).value;
-    // 그림일기 장 수(4차 업데이트 K-5) — 이미 불러온 최신 일기 목록으로 센다.
-    // 목록이 다 들어왔을 때(더 없음)만 정확히 셀 수 있어 그때만 보여 주고,
-    // 아니면 기존 캡션. 개수만 — 목표·남은 개수·연속 기록은 없다.
+    // 그림일기 장 수(4차 업데이트 K-5, 보완) — Firestore count() 집계로 그 반려동물의
+    // 일기 수를 센다. 로딩 중·실패면 기존 캡션. 개수만 — 목표·남은 개수·연속 없음.
     final count = ref.watch(diaryBookVisibleProvider)
-        ? homeDiaryPageCount(ref.watch(diariesPageProvider).value, pet.id)
+        ? homeDiaryPageCount(ref.watch(diaryCountForPetProvider(pet.id)))
         : null;
 
     return _Strip(
@@ -81,10 +79,10 @@ class TodayDiaryRow extends ConsumerWidget {
   }
 }
 
-/// 홈 일기 띠의 그림일기 장 수 — 목록이 끝까지 들어왔을 때만 센다(아니면 null).
-int? homeDiaryPageCount(DiaryPage? page, String petId) {
-  if (page == null || page.hasMore) return null;
-  final n = page.diaries.where((d) => d.petIds.contains(petId)).length;
+/// 홈 일기 띠의 그림일기 장 수 — 집계가 끝났고 1편 이상일 때만(로딩·실패는 null).
+int? homeDiaryPageCount(AsyncValue<int> count) {
+  if (count.isLoading || count.hasError || !count.hasValue) return null;
+  final n = count.value!;
   return n >= 1 ? n : null;
 }
 

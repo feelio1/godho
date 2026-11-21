@@ -16,6 +16,7 @@ import 'package:petcliniccheck/ads/app_open_ad_suppression.dart';
 import 'package:petcliniccheck/data/user_repository.dart';
 import 'package:petcliniccheck/diary/diary_saved_event.dart';
 import 'package:petcliniccheck/diary/data/diary_repository.dart';
+import 'package:petcliniccheck/diary/data/firestore_diary_repository.dart';
 import 'package:petcliniccheck/diary/models/diary.dart';
 import 'package:petcliniccheck/diary/providers/diary_providers.dart';
 import 'package:petcliniccheck/diary/screens/diary_detail_screen.dart';
@@ -48,7 +49,16 @@ class _FakeUser implements User {
 class _FakeDiaryRepository implements DiaryRepository {
   final List<Diary> diaries;
 
-  _FakeDiaryRepository(this.diaries);
+  /// true면 일기 수 집계가 실패한다(기존 캡션으로 돌아가는지 확인).
+  final bool countFails;
+
+  _FakeDiaryRepository(this.diaries, {this.countFails = false});
+
+  @override
+  Future<int> countDiariesForPet(String uid, String petId) async {
+    if (countFails) throw StateError('count failed');
+    return diaries.where((d) => d.petIds.contains(petId)).length;
+  }
 
   @override
   Future<Diary?> fetchDiary(String uid, String diaryId) async => diaries.where((d) => d.id == diaryId).firstOrNull;
@@ -492,33 +502,46 @@ void main() {
 
     const pet = Pet(id: 'account:p1', name: '구름이', species: PetSpecies.dog);
 
-    List<Override> overrides({required bool bookOn, required List<Diary> diaries}) => [
+    List<Override> overrides({required bool bookOn, required List<Diary> diaries, bool countFails = false}) => [
       authStateProvider.overrideWith((ref) => Stream<User?>.value(_FakeUser())),
-      diaryRepositoryProvider.overrideWithValue(_FakeDiaryRepository(diaries)),
+      diaryRepositoryProvider.overrideWithValue(_FakeDiaryRepository(diaries, countFails: countFails)),
       diaryBookEnabledProvider.overrideWith((ref) => Stream.value(bookOn)),
       effectivePetsProvider.overrideWith((ref) async => const [pet]),
       userRepositoryProvider.overrideWithValue(UserRepository(firestore: FakeFirebaseFirestore())),
       diaryPageImageServiceProvider.overrideWithValue(_FakePageService(dir)),
     ];
 
-    test('장 수는 목록이 끝까지 들어왔을 때만, 그 반려동물 일기만 센다', () {
-      final page = DiaryPage(
-        diaries: [
-          _diary(),
-          _diary(id: 'd2'),
-        ],
-      );
-      expect(homeDiaryPageCount(page, 'account:p1'), 2);
-      expect(homeDiaryPageCount(page, 'account:other'), isNull);
-      expect(homeDiaryPageCount(DiaryPage(diaries: [_diary()], hasMore: true), 'account:p1'), isNull);
-      expect(homeDiaryPageCount(null, 'account:p1'), isNull);
+    test('장 수는 count() 집계가 끝났고 1편 이상일 때만(로딩·실패·0편은 기존 캡션)', () {
+      expect(homeDiaryPageCount(const AsyncValue.data(25)), 25);
+      expect(homeDiaryPageCount(const AsyncValue.data(0)), isNull);
+      expect(homeDiaryPageCount(const AsyncValue<int>.loading()), isNull);
+      expect(homeDiaryPageCount(AsyncValue<int>.error(StateError('x'), StackTrace.empty)), isNull);
     });
 
-    Future<void> pumpRow(WidgetTester tester, {required bool bookOn}) async {
+    test('Firestore count(): 그 반려동물이 들어간 일기만 센다(20편 넘어도 정확히)', () async {
+      final firestore = FakeFirebaseFirestore();
+      final diaries = firestore.collection('users').doc('u1').collection('diaries');
+      for (var i = 0; i < 23; i++) {
+        await diaries.add({
+          'petIds': ['account:p1'],
+          'date': DateTime(2026, 11, 1),
+        });
+      }
+      await diaries.add({
+        'petIds': ['account:other'],
+        'date': DateTime(2026, 11, 1),
+      });
+      final repo = FirestoreDiaryRepository(firestore: firestore);
+      expect(await repo.countDiariesForPet('u1', 'account:p1'), 23);
+      expect(await repo.countDiariesForPet('u1', 'account:other'), 1);
+    });
+
+    Future<void> pumpRow(WidgetTester tester, {required bool bookOn, bool countFails = false}) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: overrides(
             bookOn: bookOn,
+            countFails: countFails,
             diaries: [
               _diary(),
               _diary(id: 'd2'),
@@ -542,6 +565,12 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('home_diary_page_count')));
       await tester.pumpAndSettle();
       expect(find.text('그림일기 만들기'), findsWidgets, reason: '그림일기 만들기 흐름으로');
+    });
+
+    testWidgets('집계 조회가 실패하면 기존 캡션', (tester) async {
+      await pumpRow(tester, bookOn: true, countFails: true);
+      expect(find.text('일기는 나만 볼 수 있어요'), findsOneWidget);
+      expect(find.textContaining('장이 모였어요'), findsNothing);
     });
 
     testWidgets('스위치가 닫히면 기존 캡션', (tester) async {

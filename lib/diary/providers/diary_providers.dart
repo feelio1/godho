@@ -38,6 +38,15 @@ final diariesForPetProvider = FutureProvider.autoDispose.family<List<Diary>, Str
   return page.diaries.where((d) => d.petIds.contains(petId)).toList();
 });
 
+/// 이 반려동물의 일기 수(count() 집계) — 홈 "그림일기 n장" 캡션용. 일기를
+/// 저장·삭제하면 [diariesPageProvider]가 새로 고쳐지므로 그걸 따라 다시 센다.
+final diaryCountForPetProvider = FutureProvider.autoDispose.family<int, String>((ref, petId) async {
+  final uid = ref.watch(authStateProvider).value?.uid;
+  if (uid == null) return 0;
+  ref.watch(diariesPageProvider);
+  return ref.watch(diaryRepositoryProvider).countDiariesForPet(uid, petId);
+});
+
 final diaryProvider = FutureProvider.autoDispose.family<Diary?, String>((ref, diaryId) {
   final uid = ref.watch(authStateProvider).value?.uid;
   if (uid == null) return Future.value(null);
