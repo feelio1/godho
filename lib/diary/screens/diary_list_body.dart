@@ -69,15 +69,13 @@ class _DiaryListBodyState extends ConsumerState<DiaryListBody> {
     ref.invalidate(diaryPendingPhotosProvider);
   }
 
-  /// 새 일기를 저장하고 돌아오면("일기 재수정" 지시서 3-1) 다시 한 번
-  /// 알림 동의 조건을 확인한다 — 실제 판단·표시는
-  /// [maybeShowDiaryReminderPrompt]가 맡는다(이미 물었거나 조건이 안
-  /// 맞으면 조용히 아무 일도 하지 않는다).
+  /// 새 일기 쓰기 — 저장 뒤 안내(첫 장 시트·스낵바·일기 알림 권유)는
+  /// [DiarySavedListener]가 한 곳에서 맡는다(4차 업데이트 K-3). 같은 저장에서
+  /// 첫 장 시트와 알림 권유가 겹치지 않게 여기서는 따로 묻지 않는다.
   Future<void> _openForm() async {
-    final saved = await Navigator.of(
+    await Navigator.of(
       context,
     ).push<bool>(MaterialPageRoute(builder: (_) => DiaryFormScreen(defaultPetIds: [widget.selectedPet.id])));
-    if (saved == true && mounted) await maybeShowDiaryReminderPrompt(context, ref);
   }
 
   @override

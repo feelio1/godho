@@ -23,6 +23,7 @@ import '../diary_draft.dart';
 import '../diary_photo_processor.dart';
 import '../diary_photo_upload_queue.dart';
 import '../diary_photo_upload_queue_service.dart';
+import '../diary_saved_event.dart';
 import '../models/diary.dart';
 import '../providers/diary_providers.dart';
 import 'diary_weather_icons.dart';
@@ -413,6 +414,11 @@ class _DiaryFormScreenState extends ConsumerState<DiaryFormScreen> {
         );
         await Future.delayed(const Duration(milliseconds: 1200));
       }
+      // 저장 뒤 안내(첫 장 시트·스낵바·알림 권유)는 DiarySavedListener가
+      // 이 화면이 닫힌 뒤에 맡는다(4차 업데이트 K-3).
+      final previous = ref.read(diarySavedEventProvider);
+      ref.read(diarySavedEventProvider.notifier).state =
+          DiarySavedEvent(diaryId: diaryId, isNew: existing == null, serial: (previous?.serial ?? 0) + 1);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image/image.dart' as img;
 
 import 'package:petcliniccheck/ads/app_open_ad_suppression.dart';
+import 'package:petcliniccheck/data/user_repository.dart';
+import 'package:petcliniccheck/diary/diary_saved_event.dart';
 import 'package:petcliniccheck/diary/data/diary_repository.dart';
 import 'package:petcliniccheck/diary/models/diary.dart';
 import 'package:petcliniccheck/diary/providers/diary_providers.dart';
@@ -24,6 +27,9 @@ import 'package:petcliniccheck/diary_book/diary_page_image_service.dart';
 import 'package:petcliniccheck/diary_book/providers/diary_book_switch.dart';
 import 'package:petcliniccheck/diary_book/render/book_pdf_renderer.dart';
 import 'package:petcliniccheck/diary_book/screens/diary_page_screen.dart';
+import 'package:petcliniccheck/diary_book/screens/first_diary_page_sheet.dart';
+import 'package:petcliniccheck/models/pet.dart';
+import 'package:petcliniccheck/providers/effective_pets_provider.dart';
 import 'package:petcliniccheck/providers/auth_provider.dart';
 
 class _FakeUser implements User {
@@ -357,6 +363,117 @@ void main() {
       expect(shared!.single.mimeType, 'image/png');
       expect(suppressedDuringShare, isTrue);
       expect(suppression.isSuppressed, isFalse, reason: '공유가 끝나면 억제를 푼다');
+    });
+  });
+
+  group('K-3 첫 일기를 저장하면 "첫 장이 생겼어요"', () {
+    test('판정: 새 일기·스위치 열림·1편·처음일 때만 시트, 그 밖엔 스낵바, 수정·스위치 닫힘은 없음', () {
+      DiarySavedFollowUp d({bool isNew = true, bool on = true, int count = 1, bool shown = false}) =>
+          decideDiarySavedFollowUp(isNew: isNew, bookVisible: on, diaryCount: count, firstPageAlreadyShown: shown);
+      expect(d(), DiarySavedFollowUp.firstPageSheet);
+      expect(d(count: 2), DiarySavedFollowUp.viewSnackbar);
+      expect(d(shown: true), DiarySavedFollowUp.viewSnackbar);
+      expect(d(isNew: false), DiarySavedFollowUp.none);
+      expect(d(on: false), DiarySavedFollowUp.none);
+    });
+
+    late Directory dir;
+    setUpAll(() => initializeDateFormatting('ko_KR'));
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      dir = await Directory.systemTemp.createTemp('first_page');
+    });
+    tearDown(() => dir.delete(recursive: true));
+
+    Future<FakeFirebaseFirestore> pumpSaved(
+      WidgetTester tester, {
+      required List<Diary> diaries,
+      bool bookOn = true,
+      bool alreadyShown = false,
+    }) async {
+      final firestore = FakeFirebaseFirestore();
+      if (alreadyShown) {
+        await firestore.collection('users').doc('u1').set({'firstDiaryPageShownAt': DateTime(2026, 11, 1)});
+      }
+      final container = ProviderContainer(
+        overrides: [
+          authStateProvider.overrideWith((ref) => Stream<User?>.value(_FakeUser())),
+          diaryRepositoryProvider.overrideWithValue(_FakeDiaryRepository(diaries)),
+          diaryBookEnabledProvider.overrideWith((ref) => Stream.value(bookOn)),
+          diaryPageImageServiceProvider.overrideWithValue(_FakePageService(dir)),
+          userRepositoryProvider.overrideWithValue(UserRepository(firestore: firestore)),
+          effectivePetsProvider.overrideWith(
+            (ref) async => const [Pet(id: 'account:p1', name: '구름이', species: PetSpecies.dog)],
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(diaryBookEnabledProvider, (_, _) {});
+      container.listen(authStateProvider, (_, _) {});
+      container.listen(effectivePetsProvider, (_, _) {});
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: DiarySavedListener(
+              settleDelay: Duration.zero,
+              child: Scaffold(body: Text('메인')),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      container.read(diarySavedEventProvider.notifier).state = DiarySavedEvent(
+        diaryId: diaries.first.id,
+        isNew: true,
+        serial: 1,
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      return firestore;
+    }
+
+    testWidgets('첫 일기: 시트(손글씨 제목·안내·버튼)가 뜨고 firstDiaryPageShownAt을 기록, 알림 권유는 같이 안 뜸', (tester) async {
+      final firestore = await pumpSaved(tester, diaries: [_diary()]);
+      expect(find.byKey(const ValueKey('first_diary_page_sheet')), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((w) => w is Text && w.data?.replaceAll('\u2060', '') == '구름이의 그림일기 첫 장이 생겼어요'),
+        findsOneWidget,
+      );
+      expect(find.text('일기를 쓸 때마다 한 장씩 늘어나요'), findsOneWidget);
+      expect(find.text('크게 보기'), findsOneWidget);
+      expect(find.text('공유하기'), findsOneWidget);
+      expect(find.text('닫기'), findsOneWidget);
+      expect(find.textContaining('알림'), findsNothing);
+      final doc = await firestore.collection('users').doc('u1').get();
+      expect(doc.data()?['firstDiaryPageShownAt'], isNotNull);
+    });
+
+    testWidgets('이미 보여 줬으면(다른 기기 포함) 시트 대신 스낵바', (tester) async {
+      await pumpSaved(tester, diaries: [_diary()], alreadyShown: true);
+      expect(find.byKey(const ValueKey('first_diary_page_sheet')), findsNothing);
+      expect(find.text('그림일기 장으로 볼 수 있어요'), findsOneWidget);
+      expect(find.text('보기'), findsOneWidget);
+    });
+
+    testWidgets('두 번째 일기부터는 스낵바만', (tester) async {
+      await pumpSaved(
+        tester,
+        diaries: [
+          _diary(),
+          _diary(id: 'd0'),
+        ],
+      );
+      expect(find.byKey(const ValueKey('first_diary_page_sheet')), findsNothing);
+      expect(find.text('그림일기 장으로 볼 수 있어요'), findsOneWidget);
+    });
+
+    testWidgets('스위치가 닫히면 시트·스낵바 모두 없음', (tester) async {
+      await pumpSaved(tester, diaries: [_diary()], bookOn: false);
+      expect(find.byKey(const ValueKey('first_diary_page_sheet')), findsNothing);
+      expect(find.text('그림일기 장으로 볼 수 있어요'), findsNothing);
     });
   });
 }

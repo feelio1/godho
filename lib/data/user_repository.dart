@@ -86,6 +86,33 @@ class UserRepository {
     await _users.doc(uid).set({'diaryReminderAskedAt': Timestamp.now()}, SetOptions(merge: true));
   }
 
+  // --- 그림일기 첫 장 시트(4차 업데이트 K-3) ---
+  // 처음 일기를 저장했을 때 한 번만 띄운다 — 재설치·다른 기기에서 다시 뜨지
+  // 않게 계정 문서에 기록한다.
+
+  Future<bool> firstDiaryPageShown(String uid) async {
+    final doc = await _users.doc(uid).get();
+    return doc.data()?['firstDiaryPageShownAt'] != null;
+  }
+
+  Future<void> markFirstDiaryPageShown(String uid) async {
+    await _users.doc(uid).set({'firstDiaryPageShownAt': Timestamp.now()}, SetOptions(merge: true));
+  }
+
+  // --- 그림일기 주문 오픈 알림 신청(4차 업데이트 K-7) — 기록만 한다 ---
+
+  Future<bool> bookOrderInterest(String uid) async {
+    final doc = await _users.doc(uid).get();
+    final value = doc.data()?['bookOrderInterest'];
+    return value is Map && value['on'] == true;
+  }
+
+  Future<void> setBookOrderInterest(String uid, bool on) async {
+    await _users.doc(uid).set({
+      'bookOrderInterest': {'on': on, 'updatedAt': Timestamp.now()},
+    }, SetOptions(merge: true));
+  }
+
   CollectionReference<Map<String, dynamic>> _pets(String uid) => _users.doc(uid).collection('pets');
 
   /// 생성된 문서 id를 돌려준다 — 사진이 있으면 이 id로 저장 경로를 정하고

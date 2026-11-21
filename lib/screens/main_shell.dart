@@ -22,6 +22,7 @@ import '../providers/location_provider.dart';
 import '../providers/nav_provider.dart';
 import '../diary/diary_photo_upload_queue_service.dart';
 import '../diary/screens/diary_form_screen.dart';
+import '../diary_book/screens/first_diary_page_sheet.dart';
 import '../notifications/notification_service.dart';
 import '../providers/region_auto_detect.dart';
 import '../providers/search_provider.dart';
@@ -69,16 +70,11 @@ class MainShell extends ConsumerWidget {
           child: MascotMessage(
             title: '정보를 불러오고 있어요',
             subtitle: '공개된 동물병원 인허가 정보를 준비 중입니다',
-            trailing: SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
+            trailing: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5)),
           ),
         ),
       ),
-      error: (error, _) =>
-          Scaffold(body: Center(child: Text('데이터를 불러오지 못했습니다: $error'))),
+      error: (error, _) => Scaffold(body: Center(child: Text('데이터를 불러오지 못했습니다: $error'))),
       data: (_) => const _MainShellBody(),
     );
   }
@@ -220,9 +216,9 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       return;
     }
     _lastBackPressAt = now;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('한 번 더 누르면 종료됩니다'), duration: _exitConfirmWindow),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('한 번 더 누르면 종료됩니다'), duration: _exitConfirmWindow));
   }
 
   /// 로그인 사용자의 기기 로컬 진료기록·예약을 계정(Firestore)으로 1회
@@ -246,14 +242,16 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       parts.add('${result.migratedPetNames.join(', ')}의 기기 기록을 계정으로 옮겨뒀어요.');
     }
     if (result.hasSkipped) {
-      parts.add('${result.skippedPetNames.join(', ')}는 이름이 일치하는 계정 반려동물을 찾지 못해 '
-          '옮기지 못했어요. 진료기록 화면에서 새로 추가해주세요.');
+      parts.add(
+        '${result.skippedPetNames.join(', ')}는 이름이 일치하는 계정 반려동물을 찾지 못해 '
+        '옮기지 못했어요. 진료기록 화면에서 새로 추가해주세요.',
+      );
     }
     if (parts.isEmpty) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(parts.join(' ')), duration: const Duration(seconds: 5)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(parts.join(' ')), duration: const Duration(seconds: 5)));
   }
 
   /// 지난 예약 "진료 받으셨어요?" 확인 시트를 띄울 수 있는 상태인지
@@ -293,9 +291,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   void _showFollowUpSheet(Pet pet, Appointment appointment) {
     showModalBottomSheet<void>(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card)),
-      ),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.card))),
       builder: (sheetContext) => FollowUpCheckSheet(
         petName: pet.name,
         appointment: appointment,
@@ -309,11 +305,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   /// "네, 기록 남길게요" — 예약 내용을 미리 채운 진료기록 폼으로 넘기고,
   /// 저장에 성공했을 때만(폼이 true로 pop됐을 때만) recorded로
   /// 표시한다. 폼에서 그냥 뒤로 나가면 미처리로 남아 다음에 다시 묻는다.
-  Future<void> _handleFollowUpRecorded(
-    BuildContext sheetContext,
-    Pet pet,
-    Appointment appointment,
-  ) async {
+  Future<void> _handleFollowUpRecorded(BuildContext sheetContext, Pet pet, Appointment appointment) async {
     Navigator.of(sheetContext).pop();
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -333,11 +325,7 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
   }
 
   /// "안 갔어요" — skipped로 표시한 뒤, 재예약 여부를 짧게 물어본다.
-  Future<void> _handleFollowUpSkipped(
-    BuildContext sheetContext,
-    Pet pet,
-    Appointment appointment,
-  ) async {
+  Future<void> _handleFollowUpSkipped(BuildContext sheetContext, Pet pet, Appointment appointment) async {
     Navigator.of(sheetContext).pop();
     await EffectiveAppointmentActions.markFollowUp(ref, appointment, AppointmentFollowUp.skipped);
     if (!mounted) return;
@@ -347,14 +335,8 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
       builder: (dialogContext) => AlertDialog(
         content: const Text('다시 예약할까요?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('괜찮아요'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('예약하기'),
-          ),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('괜찮아요')),
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(true), child: const Text('예약하기')),
         ],
       ),
     );
@@ -444,30 +426,41 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
         if (didPop) return;
         _handleBackPress();
       },
-      child: Scaffold(
-        body: IndexedStack(
-          index: selectedIndex,
-          children: [
-            const HomeScreen(),
-            _mapTabOpened ? const NearbyMapScreen() : const SizedBox.shrink(),
-            const ShopScreen(),
-            const PetTabScreen(),
-            const MyInfoScreen(),
-          ],
-        ),
-        // 스프린트 15 지시서 6: 전역 배너를 걷어내고 홈 화면 안(검색 세트
-        // 카드 아래)에서만 보여준다 — 다섯 탭 전체에 항상 떠 있지 않게.
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: (index) =>
-              ref.read(selectedTabProvider.notifier).state = index,
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
-            NavigationDestination(icon: Icon(Icons.local_hospital_outlined), selectedIcon: Icon(Icons.local_hospital), label: '병원'),
-            NavigationDestination(icon: Icon(Icons.shopping_bag_outlined), selectedIcon: Icon(Icons.shopping_bag), label: '쇼핑'),
-            NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets), label: '우리 아이'),
-            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),
-          ],
+      // 일기 저장 뒤 안내(첫 장 시트·스낵바·알림 권유)를 어디서 썼든 여기서
+      // 한 번에(4차 업데이트 K-3).
+      child: DiarySavedListener(
+        child: Scaffold(
+          body: IndexedStack(
+            index: selectedIndex,
+            children: [
+              const HomeScreen(),
+              _mapTabOpened ? const NearbyMapScreen() : const SizedBox.shrink(),
+              const ShopScreen(),
+              const PetTabScreen(),
+              const MyInfoScreen(),
+            ],
+          ),
+          // 스프린트 15 지시서 6: 전역 배너를 걷어내고 홈 화면 안(검색 세트
+          // 카드 아래)에서만 보여준다 — 다섯 탭 전체에 항상 떠 있지 않게.
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: (index) => ref.read(selectedTabProvider.notifier).state = index,
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: '홈'),
+              NavigationDestination(
+                icon: Icon(Icons.local_hospital_outlined),
+                selectedIcon: Icon(Icons.local_hospital),
+                label: '병원',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.shopping_bag_outlined),
+                selectedIcon: Icon(Icons.shopping_bag),
+                label: '쇼핑',
+              ),
+              NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets), label: '우리 아이'),
+              NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: '내 정보'),
+            ],
+          ),
         ),
       ),
     );
