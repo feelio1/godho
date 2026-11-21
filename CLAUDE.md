@@ -66,8 +66,8 @@
 - `tags: ["discontinuing"]`(재고 소진 후 판매 종료 예정): 상품 상세에서만 회색 칩 "재고 소진 시 판매 종료"로 알린다 — 카드에는 표시하지 않고, 빨강·주황이나 "마감 임박" 같은 압박 문구를 쓰지 않는다.
 - 스토어 홈 카테고리 칩은 상품이 1개 이상 있는 카테고리만 보인다(옷 `apparel`은 간식 다음).
 
-## 그림일기(일기책) — 1단계: PDF 미리보기만
-- 일기를 어린이 그림일기 공책처럼 꾸민 **PDF를 앱 안에서 직접 만들고**, 미리보기는 그 PDF를 그대로 보여준다(미리보기 = 나중에 인쇄할 파일, 렌더러 하나). 인쇄 주문·결제·가격 표시·PDF 저장/공유·AI 문장 생성은 **아직 없다**(미리보기의 [책으로 주문하기]는 비활성 + "곧 주문할 수 있어요").
+## 그림일기(일기책) — 1단계: PDF 미리보기 + 일기 한 장 보기·공유(1.0.0+5)
+- 일기를 어린이 그림일기 공책처럼 꾸민 **PDF를 앱 안에서 직접 만들고**, 미리보기는 그 PDF를 그대로 보여준다(미리보기 = 나중에 인쇄할 파일, 렌더러 하나). 인쇄 주문·결제·가격 표시·AI 문장 생성은 **아직 없다**(미리보기의 [책으로 주문하기]는 비활성 + "곧 주문할 수 있어요"). 책 전체 PDF 저장·공유는 아직 없다. 일기 한 편의 그림일기 장 이미지 공유만 있다(공유 이미지에만 하단 '펫클로 만든 그림일기').
 - **스위치(fail-closed, 쇼핑과 같은 패턴)**: 빌드 플래그 `kEnableDiaryBookCode` + Firestore `config/book.enabled` → `diaryBookEnabledProvider`/`diaryBookVisibleProvider`(`lib/diary_book/providers/diary_book_switch.dart`). `enabled == true`일 때만 열리고, 문서 없음·필드 없음·오류·오프라인·로딩 중은 닫힘 — 닫히면 진입점(우리 아이 탭 일기 보기 상단 "그림일기 만들기", 내 정보 "내 그림일기")이 전부 숨는다.
 - **판형은 파라미터**: `BookSpec { widthMm, heightMm, bleedMm, safeMm, minPages, maxPages, minPhotoDpi }`, 기본 A5 세로 148×210mm·재단 3mm·안전 10mm·4~120쪽·150dpi(인쇄업체 규격이 정해지면 숫자만 바꾼다). 미리보기 PDF는 재단 여백 없이 완성 크기로 만든다(인쇄용은 다음 단계).
 - **레이아웃 엔진**(`lib/diary_book/` 최상위 파일들)은 Flutter·Firebase에 의존하지 않는 순수 Dart다 — `Diary` 모델을 직접 보지 않고 `diary_book_source.dart`가 `BookInput`으로 옮겨 담는다. 렌더러(`render/book_pdf_renderer.dart`)는 엔진이 정한 mm 좌표를 그대로 그리기만 하고 배치를 다시 계산하지 않는다.
@@ -82,6 +82,12 @@
 - 폰트: 손글씨 **나눔손글씨 펜**(Nanum Pen Script, SIL OFL 1.1 — `assets/fonts/nanum_pen_script/`에 `OFL.txt` 동봉, 폰트와 함께 배포해야 한다), 칸 제목 라벨은 IBM Plex Sans KR. 날씨 아이콘·테두리·원고지는 벡터 도형으로 직접 그리고 이모지 글꼴은 쓰지 않는다.
 - 생성: 쓰이는 사진만 순차 준비(올라간 사진은 이미지 디스크 캐시 재사용, 업로드 대기 중은 로컬 파일), 그리기는 별도 isolate(`renderDiaryBookInIsolate`)에서 "그림일기 만드는 중 (n/m쪽)". 결과는 **앱 캐시 폴더**(`diary_book_preview/`)에 임시 저장 — 같은 내용(일기 글·사진·제목·표지·판형·렌더러 버전 해시)이면 재사용, 새로 만들면 이전 파일 삭제, **로그아웃·회원 탈퇴 시 전부 삭제**(`clearDiaryBookCache`). 그리는 방식이 바뀌면 `kBookRendererVersion`을 올린다.
 - 일기는 **읽기만** 한다 — 기존 월 단위 조회를 달마다 불러 모으며, 일기·사진 원본을 고치거나 사진을 다시 올리지 않는다.
+- **일기 한 장 보기**(4차 K-1·K-2): 엔진 `layoutSingleDiary(entry, spec)`가 책과 같은 규칙으로 일기 쪽·"(이어서)" 쪽만 배치(표지·메모·함께한 날들·쪽 번호 없음). `DiaryPageImageService`가 isolate 렌더 → `printing` 래스터(화면 110dpi, 공유 가로 1080px)로 PNG를 만들어 앱 캐시 `diary_page_preview/`에 내용 해시로 재사용하고, `clearDiaryBookCache`가 로그아웃·탈퇴 때 함께 지운다. 일기 상세 [그림일기 장으로 보기] → `DiaryPageScreen`(워터마크 없음).
+- **공유**(K-4): `shareDiaryPage` — 버튼을 눌렀을 때만 `share_plus`로, `adSuppressionProvider.during()`으로 감싼다. 공유 이미지에만 쪽 아래 바깥 여백에 "펫클로 만든 그림일기"(`renderBookPdf(shareFooter:)`), 화면 보기·책 PDF·책 미리보기에는 넣지 않는다.
+- **첫 장 시트**(K-3): 일기 쓰기 화면이 저장 신호(`diarySavedEventProvider`)를 올리고 메인 화면의 `DiarySavedListener`가 화면이 닫힌 뒤 처리 — 계정 첫 일기이고 `users/{uid}.firstDiaryPageShownAt`이 없을 때만 "{이름}의 그림일기 첫 장이 생겼어요" 시트(보여 준 시각 기록), 두 번째부터는 스낵바 "그림일기 장으로 볼 수 있어요 · 보기". 시트를 띄운 저장에서는 일기 알림 권유를 미룬다.
+- **홈 캡션·견본**(K-5·K-6): 홈 일기 띠 "그림일기 {n}장이 모였어요 · 나만 볼 수 있어요"(이미 불러온 목록으로 정확히 셀 수 있을 때만, 개수만). 빈 일기 화면의 견본 그림일기 장은 `assets/diary/sample_page.png`(1x·2x, `tool/diary_sample/make_sample_page.dart`로 실제 엔진·렌더러 + pdftoppm으로 생성, 앱 실행 중에는 그리지 않음) — 견본에만 구름이 그림.
+- **주문 오픈 알림 신청**(K-7): 책 미리보기의 토글이 `users/{uid}.bookOrderInterest = {on, updatedAt}`만 기록(푸시·이메일 없음, 탈퇴 시 users 문서와 함께 삭제). 온보딩 두 번째 줄은 스위치가 열렸을 때만 그림일기 문구(K-8).
+- 위 표시·버튼은 전부 `diaryBookVisibleProvider`(fail-closed)를 따른다 — 닫히면 일기 기능은 이전과 똑같다.
 - 미리보기 화면에만 워터마크 오버레이(하단 '미리보기 · 인쇄본에는 표시되지 않아요' + 가운데 옅은 대각선 '미리보기')와 110dpi 래스터 상한 — PDF(인쇄 파일)에는 그리지 않는다. 캡처 차단(FLAG_SECURE)은 하지 않는다.
 
 ## 일기 사진 파이프라인
