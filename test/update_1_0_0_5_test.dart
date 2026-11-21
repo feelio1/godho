@@ -1,15 +1,86 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image/image.dart' as img;
 
+import 'package:petcliniccheck/ads/app_open_ad_suppression.dart';
+import 'package:petcliniccheck/diary/data/diary_repository.dart';
+import 'package:petcliniccheck/diary/models/diary.dart';
+import 'package:petcliniccheck/diary/providers/diary_providers.dart';
+import 'package:petcliniccheck/diary/screens/diary_detail_screen.dart';
 import 'package:petcliniccheck/diary_book/book_input.dart';
 import 'package:petcliniccheck/diary_book/book_layout.dart';
 import 'package:petcliniccheck/diary_book/book_layout_engine.dart';
 import 'package:petcliniccheck/diary_book/book_spec.dart';
 import 'package:petcliniccheck/diary_book/diary_page_image_service.dart';
+import 'package:petcliniccheck/diary_book/providers/diary_book_switch.dart';
 import 'package:petcliniccheck/diary_book/render/book_pdf_renderer.dart';
+import 'package:petcliniccheck/diary_book/screens/diary_page_screen.dart';
+import 'package:petcliniccheck/providers/auth_provider.dart';
+
+class _FakeUser implements User {
+  @override
+  String get uid => 'u1';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 일기 읽기 전용 메모리 저장소.
+class _FakeDiaryRepository implements DiaryRepository {
+  final List<Diary> diaries;
+
+  _FakeDiaryRepository(this.diaries);
+
+  @override
+  Future<Diary?> fetchDiary(String uid, String diaryId) async => diaries.where((d) => d.id == diaryId).firstOrNull;
+
+  @override
+  Future<DiaryPage> fetchDiaries(String uid, {int limit = 20, Object? cursor}) async =>
+      DiaryPage(diaries: diaries.take(limit).toList());
+
+  @override
+  Future<List<Diary>> fetchDiariesForMonth(String uid, DateTime month) async =>
+      diaries.where((d) => d.date.year == month.year && d.date.month == month.month).toList();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError('${invocation.memberName}');
+}
+
+/// 그림일기 장 이미지를 그리지 않고 작은 PNG 파일만 돌려주는 가짜 서비스.
+class _FakePageService extends DiaryPageImageService {
+  final Directory dir;
+  final calls = <bool>[];
+
+  _FakePageService(this.dir);
+
+  @override
+  Future<List<File>> generate(BookDiaryEntry entry, {required bool share, BookSpec spec = BookSpec.a5}) async {
+    calls.add(share);
+    final f = File('${dir.path}/${entry.id}_${share ? 'share' : 'view'}_0.png');
+    f.writeAsBytesSync(img.encodePng(img.Image(width: 4, height: 6)));
+    return [f];
+  }
+}
+
+Diary _diary({String id = 'd1'}) => Diary(
+  id: id,
+  date: DateTime(2026, 11, 14),
+  petIds: const ['account:p1'],
+  weather: DiaryWeather.sunny,
+  activities: const [DiaryActivity.walk],
+  text: '오늘은 공원에서 낙엽을 밟았다.',
+  createdAt: DateTime(2026, 11, 14, 20),
+  updatedAt: DateTime(2026, 11, 14, 20),
+);
 
 BookRenderFonts _fonts() => BookRenderFonts(
   handwriting: File('assets/fonts/nanum_pen_script/NanumPenScript-Regular.ttf').readAsBytesSync(),
@@ -213,6 +284,79 @@ void main() {
       expect(rasterCalls, hasLength(2));
       expect(first.single.existsSync(), isFalse, reason: '같은 일기의 이전 이미지는 지운다');
       expect(edited.single.existsSync(), isTrue);
+    });
+  });
+
+  group('K-2 일기 상세 "그림일기 장으로 보기" + K-4 공유', () {
+    late Directory dir;
+    late _FakePageService service;
+    late AppOpenAdSuppression suppression;
+
+    setUpAll(() => initializeDateFormatting('ko_KR'));
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      dir = await Directory.systemTemp.createTemp('page_widget');
+      service = _FakePageService(dir);
+      suppression = AppOpenAdSuppression();
+    });
+    tearDown(() => dir.delete(recursive: true));
+
+    List<Override> overrides({required bool bookOn, DiaryPageSharer? sharer}) => [
+      authStateProvider.overrideWith((ref) => Stream<User?>.value(_FakeUser())),
+      diaryRepositoryProvider.overrideWithValue(_FakeDiaryRepository([_diary()])),
+      diaryBookEnabledProvider.overrideWith((ref) => Stream.value(bookOn)),
+      diaryPageImageServiceProvider.overrideWithValue(service),
+      adSuppressionProvider.overrideWithValue(suppression),
+      if (sharer != null) diaryPageSharerProvider.overrideWithValue(sharer),
+    ];
+
+    testWidgets('스위치가 닫히면 버튼이 없다', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides(bookOn: false),
+          child: const MaterialApp(home: DiaryDetailScreen(diaryId: 'd1')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('오늘은 공원에서 낙엽을 밟았다.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('diary_page_view')), findsNothing);
+    });
+
+    testWidgets('열리면 [그림일기 장으로 보기] → 장 보기 화면(워터마크 없음) → [공유하기]는 공유 이미지·광고 억제', (tester) async {
+      List<XFile>? shared;
+      var suppressedDuringShare = false;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides(
+            bookOn: true,
+            sharer: (files) async {
+              shared = files;
+              suppressedDuringShare = suppression.isSuppressed;
+            },
+          ),
+          child: const MaterialApp(home: DiaryDetailScreen(diaryId: 'd1')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('diary_page_view')));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pumpAndSettle();
+      expect(find.byType(DiaryPageScreen), findsOneWidget);
+      expect(find.text('그림일기 전체 보기'), findsOneWidget);
+      expect(find.textContaining('미리보기'), findsNothing, reason: '내 일기 한 장 보기에는 워터마크 없음');
+      expect(service.calls, [false]);
+
+      await tester.runAsync(() async {
+        await tester.tap(find.byKey(const ValueKey('diary_page_share')));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pump();
+      expect(service.calls, [false, true]);
+      expect(shared, hasLength(1));
+      expect(shared!.single.path, endsWith('_share_0.png'));
+      expect(shared!.single.mimeType, 'image/png');
+      expect(suppressedDuringShare, isTrue);
+      expect(suppression.isSuppressed, isFalse, reason: '공유가 끝나면 억제를 푼다');
     });
   });
 }

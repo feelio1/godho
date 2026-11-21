@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../diary_book/providers/diary_book_switch.dart';
+import '../../diary_book/screens/diary_page_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
@@ -158,6 +160,21 @@ class _DiaryDetailBody extends ConsumerWidget {
             const SizedBox(height: 10),
             _RetryUploadBanner(diaryId: diary.id),
           ],
+          const SizedBox(height: AppSpacing.section),
+        ],
+        // 그림일기 장으로 보기(4차 업데이트 K-2) — 그림일기 스위치가 열렸을 때만.
+        if (ref.watch(diaryBookVisibleProvider)) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const ValueKey('diary_page_view'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => DiaryPageScreen(diary: diary)),
+              ),
+              icon: const Icon(Icons.menu_book_outlined, size: 20),
+              label: const Text('그림일기 장으로 보기'),
+            ),
+          ),
           const SizedBox(height: AppSpacing.section),
         ],
         Row(

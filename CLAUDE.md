@@ -112,7 +112,7 @@
   - 병원과 무관한 화면(내 정보, 쇼핑 등)의 스크롤 목록 끝 인라인 배너.
   - 앱 오프닝 광고: 기존 `AppOpenAdGate`/`AppOpenAdManager` 규칙 유지 — 콜드 스타트에는 띄우지 않고, 백그라운드 복귀 시에만 쿨다운(4시간)을 지나야 뜬다. 진행 중인 흐름 위에는 뜨지 않는다(`lib/ads/app_open_ad_gate.dart`의 `shouldTryAppOpenAd`):
     - 메인 탭 화면(MainShell)의 라우트가 최상단일 때만 시도한다. 그 위에 다른 화면·시트·다이얼로그가 떠 있으면 이번 복귀는 건너뛰고, 광고가 안 떴으니 쿨다운도 소모하지 않는다.
-    - `adSuppressionProvider`(`lib/ads/app_open_ad_suppression.dart`) 카운터가 0보다 크면 건너뛴다. 화면은 `AppOpenAdSuppressor`로 감싸 마운트 동안 올리고 dispose에서 반드시 내리며, 화면이 아닌 흐름은 `during()`(try/finally)로 감싼다. 현재 적용: 일기 작성·수정, 진료기록·예약 입력, 반려동물 추가·수정, 로그인·회원가입(이메일·나이/성별·반려동물 단계), 쇼핑 주문서, 사진 선택·카메라, 회원 탈퇴 흐름. 새 입력·결제 흐름을 만들면 여기에 추가한다.
+    - `adSuppressionProvider`(`lib/ads/app_open_ad_suppression.dart`) 카운터가 0보다 크면 건너뛴다. 화면은 `AppOpenAdSuppressor`로 감싸 마운트 동안 올리고 dispose에서 반드시 내리며, 화면이 아닌 흐름은 `during()`(try/finally)로 감싼다. 현재 적용: 일기 작성·수정, 진료기록·예약 입력, 반려동물 추가·수정, 로그인·회원가입(이메일·나이/성별·반려동물 단계), 쇼핑 주문서, 사진 선택·카메라, 회원 탈퇴 흐름, 그림일기 장 공유(`shareDiaryPage`). 새 입력·결제 흐름을 만들면 여기에 추가한다.
     - 건너뛴 경우에도 지난 예약 확인 시트가 기다리는 흐름 종료 신호(`appOpenAdFlowSettledProvider`)는 올린다.
     - 실제 백그라운드(hidden/paused)를 거친 복귀만 센다 — 위치 권한 창 같은 시스템 창은 앱을 inactive까지만 보내므로 복귀가 아니다. 앱 실행 후 첫 복귀는 건너뛰고, 억제가 풀린 지 2초(`AppOpenAdSuppression.releaseGrace`) 안의 복귀도 건너뛴다(권한·사진 선택 결과가 복귀 알림보다 먼저 끝나는 경우). 위치 권한 요청(`LocationNotifier.requestAndFetch`)은 `during()`으로 감싸 있다.
   - 금지(그대로): 검색창 위, 병원 데이터 카드 안·사이·바로 인접, 병원 상세의 데이터 영역에는 광고·제휴 카드를 넣지 않는다.
