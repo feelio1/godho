@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_dimens.dart';
 import '../book_input.dart';
@@ -318,11 +319,93 @@ class _DiaryBookPreviewScreenState extends ConsumerState<DiaryBookPreviewScreen>
                 ),
                 const SizedBox(height: 6),
                 const Text('곧 주문할 수 있어요', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                const SizedBox(height: 8),
+                const BookOrderInterestToggle(),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 그림일기 주문 오픈 알림 신청(4차 업데이트 K-7) — users/{uid}.bookOrderInterest에
+/// {on, updatedAt}만 기록한다(푸시·이메일은 아직 보내지 않는다). 가격·할인·
+/// 한정 같은 미끼 문구는 쓰지 않는다. 탈퇴 때 users 문서와 함께 지워진다.
+class BookOrderInterestToggle extends ConsumerStatefulWidget {
+  const BookOrderInterestToggle({super.key});
+
+  @override
+  ConsumerState<BookOrderInterestToggle> createState() => _BookOrderInterestToggleState();
+}
+
+class _BookOrderInterestToggleState extends ConsumerState<BookOrderInterestToggle> {
+  bool? _on;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 로그인 상태가 들어오면 한 번 읽는다(앱에선 대개 이미 들어와 있다).
+    ref.listenManual(authStateProvider, (previous, next) {
+      final uid = next.value?.uid;
+      if (uid != null && _on == null) _load(uid);
+    }, fireImmediately: true);
+  }
+
+  Future<void> _load(String uid) async {
+    try {
+      final on = await ref.read(userRepositoryProvider).bookOrderInterest(uid);
+      if (mounted) setState(() => _on = on);
+    } catch (e) {
+      debugPrint('[BookOrderInterestToggle] 읽기 실패(꺼짐으로): $e');
+      if (mounted) setState(() => _on = false);
+    }
+  }
+
+  Future<void> _set(bool on) async {
+    final uid = ref.read(authStateProvider).value?.uid;
+    if (uid == null) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(userRepositoryProvider).setBookOrderInterest(uid, on);
+      if (mounted) setState(() => _on = on);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('저장하지 못했어요. 다시 시도해 주세요.')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_on == null) return const SizedBox(height: 48);
+    if (_on!) {
+      return Row(
+        key: const ValueKey('book_order_interest_on'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.notifications_active_outlined, size: 18, color: AppColors.primary),
+          const SizedBox(width: 6),
+          const Text('알림을 신청했어요', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+            onPressed: _saving ? null : () => _set(false),
+            child: const Text('취소'),
+          ),
+        ],
+      );
+    }
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        key: const ValueKey('book_order_interest_off'),
+        onPressed: _saving ? null : () => _set(true),
+        child: const Text('주문이 열리면 알려 주세요'),
+      ),
     );
   }
 }

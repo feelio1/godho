@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:petcliniccheck/diary_book/providers/diary_book_switch.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:petcliniccheck/screens/onboarding_gate.dart';
@@ -7,7 +9,12 @@ import 'package:petcliniccheck/screens/onboarding_gate.dart';
 void main() {
   testWidgets('처음 실행이면 온보딩이 뜨고, "시작하기"를 누르면 바로 본편으로 넘어간다', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [diaryBookEnabledProvider.overrideWith((ref) => Stream.value(false))],
+        child: const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('시작하기'), findsOneWidget);
@@ -25,7 +32,12 @@ void main() {
 
   testWidgets('이미 온보딩을 본 기기(플래그 true)는 바로 본편을 보여준다', (tester) async {
     SharedPreferences.setMockInitialValues({'onboarding_seen_v1': true});
-    await tester.pumpWidget(const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [diaryBookEnabledProvider.overrideWith((ref) => Stream.value(false))],
+        child: const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('메인 화면'), findsOneWidget);
@@ -34,7 +46,12 @@ void main() {
 
   testWidgets('온보딩 화면에 3단계 안내가 모두 보인다', (tester) async {
     SharedPreferences.setMockInitialValues({});
-    await tester.pumpWidget(const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [diaryBookEnabledProvider.overrideWith((ref) => Stream.value(false))],
+        child: const MaterialApp(home: OnboardingGate(child: Text('메인 화면'))),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('병원 기록 · 동네 진료비'), findsOneWidget);

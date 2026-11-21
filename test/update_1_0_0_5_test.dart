@@ -28,7 +28,9 @@ import 'package:petcliniccheck/diary_book/book_spec.dart';
 import 'package:petcliniccheck/diary_book/diary_page_image_service.dart';
 import 'package:petcliniccheck/diary_book/providers/diary_book_switch.dart';
 import 'package:petcliniccheck/diary_book/render/book_pdf_renderer.dart';
+import 'package:petcliniccheck/diary_book/screens/diary_book_preview_screen.dart' show BookOrderInterestToggle;
 import 'package:petcliniccheck/diary_book/screens/diary_page_screen.dart';
+import 'package:petcliniccheck/screens/onboarding_screen.dart';
 import 'package:petcliniccheck/diary_book/screens/first_diary_page_sheet.dart';
 import 'package:petcliniccheck/models/pet.dart';
 import 'package:petcliniccheck/providers/effective_pets_provider.dart';
@@ -585,6 +587,70 @@ void main() {
     test('견본 에셋 1x·2x가 있다', () {
       expect(File('assets/diary/sample_page.png').existsSync(), isTrue);
       expect(File('assets/diary/2.0x/sample_page.png').existsSync(), isTrue);
+    });
+  });
+
+  group('K-7 주문 오픈 알림 신청', () {
+    testWidgets('켜면 bookOrderInterest.on = true, 취소하면 false(updatedAt 함께), 미끼 문구 없음', (tester) async {
+      final firestore = FakeFirebaseFirestore();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authStateProvider.overrideWith((ref) => Stream<User?>.value(_FakeUser())),
+            userRepositoryProvider.overrideWithValue(UserRepository(firestore: firestore)),
+          ],
+          child: const MaterialApp(home: Scaffold(body: BookOrderInterestToggle())),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('주문이 열리면 알려 주세요'), findsOneWidget);
+      for (final word in ['할인', '한정', '원', '선착순']) {
+        expect(find.textContaining(word), findsNothing, reason: word);
+      }
+
+      await tester.tap(find.byKey(const ValueKey('book_order_interest_off')));
+      await tester.pumpAndSettle();
+      expect(find.text('알림을 신청했어요'), findsOneWidget);
+      var data = (await firestore.collection('users').doc('u1').get()).data()!;
+      expect(data['bookOrderInterest']['on'], isTrue);
+      expect(data['bookOrderInterest']['updatedAt'], isNotNull);
+
+      await tester.tap(find.text('취소'));
+      await tester.pumpAndSettle();
+      expect(find.text('주문이 열리면 알려 주세요'), findsOneWidget);
+      data = (await firestore.collection('users').doc('u1').get()).data()!;
+      expect(data['bookOrderInterest']['on'], isFalse);
+    });
+  });
+
+  group('K-8 온보딩 한 줄', () {
+    Future<void> pumpOnboarding(WidgetTester tester, Stream<bool> book) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [diaryBookEnabledProvider.overrideWith((ref) => book)],
+          child: MaterialApp(home: OnboardingScreen(onDone: () {})),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('스위치가 열리면 "우리 아이 일기 · 그림일기", 진료기록은 세 번째 줄 설명에', (tester) async {
+      await pumpOnboarding(tester, Stream.value(true));
+      expect(find.text('우리 아이 일기 · 그림일기'), findsOneWidget);
+      expect(find.text('쓴 일기가 그림일기 공책이 돼요'), findsOneWidget);
+      expect(find.text('진료기록 · 예약 일정을 한곳에서'), findsOneWidget);
+      expect(find.text('우리 아이 일기 · 진료기록'), findsNothing);
+    });
+
+    testWidgets('닫혔거나 아직 모르면(로딩) 지금 문구', (tester) async {
+      for (final book in [Stream.value(false), const Stream<bool>.empty()]) {
+        await pumpOnboarding(tester, book);
+        expect(find.text('우리 아이 일기 · 진료기록'), findsOneWidget);
+        expect(find.text('로그인하면 계정에 저장돼요'), findsOneWidget);
+        expect(find.text('다니는 병원 일정을 한곳에서'), findsOneWidget);
+        expect(find.textContaining('그림일기'), findsNothing);
+      }
     });
   });
 }

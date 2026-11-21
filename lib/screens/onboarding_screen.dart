@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../diary_book/providers/diary_book_switch.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_dimens.dart';
 import '../widgets/mascot_image.dart';
@@ -13,7 +15,7 @@ import 'login_screen.dart';
 ///
 /// 로그인 여부와 무관하게 항상 보여주고, 과장·평가·추천·"싸다/비싸다"
 /// 표현은 어디에도 쓰지 않는다(CLAUDE.md 원칙 1).
-class OnboardingScreen extends StatelessWidget {
+class OnboardingScreen extends ConsumerWidget {
   final VoidCallback onDone;
 
   const OnboardingScreen({super.key, required this.onDone});
@@ -24,7 +26,10 @@ class OnboardingScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 그림일기 스위치가 열렸을 때만 두 번째 줄을 그림일기로(4차 업데이트 K-8) —
+    // 닫혔거나 아직 모르면(로딩·오류) 지금 문구. 진료기록은 세 번째 줄에 남긴다.
+    final book = ref.watch(diaryBookVisibleProvider);
     // "장구름의 수첩"(3차 업데이트 J-7): 위 300dp 버터색 바탕(아래쪽 둥근
     // 모서리)에 구름이와 고양이 그림, 제목·설명, 할 수 있는 것 3줄, 맨 아래
     // 공공데이터 안내 + [시작하기] + 로그인.
@@ -70,16 +75,16 @@ class OnboardingScreen extends StatelessWidget {
                   const SizedBox(height: 24),
                   const _OnboardingStep(icon: Icons.search, title: '병원 기록 · 동네 진료비', subtitle: '로그인 없이 바로 볼 수 있어요'),
                   const SizedBox(height: 14),
-                  const _OnboardingStep(
-                    icon: Icons.edit_outlined,
-                    title: '우리 아이 일기 · 진료기록',
-                    subtitle: '로그인하면 계정에 저장돼요',
+                  _OnboardingStep(
+                    icon: book ? Icons.menu_book_outlined : Icons.edit_outlined,
+                    title: book ? '우리 아이 일기 · 그림일기' : '우리 아이 일기 · 진료기록',
+                    subtitle: book ? '쓴 일기가 그림일기 공책이 돼요' : '로그인하면 계정에 저장돼요',
                   ),
                   const SizedBox(height: 14),
-                  const _OnboardingStep(
+                  _OnboardingStep(
                     icon: Icons.calendar_today_outlined,
                     title: '예약 알림 · 캘린더',
-                    subtitle: '다니는 병원 일정을 한곳에서',
+                    subtitle: book ? '진료기록 · 예약 일정을 한곳에서' : '다니는 병원 일정을 한곳에서',
                   ),
                   const SizedBox(height: 28),
                   const SizedBox(
