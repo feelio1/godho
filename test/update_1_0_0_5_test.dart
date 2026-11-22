@@ -195,7 +195,7 @@ void main() {
   });
 
   group('K-1/K-4 렌더 — 쪽 번호·공유 하단 표시', () {
-    test('공유 이미지만 쪽 아래 바깥 여백(하단 표시)이 붙고, 화면 보기·책 PDF는 판형 그대로', () async {
+    test('공유 이미지만 쪽 안쪽 하단(원고지 아래)에 작고 옅은 표시, 판형은 모두 그대로', () async {
       final pages = layoutSingleDiary(_entry());
       final view = await renderBookPdf(
         BookLayout(pages),
@@ -213,12 +213,15 @@ void main() {
         shareFooter: kShareFooterText,
       );
       const mm = 72 / 25.4;
+      // 바깥 여백을 더하지 않는다 — 공유 이미지도 판형 그대로(가로 1080px 기준).
       expect(_mediaBoxHeight(view), closeTo(BookSpec.a5.heightMm * mm, 0.5));
-      expect(_mediaBoxHeight(share), closeTo((BookSpec.a5.heightMm + kShareFooterMm) * mm, 0.5));
+      expect(_mediaBoxHeight(share), closeTo(BookSpec.a5.heightMm * mm, 0.5));
       expect(kShareFooterText, '펫클로 만든 그림일기');
-      // 하단 글자 크기는 이미지 높이의 약 2%.
-      final ratio = (kShareFooterFontPt / mm) / (BookSpec.a5.heightMm + kShareFooterMm);
-      expect(ratio, inInclusiveRange(0.015, 0.025));
+      // 공유 PDF에만 하단 표시 글자가 더 들어간다(같은 쪽, 글자 하나 더).
+      expect(share.length, greaterThan(view.length));
+      // 작고(쪽 높이의 2% 미만) 옅게(textSecondary 60%를 종이 위에 섞은 색).
+      expect((kShareFooterFontPt / mm) / BookSpec.a5.heightMm, lessThan(0.02));
+      expect(BookPalette.shareFooter.toInt() & 0xFFFFFF, 0x929699);
 
       final book =
           (layoutBook(

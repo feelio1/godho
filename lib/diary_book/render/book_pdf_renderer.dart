@@ -43,19 +43,19 @@ class BookPalette {
   static const cloud = PdfColor.fromInt(0xFFB9C7DA);
   static const snow = PdfColor.fromInt(0xFF3D7CC9);
 
-  /// 공유 이미지 하단 표시 글자 — 앱의 textSecondary(#4A5562).
-  static const footerGrey = PdfColor.fromInt(0xFF4A5562);
+  /// 공유 이미지 하단 표시 글자 — 앱의 textSecondary(#4A5562)를 크림 종이
+  /// (#FFF8EC) 위에 60% 투명도로 얹은 색(미리 섞어 둠 — 작고 옅게).
+  static const shareFooter = PdfColor.fromInt(0xFF929699);
 }
 
 const double _mm = PdfPageFormat.mm;
 
 /// 렌더러 버전 — 그리는 방식이 바뀌면 올려서 캐시된 미리보기를 무효화한다.
-const int kBookRendererVersion = 3;
+const int kBookRendererVersion = 4;
 
-/// 공유 이미지 맨 아래 바깥 여백(mm)과 그 안의 글자 크기(pt) — 글자 높이가
-/// 이미지 높이의 약 2%가 되게(4차 업데이트 K-4).
-const double kShareFooterMm = 9;
-const double kShareFooterFontPt = 11;
+/// 공유 이미지 하단 표시 글자 크기(pt) — 쪽 안쪽 하단 여백(원고지 아래, 안전
+/// 영역 안, 쪽 번호 자리)에 작게.
+const double kShareFooterFontPt = 7.5;
 
 /// 공유 이미지에만 넣는 하단 표시.
 const String kShareFooterText = '펫클로 만든 그림일기';
@@ -71,25 +71,31 @@ Future<Uint8List> renderBookPdf(
 }) async {
   final hand = pw.Font.ttf(ByteData.sublistView(fonts.handwriting));
   final label = pw.Font.ttf(ByteData.sublistView(fonts.label));
-  final r = _Renderer(spec: spec, hand: hand, label: label, loadPhoto: loadPhoto, pageNumbers: pageNumbers);
+  final r = _Renderer(
+    spec: spec,
+    hand: hand,
+    label: label,
+    loadPhoto: loadPhoto,
+    pageNumbers: pageNumbers,
+    shareFooter: shareFooter,
+  );
   final doc = pw.Document(title: layout.pages.whereType<CoverPage>().firstOrNull?.title, creator: 'Petcli');
-  // 공유 이미지는 쪽 아래에 바깥 여백을 더해 그 안에만 [shareFooter]를 쓴다 —
-  // 쪽 안의 배치·그림은 그대로다.
-  final footerMm = shareFooter == null ? 0.0 : kShareFooterMm;
-  final format = PdfPageFormat(spec.widthMm * _mm, (spec.heightMm + footerMm) * _mm, marginAll: 0);
+  final format = PdfPageFormat(spec.widthMm * _mm, spec.heightMm * _mm, marginAll: 0);
   final total = layout.pages.length;
   for (final page in layout.pages) {
-    doc.addPage(pw.Page(
-      pageFormat: format,
-      margin: pw.EdgeInsets.zero,
-      // 실제 배치·그리기는 save() 때 쪽 순서대로 일어난다 — 진행 표시와
-      // 사진 읽기를 여기서 해 사진을 한 번에 다 들고 있지 않게 한다.
-      build: (context) {
-        final widget = shareFooter == null ? r.page(page) : r.withShareFooter(r.page(page), shareFooter);
-        onProgress?.call(page.pageNumber, total);
-        return widget;
-      },
-    ));
+    doc.addPage(
+      pw.Page(
+        pageFormat: format,
+        margin: pw.EdgeInsets.zero,
+        // 실제 배치·그리기는 save() 때 쪽 순서대로 일어난다 — 진행 표시와
+        // 사진 읽기를 여기서 해 사진을 한 번에 다 들고 있지 않게 한다.
+        build: (context) {
+          final widget = r.page(page);
+          onProgress?.call(page.pageNumber, total);
+          return widget;
+        },
+      ),
+    );
   }
   return doc.save();
 }
@@ -169,21 +175,11 @@ class _Renderer {
     required this.label,
     required this.loadPhoto,
     this.pageNumbers = true,
+    this.shareFooter,
   });
 
-  /// 쪽 아래 흰 바깥 여백 + 가운데 작은 회색 글자(공유 이미지 전용).
-  pw.Widget withShareFooter(pw.Widget page, String footer) => pw.Column(
-        children: [
-          pw.SizedBox(width: spec.widthMm * _mm, height: spec.heightMm * _mm, child: page),
-          pw.Container(
-            width: spec.widthMm * _mm,
-            height: kShareFooterMm * _mm,
-            color: PdfColors.white,
-            alignment: pw.Alignment.center,
-            child: pw.Text(footer, style: _label(kShareFooterFontPt, BookPalette.footerGrey)),
-          ),
-        ],
-      );
+  /// 공유 이미지에만 쪽 안쪽 하단 여백에 작고 옅게 쓰는 표시(null이면 없음).
+  final String? shareFooter;
 
   pw.TextStyle _hand(double pt, PdfColor color) =>
       pw.TextStyle(font: hand, fontSize: pt, color: color, fontFallback: [label]);
@@ -209,10 +205,13 @@ class _Renderer {
         painters.add(_paper);
         _summary(page, overlays);
     }
+    // 쪽 번호 자리 = 원고지 아래, 안전 영역 안쪽 하단 띠.
+    final footerRect = MmRect(spec.safeMm, spec.heightMm - spec.safeMm - 5, spec.contentWidthMm, 5);
     final pageLabel = pageNumbers ? page.pageLabel : null;
     if (pageLabel != null) {
-      final rect = MmRect(spec.safeMm, spec.heightMm - spec.safeMm - 5, spec.contentWidthMm, 5);
-      overlays.add(_text(rect, pageLabel, _label(7, BookPalette.muted)));
+      overlays.add(_text(footerRect, pageLabel, _label(7, BookPalette.muted)));
+    } else if (shareFooter != null) {
+      overlays.add(_text(footerRect, shareFooter!, _label(kShareFooterFontPt, BookPalette.shareFooter)));
     }
     return pw.Stack(
       fit: pw.StackFit.expand,
@@ -246,25 +245,19 @@ class _Renderer {
   }
 
   pw.Widget _at(MmRect r, pw.Widget child) => pw.Positioned(
-        left: r.x * _mm,
-        top: r.y * _mm,
-        child: pw.SizedBox(width: r.width * _mm, height: r.height * _mm, child: child),
-      );
+    left: r.x * _mm,
+    top: r.y * _mm,
+    child: pw.SizedBox(width: r.width * _mm, height: r.height * _mm, child: child),
+  );
 
-  pw.Widget _text(
-    MmRect r,
-    String text,
-    pw.TextStyle style, {
-    pw.Alignment alignment = pw.Alignment.center,
-  }) =>
-      _at(
-        r,
-        pw.FittedBox(
-          fit: pw.BoxFit.scaleDown,
-          alignment: alignment,
-          child: pw.Text(text, style: style),
-        ),
-      );
+  pw.Widget _text(MmRect r, String text, pw.TextStyle style, {pw.Alignment alignment = pw.Alignment.center}) => _at(
+    r,
+    pw.FittedBox(
+      fit: pw.BoxFit.scaleDown,
+      alignment: alignment,
+      child: pw.Text(text, style: style),
+    ),
+  );
 
   /// 사진 한 칸 — 엔진이 정한 crop 영역만 칸에 보이게 확대·이동 후 잘라낸다.
   pw.Widget _photo(PhotoSlot slot, double radiusMm) {
@@ -377,11 +370,11 @@ class _Renderer {
       ..add(_text(page.dateLabelRect, '날짜', _label(7.5, BookPalette.navy)))
       ..add(_text(page.dateTextRect, page.dateLabel, _hand(17, BookPalette.ink), alignment: pw.Alignment.centerLeft))
       ..add(_text(page.weatherLabelRect, '날씨', _label(7.5, BookPalette.navy)))
-      ..add(_text(page.activityLabelRect, '오늘 한 일', _label(7.5, BookPalette.navy),
-          alignment: pw.Alignment.centerLeft));
+      ..add(_text(page.activityLabelRect, '오늘 한 일', _label(7.5, BookPalette.navy), alignment: pw.Alignment.centerLeft));
     if (page.activityText.isNotEmpty) {
-      overlays.add(_text(page.activityTextRect, page.activityText, _hand(16, BookPalette.ink),
-          alignment: pw.Alignment.centerLeft));
+      overlays.add(
+        _text(page.activityTextRect, page.activityText, _hand(16, BookPalette.ink), alignment: pw.Alignment.centerLeft),
+      );
     }
     for (final slot in page.photos) {
       overlays.add(_photo(slot, 1.5));
@@ -396,10 +389,22 @@ class _Renderer {
     _gridText(page.grid, overlays);
     final h = page.headerRect;
     overlays
-      ..add(_text(MmRect(h.x + 3, h.y, h.width * 0.7, h.height), page.dateLabel, _hand(14, BookPalette.ink),
-          alignment: pw.Alignment.centerLeft))
-      ..add(_text(MmRect(h.right - 20, h.y, 17, h.height), '(이어서)', _label(7, BookPalette.muted),
-          alignment: pw.Alignment.centerRight));
+      ..add(
+        _text(
+          MmRect(h.x + 3, h.y, h.width * 0.7, h.height),
+          page.dateLabel,
+          _hand(14, BookPalette.ink),
+          alignment: pw.Alignment.centerLeft,
+        ),
+      )
+      ..add(
+        _text(
+          MmRect(h.right - 20, h.y, 17, h.height),
+          '(이어서)',
+          _label(7, BookPalette.muted),
+          alignment: pw.Alignment.centerRight,
+        ),
+      );
   }
 
   void _memo(MemoPage page, List<void Function(_MmCanvas)> painters, List<pw.Widget> overlays) {
@@ -419,29 +424,27 @@ class _Renderer {
         ? '기록된 활동이 없어요'
         : page.topActivities.map((a) => '${a.label} ${a.count}번').join(' · ');
     pw.Widget row(String title, String value) => pw.Padding(
-          padding: const pw.EdgeInsets.only(bottom: 14),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(title, style: _label(8, BookPalette.navy)),
-              pw.SizedBox(height: 3),
-              pw.Text(value, style: _hand(18, BookPalette.ink)),
-            ],
-          ),
-        );
+      padding: const pw.EdgeInsets.only(bottom: 14),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(title, style: _label(8, BookPalette.navy)),
+          pw.SizedBox(height: 3),
+          pw.Text(value, style: _hand(18, BookPalette.ink)),
+        ],
+      ),
+    );
     overlays
       ..add(_text(page.titleRect, '함께한 날들', _hand(30, BookPalette.navy)))
-      ..add(_at(
-        page.bodyRect,
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            row('기간', page.periodLabel),
-            row('일기', '${page.diaryCount}편'),
-            row('가장 많이 한 활동', activities),
-          ],
+      ..add(
+        _at(
+          page.bodyRect,
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [row('기간', page.periodLabel), row('일기', '${page.diaryCount}편'), row('가장 많이 한 활동', activities)],
+          ),
         ),
-      ))
+      )
       ..add(_text(page.footerRect, kBookFooterText, _label(6.5, BookPalette.muted)));
   }
 
@@ -477,8 +480,12 @@ class _Renderer {
     c.fill(color);
     for (var i = 0; i < 8; i++) {
       final a = math.pi / 4 * i;
-      c.line(cx + r * 1.5 * math.cos(a), cy + r * 1.5 * math.sin(a), cx + r * 2.2 * math.cos(a),
-          cy + r * 2.2 * math.sin(a));
+      c.line(
+        cx + r * 1.5 * math.cos(a),
+        cy + r * 1.5 * math.sin(a),
+        cx + r * 2.2 * math.cos(a),
+        cy + r * 2.2 * math.sin(a),
+      );
     }
     c.stroke(color, 0.3);
   }
