@@ -24,11 +24,11 @@
 - 주요 버튼 56dp 알약, 보조 버튼 48dp 1.5px 네이비 알약, 카드 그림자 없음·반지름 22, 입력칸 라벨은 칸 위. 짧은 제목·손글씨 한 줄은 `keepWords()`(lib/utils/keep_words.dart)로 낱말 단위 줄바꿈.
 
 ## 기술 스택
-- Flutter (Android 우선), Dart. `intl`은 **0.20.3에 고정** — 다른 패키지 추가/갱신 때문에 버전이 바뀌지 않게 항상 확인한다.
+- Flutter (Android 우선, iOS는 아이폰 전용 — 아래 "iOS" 절), Dart. `intl`은 **0.20.3에 고정** — 다른 패키지 추가/갱신 때문에 버전이 바뀌지 않게 항상 확인한다.
 - 폰트 라이선스(SIL OFL 1.1, 폰트와 함께 배포 — pubspec assets에 등록): IBM Plex Sans KR·Mono는 `assets/fonts/OFL.txt`(IBM/plex 저장소 원문), 나눔손글씨 펜은 `assets/fonts/nanum_pen_script/OFL.txt`. 폰트를 추가하면 라이선스 파일도 같이 넣는다.
 - 상태관리: **Riverpod**
 - 지도: **카카오맵 SDK**(kakao_map_sdk) — "병원" 탭의 지도 보기 전용. 네이티브 지도 생명주기 호출(클러스터링·줌 상수, SDK 초기화 순서)은 함부로 바꾸지 않는다 — 과거 초기화 실패가 앱 전체를 막은 적이 있어, 키가 없거나 네이티브 초기화가 실패해도 그 탭만 "준비 중" 안내로 대체하고 앱은 정상 동작해야 한다(`lib/main.dart`, `kakaoMapSdkInitialized`). 지도 화면 자체의 "선택된 구로 필터하지 말 것" 같은 화면별 주석도 그대로 지킨다.
-- 인증: **Firebase Auth**. 현재 실제로 켜져 있는 로그인 수단은 **구글·이메일/비밀번호 + 게스트**뿐이다. 카카오·애플 로그인은 코드·버튼까지 이미 구현돼 있지만 `lib/config/feature_flags.dart`의 `kEnableKakaoLogin`/`kEnableAppleLogin` 플래그로 숨겨 둔 v1 범위 밖 기능이다 — 다시 켤 일이 있으면 플래그만 바꾸면 되므로, 이 코드를 지우거나 "안 쓰는 코드"로 취급해 정리하지 않는다.
+- 인증: **Firebase Auth**. 현재 실제로 켜져 있는 로그인 수단은 **구글·이메일/비밀번호 + 게스트**, 그리고 **iOS에서만 애플**(`kEnableAppleLogin = true`, 버튼은 `showAppleSignIn(defaultTargetPlatform)` — 안드로이드는 플래그와 무관하게 숨김)이다. 카카오 로그인은 코드·버튼까지 이미 구현돼 있지만 `lib/config/feature_flags.dart`의 `kEnableKakaoLogin` 플래그로 숨겨 둔 v1 범위 밖 기능이다 — 다시 켤 일이 있으면 플래그만 바꾸면 되므로(iOS는 `LSApplicationQueriesSchemes`에 카카오 스킴도 더한다), 이 코드를 지우거나 "안 쓰는 코드"로 취급해 정리하지 않는다.
 - 데이터베이스: **Firestore**(계정·일기·쇼핑·설정 스위치 등 로그인 이후 데이터 전부). 리전은 **asia-northeast3**로 콘솔에 설정돼 있다 — 새 컬렉션을 추가할 때 다른 리전을 가정하지 않는다.
 - 파일 저장: **Firebase Storage** — 일기 사진(`diary_photos/{uid}/{diaryId}/{photoId}.jpg` 원본 + `_t.jpg` 썸네일), 반려동물 사진(`pet_photos/{uid}/{petId}.jpg`).
 - 로컬 저장(SharedPreferences, 계정·서버 무관): 관심 병원 id 배열, 일기 알림 설정, 일기 작성 임시저장, 일기 사진 업로드 대기열.
@@ -97,18 +97,31 @@
 - 사진이 보이는 순서는 Storage 배열에 쌓이는 순서가 아니라 `DiaryPhoto.order` 필드로 정한다 — 동시 업로드·재시도로 완료 순서가 뒤섞여도 사용자가 고른 순서가 항상 유지된다.
 
 ## 알림 구조
-- 예약 알림(`appointment_reminders`)과 일기 알림(`diary_reminders`)은 **완전히 다른 Android 알림 채널**이다. 한쪽을 손보다가 다른 쪽 채널 설정을 건드리지 않는다.
+- 예약 알림(`appointment_reminders`)과 일기 알림(`diary_reminders`)은 **완전히 다른 Android 알림 채널**이다. 한쪽을 손보다가 다른 쪽 채널 설정을 건드리지 않는다. iOS에서도 같은 이름의 카테고리·스레드 id로 따로 묶는다(`NotificationService.appointmentNotificationDetails`/`diaryNotificationDetails`).
 - 알림 권한·정확한 시각 알람 권한이 없거나 요청이 실패해도 예외를 앱 밖으로 던지지 않는다 — 그 알림 기능만 조용히(그러나 로그는 남기고) 비활성화되고 나머지 앱은 정상 동작해야 한다.
 
 ## 빌드/환경 변수 (--dart-define)
-- `KAKAO_NATIVE_KEY`, `KAKAO_REST_KEY`(지도 SDK·역지오코딩), `ADMOB_BANNER_UNIT_ID`, `ADMOB_APP_OPEN_UNIT_ID`. 값이 없으면 각각 "준비 중" 대체 화면 또는 구글 공개 테스트 광고 ID로 안전하게 대체된다 — 키 누락이 빌드·실행 자체를 막아선 안 된다.
-- `ADMOB_APP_ID`는 dart-define이 아니라 `android/secrets.properties`(로컬 전용, 커밋 금지)에서 네이티브 매니페스트로 주입한다.
+- `KAKAO_NATIVE_KEY`, `KAKAO_REST_KEY`(지도 SDK·역지오코딩), `ADMOB_BANNER_UNIT_ID`, `ADMOB_APP_OPEN_UNIT_ID`(안드로이드), `ADMOB_BANNER_UNIT_ID_IOS`, `ADMOB_APP_OPEN_UNIT_ID_IOS`(iOS — 플랫폼마다 자기 값만 쓰고 없으면 그 플랫폼의 테스트 ID, `lib/config/admob_config.dart`). 값이 없으면 각각 "준비 중" 대체 화면 또는 구글 공개 테스트 광고 ID로 안전하게 대체된다 — 키 누락이 빌드·실행 자체를 막아선 안 된다.
+- `ADMOB_APP_ID`는 dart-define이 아니라 `android/secrets.properties`(로컬 전용, 커밋 금지)에서 네이티브 매니페스트로 주입한다. iOS 네이티브 값은 `ios/Flutter/Secrets.xcconfig`(아래 "iOS" 절).
+
+## iOS (1.0.0+6 — 맥 없이 Codemagic → TestFlight)
+- **아이폰 전용**(`TARGETED_DEVICE_FAMILY = 1`), 최소 iOS **15.0**(Firebase 플러그인 요구 — 낮추면 빌드 실패). 아이패드·카카오 로그인·푸시(FCM)·인앱결제·심사 제출은 범위 밖. 플러그인은 전부 Swift Package Manager라 Podfile이 없다.
+- **iOS 작업이 안드로이드 동작을 바꾸면 안 된다**: 플랫폼 분기는 `defaultTargetPlatform`으로(테스트에서 `debugDefaultTargetPlatformOverride`로 바꿀 수 있게), 안드로이드 경로는 원래 코드 그대로 둔다.
+- **빌드**: `codemagic.yaml`의 `ios-testflight`(비밀값 없음, 직접 시작할 때만) → TestFlight에만 올린다. Flutter 버전 고정(지금 3.47.8). 환경 변수 그룹 `petcli_ios`의 이름·만드는 법·처음 할 일은 `tool/ios/README.md`.
+- **비밀값 주입**: Info.plist의 `$(ADMOB_APP_ID_IOS)`·`$(GOOGLE_IOS_CLIENT_ID)`·`$(GOOGLE_REVERSED_CLIENT_ID)`는 `ios/Flutter/Secrets.xcconfig`(`.gitignore`, Codemagic이 환경 변수로 값 있는 줄만 써서 만든다)에서 온다. `Debug/Release.xcconfig`가 기본값(구글 공개 iOS 테스트 앱 ID 등) 뒤에 `#include? "Secrets.xcconfig"`로 읽어 파일이 없어도 빌드·실행된다(구글 로그인 버튼만 실패 안내). 예시는 `Secrets.xcconfig.example`(값 없음). dart-define 값은 Codemagic이 저장소 밖 임시 JSON으로 만들어 `--dart-define-from-file`로 넘긴다.
+- **`GoogleService-Info.plist`는 절대 커밋하지 않는다**(`.gitignore`). Codemagic이 base64 환경 변수로 만들고, Xcode 빌드 단계 "Copy GoogleService-Info.plist"가 파일이 있을 때만 앱에 넣는다(없으면 경고만, Firebase 없이 빌드).
+- 권한 문구(위치·사진 보관함·카메라·추적)는 1.0.0+6 지시서 문구 그대로다 — 바꿀 일이 있으면 테스트(`test/update_1_0_0_6_test.dart`)도 같이 고친다. `ITSAppUsesNonExemptEncryption = false`.
+- **애플 로그인**: iOS에서만, 구글 버튼과 같은 54dp 알약(검정·공식 로고 `AppleLogoPainter`·시스템 글꼴). entitlements `com.apple.developer.applesignin`(App ID에도 Sign In with Apple을 켜야 서명된다). 이름은 처음 승인 때만 오므로 받으면 `displayName`으로 저장하고, 없으면 지금까지의 흐름 그대로. **회원 탈퇴**: 애플 계정은 무엇이든 지우기 전에 재인증으로 `authorizationCode`를 받아 `revokeTokenWithAuthorizationCode`로 철회한 뒤 기존 삭제 흐름 — 승인 창을 닫으면 아무것도 지우지 않고, 철회 실패는 로그만 남기고 탈퇴는 계속.
+- **앱 추적 투명성(ATT)**: iOS에서만, 온보딩을 마친 뒤 처음 메인 화면에 들어왔을 때 **한 번**(`TrackingConsent.requestIfNeeded`, AppDelegate의 `petcli/tracking` 통로 — 패키지 없음). 이미 답했으면 다시 묻지 않고, 미리 설명하는 화면·보상 문구는 만들지 않는다. 묻는 동안 `adSuppressionProvider.during()`. **첫 광고 요청 전에** 묻는다 — iOS의 배너·앱 오프닝 광고 로드는 답이 정해질 때까지 기다리고, 허용이 아니면 비맞춤(`nonPersonalizedAds: true`). 안드로이드 광고 요청은 그대로 `const AdRequest()`.
+- **iOS 알림 권한**: 앱 시작·초기화 때 묻지 않는다(`DarwinInitializationSettings` 요청 값 전부 false). 예약 알림 저장·일기 알림 켜기(시트, 설정 토글은 iOS에서만) 순간에만 `requestPermission`. iOS 예약 알림 64개 한도 — 지금 최대치는 일기 14 + 앞으로의 예약당 1 + 테스트 1(예약 49건까지 안), iOS에서만 걸린 수를 로그로 남긴다.
+- iOS는 앱 업데이트마다 앱 폴더 경로가 바뀐다 — 파일 **절대 경로**를 SharedPreferences 등에 저장하면 iOS에서는 다시 찾아야 한다(사진 업로드 대기열은 `DiaryPhotoUploadQueueStore.load`가 지금 폴더의 같은 이름 파일로 옮겨 읽는다).
+- 아이콘은 `flutter_launcher_icons`(`ios: true`, `remove_alpha_ios: true`). 이 도구는 iOS 생성 때 `project.pbxproj`의 `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`를 `AppIcon`으로 잘못 바꾸니 다시 돌리면 `YES`로 되돌린다. 런치 스크린 배경은 네이비 `#1B4D8C`.
 
 ## 작업 규칙
 - 모든 커밋은 브랜치 **`claude/new-session-b97g5o`** 에만 쌓는다. 다른 브랜치로 푸시하지 않는다.
 - `intl`은 **0.20.3 고정** — `pubspec.yaml`을 건드리는 모든 작업에서 이 줄이 그대로인지 확인한다.
 - 커밋 전에 항상 `flutter analyze` 0건, `flutter test` 전부 통과를 확인한다.
-- 다음은 절대 커밋하지 않는다: `android/key.properties`, `*.jks`/`*.keystore`, `android/secrets.properties`, `google-services.json`, 그 안의 키 값을 코드·커밋 메시지에 평문으로 남기는 것. (`android/app/google-services.json`과 `ios/Runner/GoogleService-Info.plist`는 루트 `.gitignore`의 무시 목록에 등록됨 — 저장소에 존재하지 않으며, 다른 경로에 두게 되면 그 경로도 무시 목록에 추가할 것.)
+- 다음은 절대 커밋하지 않는다: `android/key.properties`, `*.jks`/`*.keystore`, `android/secrets.properties`, `google-services.json`, `GoogleService-Info.plist`, `ios/Flutter/Secrets.xcconfig`, App Store Connect API 키(`*.p8`)·인증서(`*.p12`)·프로비저닝 프로필(`*.mobileprovision`), 그 안의 키 값을 코드·커밋 메시지에 평문으로 남기는 것. (`android/app/google-services.json`, `ios/Runner/GoogleService-Info.plist`, `ios/Flutter/Secrets.xcconfig`, `*.p8`/`*.p12`/`*.mobileprovision`은 루트 `.gitignore`의 무시 목록에 등록됨 — 저장소에 존재하지 않으며, 다른 경로에 두게 되면 그 경로도 무시 목록에 추가할 것.)
 
 ## 하지 말 것
 - 사용자 리뷰·제보·평점·커뮤니티 기능, 앱 자체 병원 평점/별점.
@@ -118,7 +131,7 @@
   - 병원과 무관한 화면(내 정보, 쇼핑 등)의 스크롤 목록 끝 인라인 배너.
   - 앱 오프닝 광고: 기존 `AppOpenAdGate`/`AppOpenAdManager` 규칙 유지 — 콜드 스타트에는 띄우지 않고, 백그라운드 복귀 시에만 쿨다운(4시간)을 지나야 뜬다. 진행 중인 흐름 위에는 뜨지 않는다(`lib/ads/app_open_ad_gate.dart`의 `shouldTryAppOpenAd`):
     - 메인 탭 화면(MainShell)의 라우트가 최상단일 때만 시도한다. 그 위에 다른 화면·시트·다이얼로그가 떠 있으면 이번 복귀는 건너뛰고, 광고가 안 떴으니 쿨다운도 소모하지 않는다.
-    - `adSuppressionProvider`(`lib/ads/app_open_ad_suppression.dart`) 카운터가 0보다 크면 건너뛴다. 화면은 `AppOpenAdSuppressor`로 감싸 마운트 동안 올리고 dispose에서 반드시 내리며, 화면이 아닌 흐름은 `during()`(try/finally)로 감싼다. 현재 적용: 일기 작성·수정, 진료기록·예약 입력, 반려동물 추가·수정, 로그인·회원가입(이메일·나이/성별·반려동물 단계), 쇼핑 주문서, 사진 선택·카메라, 회원 탈퇴 흐름, 그림일기 장 공유(`shareDiaryPage`). 새 입력·결제 흐름을 만들면 여기에 추가한다.
+    - `adSuppressionProvider`(`lib/ads/app_open_ad_suppression.dart`) 카운터가 0보다 크면 건너뛴다. 화면은 `AppOpenAdSuppressor`로 감싸 마운트 동안 올리고 dispose에서 반드시 내리며, 화면이 아닌 흐름은 `during()`(try/finally)로 감싼다. 현재 적용: 일기 작성·수정, 진료기록·예약 입력, 반려동물 추가·수정, 로그인·회원가입(이메일·나이/성별·반려동물 단계), 쇼핑 주문서, 사진 선택·카메라, 회원 탈퇴 흐름, 그림일기 장 공유(`shareDiaryPage`), iOS 추적 허용(ATT) 요청. 새 입력·결제 흐름을 만들면 여기에 추가한다.
     - 건너뛴 경우에도 지난 예약 확인 시트가 기다리는 흐름 종료 신호(`appOpenAdFlowSettledProvider`)는 올린다.
     - 실제 백그라운드(hidden/paused)를 거친 복귀만 센다 — 위치 권한 창 같은 시스템 창은 앱을 inactive까지만 보내므로 복귀가 아니다. 앱 실행 후 첫 복귀는 건너뛰고, 억제가 풀린 지 2초(`AppOpenAdSuppression.releaseGrace`) 안의 복귀도 건너뛴다(권한·사진 선택 결과가 복귀 알림보다 먼저 끝나는 경우). 위치 권한 요청(`LocationNotifier.requestAndFetch`)은 `during()`으로 감싸 있다.
   - 금지(그대로): 검색창 위, 병원 데이터 카드 안·사이·바로 인접, 병원 상세의 데이터 영역에는 광고·제휴 카드를 넣지 않는다.
