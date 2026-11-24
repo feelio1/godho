@@ -100,6 +100,7 @@ void main() {
     test('권한 문구는 지시서 그대로', () {
       expect(valueAfter('NSLocationWhenInUseUsageDescription'), '주변 동물병원과 우리 동네 진료비를 보여 드리려고 현재 위치를 사용해요.');
       expect(valueAfter('NSPhotoLibraryUsageDescription'), '일기와 반려동물 사진을 고르려고 사진 보관함을 사용해요.');
+      expect(valueAfter('NSLocationAlwaysAndWhenInUseUsageDescription'), '펫클은 앱을 쓰는 동안에만 위치를 사용해요. 앱을 닫은 뒤에는 위치를 쓰지 않아요.');
       expect(valueAfter('NSCameraUsageDescription'), '일기와 반려동물 사진을 찍으려고 카메라를 사용해요.');
       expect(valueAfter('NSUserTrackingUsageDescription'), '광고를 관심사에 맞게 보여 드리는 데 쓰여요. 허용하지 않아도 모든 기능을 그대로 쓸 수 있어요.');
     });
