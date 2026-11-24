@@ -163,7 +163,12 @@ flutter:
 # iOS는 이번엔 생략.
 flutter_launcher_icons:
   android: true
-  ios: false
+  # iOS 출시 준비 L-6: 아이폰 아이콘도 같은 이미지로. App Store는 알파 채널이 있는
+  # 아이콘을 거부하므로 알파를 뺀다. 주의: 이 도구(0.14.4)는 iOS 생성 때
+  # project.pbxproj의 ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS를
+  # "AppIcon"으로 잘못 바꾸므로, 다시 돌리면 그 두 줄은 YES로 되돌린다.
+  ios: true
+  remove_alpha_ios: true
   image_path: "assets/icon/app_icon.png"
   adaptive_icon_background: "#1B4D8C"
   # 같은(에지까지 꽉 찬, 네이비+마스코트) 이미지를 그대로 foreground로

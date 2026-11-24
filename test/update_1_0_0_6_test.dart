@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 
 import 'package:petcliniccheck/ads/app_open_ad_suppression.dart';
 import 'package:petcliniccheck/ads/tracking_consent.dart';
@@ -333,6 +334,35 @@ void main() {
       expect(delegate, contains('ATTrackingManager.requestTrackingAuthorization'));
       final pubspec = File('pubspec.yaml').readAsStringSync();
       expect(pubspec, isNot(contains('app_tracking_transparency')));
+    });
+  });
+
+  group('L-6 아이콘·런치 스크린', () {
+    test('iOS 아이콘: 앱 아이콘 그대로, 알파 없음(App Store 규칙), 1024 포함', () {
+      final dir = Directory('ios/Runner/Assets.xcassets/AppIcon.appiconset');
+      final pngs = dir.listSync().whereType<File>().where((f) => f.path.endsWith('.png')).toList();
+      expect(pngs, isNotEmpty);
+      for (final f in pngs) {
+        final image = img.decodePng(f.readAsBytesSync())!;
+        expect(image.numChannels, 3, reason: '${f.path}: 알파 채널 없음');
+      }
+      final big = img.decodePng(File('${dir.path}/Icon-App-1024x1024@1x.png').readAsBytesSync())!;
+      expect(big.width, 1024);
+      // Flutter 기본(흰) 아이콘이 아니라 네이비 바탕 앱 아이콘.
+      final corner = big.getPixel(10, 10);
+      expect(corner.b, greaterThan(corner.r));
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      expect(pubspec, contains('\n  ios: true\n  remove_alpha_ios: true\n'));
+    });
+
+    test('런치 스크린 배경은 네이비 #1B4D8C, 아이콘 도구가 pbxproj를 망가뜨리지 않았다', () {
+      final storyboard = File('ios/Runner/Base.lproj/LaunchScreen.storyboard').readAsStringSync();
+      final m = RegExp(r'<color key="backgroundColor" red="([0-9.]+)" green="([0-9.]+)" blue="([0-9.]+)"').firstMatch(storyboard)!;
+      int channel(int i) => (double.parse(m.group(i)!) * 255).round();
+      expect([channel(1), channel(2), channel(3)], [0x1B, 0x4D, 0x8C]);
+      final pbx = File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+      expect(pbx, isNot(contains('ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon')));
+      expect(RegExp(r'ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;').allMatches(pbx).length, 3);
     });
   });
 }
