@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../config/admob_config.dart';
+import 'tracking_consent.dart';
 import '../theme/app_colors.dart';
 
 /// Bottom-fixed banner ad, meant to sit in a `Scaffold.bottomNavigationBar`
@@ -37,10 +38,22 @@ class _GlobalBannerAdState extends State<GlobalBannerAd> {
   }
 
   void _loadAd() {
+    final consent = TrackingConsent.instance;
+    if (consent.isIos) {
+      // iOS(L-5): 추적 허용을 물은 뒤에만 첫 광고를 요청하고, 허용이 아니면 비맞춤.
+      consent.ready.then((_) {
+        if (mounted) _load(consent.adRequest());
+      });
+      return;
+    }
+    _load(const AdRequest());
+  }
+
+  void _load(AdRequest request) {
     final ad = BannerAd(
       adUnitId: admobBannerUnitId,
       size: AdSize.banner,
-      request: const AdRequest(),
+      request: request,
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           if (!mounted) {

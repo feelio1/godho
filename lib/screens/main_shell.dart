@@ -6,6 +6,8 @@ import 'package:flutter/services.dart' show SystemNavigator;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../ads/app_open_ad_suppression.dart';
+import '../ads/tracking_consent.dart';
 import '../data/app_settings.dart';
 import '../data/cloud_migration_service.dart';
 import '../data/effective_appointment_actions.dart';
@@ -125,6 +127,13 @@ class _MainShellBodyState extends ConsumerState<_MainShellBody> with WidgetsBind
     // payload가 없어 이 콜백에 영향을 주지 않는다.
     NotificationService.instance.onNotificationTapped = _handleNotificationTap;
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkLaunchNotification());
+    // iOS 앱 추적 투명성(L-5): 온보딩을 마친 뒤 처음 메인 화면에 들어왔을 때
+    // 한 번, 첫 광고 요청 전에 묻는다(광고 로드는 이 답을 기다린다). 이미
+    // 답했으면 묻지 않고, 안드로이드는 아무 일도 없다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(TrackingConsent.instance.requestIfNeeded(ref.read(adSuppressionProvider)));
+    });
     // 앱을 시작할 때 일기 알림 14일 창을 다시 채운다("일기 보완" 지시서
     // 2) — 꺼져 있으면 아무 일도 하지 않는다.
     unawaited(_refillDiaryReminderIfEnabled());
