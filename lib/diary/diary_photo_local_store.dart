@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// 백그라운드 업로드 대기열이 압축된 원본·썸네일 바이트를 업로드 전까지
@@ -42,4 +42,38 @@ Future<void> deleteAllDiaryPhotoQueueFiles() async {
       await dir.delete(recursive: true);
     }
   } catch (_) {}
+}
+
+/// iOS(출시 준비 L-7): 앱을 업데이트·재설치하면 iOS는 앱 폴더 경로
+/// (`…/Application/<UUID>/Documents`)를 새로 정한다 — 파일은 새 폴더 아래
+/// 같은 이름으로 옮겨져 있지만, 대기열(SharedPreferences)에 적어 둔 예전
+/// 절대 경로는 더는 없다. 적힌 경로에 파일이 없고 지금 대기열 폴더
+/// ([queueDirPath])에 같은 이름의 파일이 있으면 그 경로를 돌려준다. 그 밖에는
+/// 적힌 경로 그대로 — 안드로이드처럼 경로가 바뀌지 않으면 항상 그대로다.
+@visibleForTesting
+String relocatedDiaryPhotoQueuePath(
+  String storedPath,
+  String queueDirPath, {
+  required bool Function(String path) exists,
+}) {
+  if (exists(storedPath)) return storedPath;
+  final name = storedPath.split('/').last;
+  if (name.isEmpty) return storedPath;
+  final candidate = '$queueDirPath/$name';
+  return exists(candidate) ? candidate : storedPath;
+}
+
+/// [relocatedDiaryPhotoQueuePath]를 지금 기기의 대기열 폴더로 적용한다 —
+/// iOS에서만 부른다. 폴더를 못 찾으면(드묾) 적힌 경로 그대로.
+Future<String Function(String storedPath)> diaryPhotoQueuePathRelocator() async {
+  try {
+    final dir = await diaryPhotoQueueDirectory();
+    return (String storedPath) => relocatedDiaryPhotoQueuePath(
+      storedPath,
+      dir.path,
+      exists: (path) => File(path).existsSync(),
+    );
+  } catch (_) {
+    return (String storedPath) => storedPath;
+  }
 }

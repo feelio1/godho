@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'diary_photo_local_store.dart' show diaryPhotoQueuePathRelocator;
 import 'diary_photo_processor.dart' show ProcessedDiaryPhoto;
 
 /// 압축된 사진 하나를 대기열에 넣기 전, 이 일기에서 몇 번째로 보여줄지
@@ -59,6 +61,21 @@ class DiaryPhotoQueueItem {
         nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
       );
 
+  /// 파일 경로만 바꾼 사본 — iOS 앱 폴더 경로가 바뀐 뒤 옮겨 읽을 때 쓴다.
+  DiaryPhotoQueueItem copyWithPaths({required String mainFilePath, required String thumbFilePath}) =>
+      DiaryPhotoQueueItem(
+        id: id,
+        uid: uid,
+        diaryId: diaryId,
+        order: order,
+        mainFilePath: mainFilePath,
+        thumbFilePath: thumbFilePath,
+        width: width,
+        height: height,
+        attempts: attempts,
+        nextAttemptAt: nextAttemptAt,
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'uid': uid,
@@ -100,7 +117,16 @@ class DiaryPhotoUploadQueueStore {
     final raw = prefs.getString(_key);
     if (raw == null || raw.isEmpty) return const [];
     final decoded = jsonDecode(raw) as List<dynamic>;
-    return decoded.map((e) => DiaryPhotoQueueItem.fromJson(e as Map<String, dynamic>)).toList();
+    final items = decoded.map((e) => DiaryPhotoQueueItem.fromJson(e as Map<String, dynamic>)).toList();
+    // iOS(출시 준비 L-7): 앱 업데이트 뒤 바뀐 앱 폴더 경로로 옮겨 읽는다 —
+    // 안 하면 업데이트 전에 올라가지 못한 사진이 "파일 없음"으로 실패한다.
+    // 안드로이드는 경로가 바뀌지 않으므로 지금과 똑같이 그대로 돌려준다.
+    if (items.isEmpty || defaultTargetPlatform != TargetPlatform.iOS) return items;
+    final relocate = await diaryPhotoQueuePathRelocator();
+    return [
+      for (final item in items)
+        item.copyWithPaths(mainFilePath: relocate(item.mainFilePath), thumbFilePath: relocate(item.thumbFilePath)),
+    ];
   }
 
   Future<void> _save(List<DiaryPhotoQueueItem> items) async {

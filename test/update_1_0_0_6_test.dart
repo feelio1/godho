@@ -12,6 +12,8 @@ import 'package:petcliniccheck/ads/app_open_ad_suppression.dart';
 import 'package:petcliniccheck/ads/tracking_consent.dart';
 import 'package:petcliniccheck/config/admob_config.dart';
 import 'package:petcliniccheck/data/auth_repository.dart';
+import 'package:petcliniccheck/diary/diary_photo_local_store.dart';
+import 'package:petcliniccheck/diary/diary_photo_upload_queue.dart';
 import 'package:petcliniccheck/notifications/diary_reminder_schedule.dart';
 import 'package:petcliniccheck/notifications/notification_service.dart';
 import 'package:petcliniccheck/screens/info_screens.dart';
@@ -363,6 +365,56 @@ void main() {
       final pbx = File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
       expect(pbx, isNot(contains('ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = AppIcon')));
       expect(RegExp(r'ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;').allMatches(pbx).length, 3);
+    });
+  });
+
+  group('L-7 iOS에서 깨지는 곳', () {
+    test('사진 대기열: iOS 앱 업데이트로 앱 폴더가 바뀌어도 같은 이름 파일로 찾아간다', () {
+      const oldPath = '/var/mobile/Containers/Data/Application/AAAA/Documents/diary_photo_queue/p1_main.jpg';
+      const newDir = '/var/mobile/Containers/Data/Application/BBBB/Documents/diary_photo_queue';
+      final files = {'$newDir/p1_main.jpg'};
+      expect(relocatedDiaryPhotoQueuePath(oldPath, newDir, exists: files.contains), '$newDir/p1_main.jpg');
+      // 적힌 경로에 파일이 있으면(안드로이드·업데이트 전) 그대로.
+      expect(relocatedDiaryPhotoQueuePath(oldPath, newDir, exists: (p) => p == oldPath), oldPath);
+      // 어디에도 없으면 적힌 경로 그대로(업로드가 지금처럼 실패 처리).
+      expect(relocatedDiaryPhotoQueuePath(oldPath, newDir, exists: (_) => false), oldPath);
+    });
+
+    test('사진 대기열: 경로만 바꾸고 나머지는 그대로', () {
+      final item = DiaryPhotoQueueItem(
+        id: 'p1',
+        uid: 'u',
+        diaryId: 'd',
+        order: 2,
+        mainFilePath: '/old/p1_main.jpg',
+        thumbFilePath: '/old/p1_thumb.jpg',
+        width: 2048,
+        height: 1536,
+        attempts: 3,
+        nextAttemptAt: DateTime(2026, 11, 24, 10),
+      );
+      final moved = item.copyWithPaths(mainFilePath: '/new/p1_main.jpg', thumbFilePath: '/new/p1_thumb.jpg');
+      expect(moved.toJson(), {
+        ...item.toJson(),
+        'mainFilePath': '/new/p1_main.jpg',
+        'thumbFilePath': '/new/p1_thumb.jpg',
+      });
+    });
+
+    test('카카오 지도: 키 없음·초기화 실패·지도 오류면 그 화면만 준비 중(초기화 순서 그대로)', () {
+      final screen = File('lib/screens/nearby_map_screen.dart').readAsStringSync();
+      expect(screen, contains('if (!isKakaoMapConfigured || !kakaoMapSdkInitialized || _mapFailed) {'));
+      final main = File('lib/main.dart').readAsStringSync();
+      expect(main.indexOf('Firebase.initializeApp()'), lessThan(main.indexOf('KakaoMapSdk.instance.initialize')));
+      expect(main.indexOf('KakaoMapSdk.instance.initialize'), lessThan(main.indexOf('MobileAds.instance.initialize()')));
+    });
+
+    test('네이버 지도 앱 appname은 iOS 번들 ID와 같다(앱 없으면 웹)', () {
+      final links = File('lib/utils/external_links.dart').readAsStringSync();
+      final pbx = File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+      expect(links, contains("const String _naverMapAppName = 'com.petcheck.petcliniccheck';"));
+      expect(pbx, contains('PRODUCT_BUNDLE_IDENTIFIER = com.petcheck.petcliniccheck;'));
+      expect(links, contains('https://map.naver.com/p/search/'));
     });
   });
 }
