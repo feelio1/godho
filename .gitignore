@@ -47,6 +47,10 @@ app.*.map.json
 # Firebase client configs — local only, never commit (see CLAUDE.md).
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+# iOS 비밀값(광고 앱 ID·구글 로그인 클라이언트) — 로컬/CI 전용, 커밋 금지. 예시는 Secrets.xcconfig.example.
+ios/Flutter/Secrets.xcconfig
+# Codemagic이 만드는 dart-define 임시 파일(혹시 저장소 안에 생기더라도)
+dart_defines*.json
 
 # 쇼핑 상품 가져오기 도구 — 서비스 계정 키·node 모듈은 절대 커밋하지 않는다
 serviceAccount*.json
