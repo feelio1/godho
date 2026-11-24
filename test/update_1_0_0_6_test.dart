@@ -417,4 +417,66 @@ void main() {
       expect(links, contains('https://map.naver.com/p/search/'));
     });
   });
+
+  group('L-8 Codemagic', () {
+    final yaml = File('codemagic.yaml').readAsStringSync();
+
+    test('워크플로 ios-testflight: Flutter 고정, 변수 그룹 petcli_ios, TestFlight에만', () {
+      expect(yaml, contains('\n  ios-testflight:\n'));
+      expect(yaml, contains('flutter: 3.47.8'));
+      expect(yaml, contains('- petcli_ios'));
+      expect(yaml, contains('distribution_type: app_store'));
+      expect(yaml, contains('bundle_identifier: com.petcheck.petcliniccheck'));
+      expect(yaml, contains('submit_to_testflight: true'));
+      expect(yaml, contains('submit_to_app_store: false'));
+      // 자동 시작(푸시마다 빌드) 없음.
+      expect(yaml, isNot(contains('triggering:')));
+    });
+
+    test('비밀 파일은 환경 변수로 만들고, 빌드는 저장소 밖 임시 dart-define 파일로', () {
+      for (final name in [
+        'GOOGLE_SERVICE_INFO_PLIST',
+        'ADMOB_APP_ID_IOS',
+        'GOOGLE_IOS_CLIENT_ID',
+        'GOOGLE_REVERSED_CLIENT_ID',
+        'DART_DEFINES_JSON',
+      ]) {
+        expect(yaml, contains(name), reason: name);
+      }
+      expect(yaml, contains('> ios/Runner/GoogleService-Info.plist'));
+      expect(yaml, contains('SECRETS=ios/Flutter/Secrets.xcconfig'));
+      expect(yaml, contains(r'DART_DEFINES_FILE="$HOME/petcli_dart_defines.json"'));
+      expect(yaml, contains(r'flutter build ipa --release'));
+      expect(yaml, contains(r'--dart-define-from-file="$DART_DEFINES_FILE"'));
+      // 빌드 번호는 pubspec에서 — 따로 넘기지 않는다.
+      expect(yaml, isNot(contains('--build-number')));
+    });
+
+    test('저장소에 비밀값이 없고, 로그에 값을 찍지 않는다', () {
+      expect(RegExp(r'^\s*set -[a-z]*x', multiLine: true).hasMatch(yaml), isFalse, reason: '명령 출력 금지');
+      expect(yaml, isNot(contains(r'echo "$GOOGLE')));
+      expect(yaml, isNot(contains(r'cat ios/Runner/GoogleService-Info.plist')));
+      expect(yaml, isNot(matches(RegExp(r'ca-app-pub-\d{16}'))));
+      expect(yaml, isNot(contains('googleusercontent.com')));
+      expect(yaml, isNot(contains('BEGIN PRIVATE KEY')));
+      final ignore = File('.gitignore').readAsLinesSync();
+      for (final pattern in ['*.p8', '*.p12', '*.mobileprovision', 'ios/Flutter/Secrets.xcconfig']) {
+        expect(ignore, contains(pattern), reason: pattern);
+      }
+      final readme = File('tool/ios/README.md').readAsStringSync();
+      for (final name in [
+        'petcli_ios',
+        'GOOGLE_SERVICE_INFO_PLIST',
+        'ADMOB_APP_ID_IOS',
+        'GOOGLE_IOS_CLIENT_ID',
+        'GOOGLE_REVERSED_CLIENT_ID',
+        'DART_DEFINES_JSON',
+        'ADMOB_BANNER_UNIT_ID_IOS',
+        'ADMOB_APP_OPEN_UNIT_ID_IOS',
+        'petcli_asc',
+      ]) {
+        expect(readme, contains(name), reason: name);
+      }
+    });
+  });
 }

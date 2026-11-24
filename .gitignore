@@ -51,6 +51,10 @@ ios/Runner/GoogleService-Info.plist
 ios/Flutter/Secrets.xcconfig
 # Codemagic이 만드는 dart-define 임시 파일(혹시 저장소 안에 생기더라도)
 dart_defines*.json
+# 애플 서명·API 키 — App Store Connect API 키(.p8), 인증서(.p12), 프로비저닝 프로필
+*.p8
+*.p12
+*.mobileprovision
 
 # 쇼핑 상품 가져오기 도구 — 서비스 계정 키·node 모듈은 절대 커밋하지 않는다
 serviceAccount*.json
