@@ -1,9 +1,37 @@
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:petcliniccheck/config/admob_config.dart';
+import 'package:petcliniccheck/data/auth_repository.dart';
+import 'package:petcliniccheck/screens/info_screens.dart';
+
+class _FakeAuth extends Fake implements FirebaseAuth {
+  _FakeAuth({this.fail = false});
+  final bool fail;
+  final revoked = <String>[];
+
+  @override
+  Future<void> revokeTokenWithAuthorizationCode(String authorizationCode) async {
+    if (fail) throw FirebaseAuthException(code: 'invalid-credential');
+    revoked.add(authorizationCode);
+  }
+}
+
+class _FakeInfo extends Fake implements UserInfo {
+  _FakeInfo(this.providerId);
+  @override
+  final String providerId;
+}
+
+class _FakeUser extends Fake implements User {
+  _FakeUser(this.providerIds);
+  final List<String> providerIds;
+  @override
+  List<UserInfo> get providerData => [for (final id in providerIds) _FakeInfo(id)];
+}
 
 void main() {
   group('L-1 버전·아이폰 전용', () {
@@ -106,6 +134,45 @@ void main() {
       expect(admobBannerUnitId, kTestBannerUnitIdAndroid);
       expect(admobAppOpenUnitId, kTestAppOpenUnitIdAndroid);
       debugDefaultTargetPlatformOverride = null;
+    });
+  });
+
+  group('L-3 애플 로그인·탈퇴 시 토큰 철회', () {
+    test('애플이 준 이름: 한글은 "성이름", 그 밖은 "이름 성", 없으면 null', () {
+      expect(AuthRepository.appleDisplayName(givenName: '구름', familyName: '장'), '장구름');
+      expect(AuthRepository.appleDisplayName(givenName: 'Gureum', familyName: 'Jang'), 'Gureum Jang');
+      expect(AuthRepository.appleDisplayName(givenName: ' 구름 ', familyName: null), '구름');
+      expect(AuthRepository.appleDisplayName(givenName: '', familyName: '  '), isNull);
+      expect(AuthRepository.appleDisplayName(), isNull);
+    });
+
+    test('토큰 철회: 받은 authorizationCode로 FirebaseAuth.revokeTokenWithAuthorizationCode', () async {
+      final auth = _FakeAuth();
+      await AuthRepository(auth: auth).revokeAppleToken('code-123');
+      expect(auth.revoked, ['code-123']);
+    });
+
+    test('토큰 철회 실패·코드 없음은 예외 없이 지나간다(탈퇴는 계속)', () async {
+      await expectLater(AuthRepository(auth: _FakeAuth(fail: true)).revokeAppleToken('code-123'), completes);
+      final auth = _FakeAuth();
+      await AuthRepository(auth: auth).revokeAppleToken(null);
+      await AuthRepository(auth: auth).revokeAppleToken('');
+      expect(auth.revoked, isEmpty);
+    });
+
+    test('애플 계정 판단은 Firebase 로그인 수단(apple.com)으로', () {
+      expect(isAppleAccount(_FakeUser(['apple.com'])), isTrue);
+      expect(isAppleAccount(_FakeUser(['google.com'])), isFalse);
+      expect(isAppleAccount(_FakeUser(['password'])), isFalse);
+      expect(isAppleAccount(null), isFalse);
+    });
+
+    test('entitlements: Sign in with Apple(Default)이 Runner 세 구성에 연결', () {
+      final ent = File('ios/Runner/Runner.entitlements').readAsStringSync();
+      expect(ent, matches(RegExp(r'<key>com.apple.developer.applesignin</key>\s*<array>\s*<string>Default</string>')));
+      final pbx = File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+      expect(RegExp(r'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;').allMatches(pbx).length, 3);
+      expect(pbx, contains('/* Runner.entitlements */ = {isa = PBXFileReference;'));
     });
   });
 }

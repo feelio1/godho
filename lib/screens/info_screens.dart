@@ -1,9 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../ads/app_open_ad_suppression.dart';
 import '../data/app_settings.dart';
@@ -217,6 +218,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     String? errorMessage;
     try {
+      // 애플 사용자(iOS 출시 준비 L-3): 무엇이든 지우기 전에 애플로 다시
+      // 확인해 새 authorizationCode를 받고 애플 토큰을 철회한다. 승인 창을
+      // 닫으면 여기서 멈추고 아무것도 지우지 않는다. 철회 실패는 로그만
+      // 남기고 아래 삭제 흐름은 그대로 이어간다.
+      if (isAppleAccount(ref.read(authRepositoryProvider).currentUser)) {
+        try {
+          await ref.read(authRepositoryProvider).reauthenticateAndRevokeApple();
+        } on SignInWithAppleAuthorizationException catch (e) {
+          if (e.code == AuthorizationErrorCode.canceled) {
+            throw const _ReauthNotSupportedException('탈퇴가 취소됐습니다. 다시 시도해주세요.');
+          }
+          rethrow;
+        }
+      }
       await ref.read(userRepositoryProvider).deleteAllUserData(uid);
       // 아직 이 기기 대기열에 남아 올라가는 중이던 사진·로컬 파일도
       // 전부 지운다("일기 재수정" 지시서 2-6).
@@ -464,6 +479,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 }
+
+/// 애플로 가입한 계정인지 — Firebase 사용자의 로그인 수단 목록에
+/// `apple.com`이 있으면 그렇다(Firestore를 읽지 않고 기기에서 바로 판단).
+@visibleForTesting
+bool isAppleAccount(User? user) => user?.providerData.any((p) => p.providerId == 'apple.com') ?? false;
 
 /// 재인증 방법이 없거나(알 수 없는 로그인 수단) 사용자가 재인증을
 /// 취소했을 때 — [FirebaseAuthException]이 아니라 이 앱이 만든 안내용

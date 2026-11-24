@@ -1,8 +1,8 @@
-import 'dart:io';
-
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../ads/app_open_ad_suppression.dart';
 import '../config/feature_flags.dart';
@@ -23,16 +23,21 @@ import 'signup_email_screen.dart';
 /// 가도 게스트 기능은 그대로다.
 ///
 /// v1 출시 범위는 구글 + 이메일 + 게스트다("v1 출시 준비" 지시서 1) —
-/// 카카오·애플 버튼은 [kEnableKakaoLogin]/[kEnableAppleLogin] 플래그로
-/// 숨겨져 있을 뿐, `signInWithKakao`/`signInWithApple`과 그 호출
-/// 코드는 그대로 남아 있어 플래그만 true로 바꾸면 다시 노출된다(마켓
-/// URL 확보 후 적용할 카카오 실연결은 별도 지시서).
+/// 카카오 버튼은 [kEnableKakaoLogin] 플래그로 숨겨져 있을 뿐,
+/// `signInWithKakao`와 그 호출 코드는 그대로 남아 있어 플래그만 true로
+/// 바꾸면 다시 노출된다(마켓 URL 확보 후 적용할 카카오 실연결은 별도
+/// 지시서). 애플 로그인은 iOS 출시 준비(L-3)에서 켰고 iOS에서만 보인다
+/// ([showAppleSignIn]).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
+
+/// 애플 로그인 버튼을 보일지 — iOS에서만, [kEnableAppleLogin]이 켜졌을 때만.
+/// 안드로이드는 플래그와 무관하게 보이지 않는다(iOS 출시 준비 L-3).
+bool showAppleSignIn(TargetPlatform platform) => platform == TargetPlatform.iOS && kEnableAppleLogin;
 
 enum _Provider { google, kakao, apple, email }
 
@@ -163,7 +168,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) => AppOpenAdSuppressor(child: _buildScreen(context));
 
   Widget _buildScreen(BuildContext context) {
-    final isIOS = Platform.isIOS;
+    final showApple = showAppleSignIn(defaultTargetPlatform);
     // "장구름의 수첩"(3차 업데이트 J-7): 오른쪽 위 닫기, 제목 + 손 흔드는 구름이,
     // 구글 버튼 → "또는 이메일로" → 라벨 있는 이메일·비밀번호(보기 버튼,
     // 자동완성) → [로그인] → 회원가입 | 비밀번호 찾기 → 둘러보기·14세 안내.
@@ -211,14 +216,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 22),
-                if (isIOS && kEnableAppleLogin)
+                if (showApple)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: _ProviderButton(
-                      label: 'Apple로 계속하기',
-                      icon: Icons.apple,
-                      background: Colors.black,
-                      foreground: Colors.white,
+                    child: _AppleSignInButton(
                       loading: _loading == _Provider.apple,
                       enabled: _loading == null,
                       onPressed: _handleApple,
@@ -381,6 +382,72 @@ class _GoogleSignInButton extends StatelessWidget {
             const Text(
               'Google로 계속하기',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _text),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 애플 로그인 버튼 — 애플 가이드(Sign in with Apple 버튼)대로 검정 바탕,
+/// 흰 애플 로고(패키지의 공식 로고 [AppleLogoPainter], 다시 그리지 않음)와
+/// 시스템 글꼴의 "Apple로 계속하기". 크기·높이·모양은 구글 버튼과 같다
+/// (54dp 알약, 전체 너비) — 다른 로그인 수단보다 작거나 덜 눈에 띄지
+/// 않게(iOS 출시 준비 L-3).
+class _AppleSignInButton extends StatelessWidget {
+  final bool loading;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  const _AppleSignInButton({required this.loading, required this.enabled, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const ValueKey('login_apple'),
+      height: 54,
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: enabled ? onPressed : null,
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.black,
+          disabledForegroundColor: Colors.white,
+          minimumSize: const Size.fromHeight(54),
+          shape: const StadiumBorder(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            loading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Padding(
+                      // 로고가 글자 높이와 같아 보이게 살짝 줄이고 위로 올린다.
+                      padding: EdgeInsets.fromLTRB(2, 0, 2, 2),
+                      child: CustomPaint(painter: AppleLogoPainter(color: Colors.white)),
+                    ),
+                  ),
+            const SizedBox(width: 12),
+            const Text(
+              'Apple로 계속하기',
+              style: TextStyle(
+                // iOS 시스템 글꼴(애플 가이드). 다른 플랫폼에서는 기본 글꼴로 떨어진다.
+                fontFamily: 'CupertinoSystemText',
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.3,
+                color: Colors.white,
+              ),
             ),
           ],
         ),

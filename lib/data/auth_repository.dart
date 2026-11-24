@@ -91,9 +91,15 @@ class AuthRepository {
     throw const KakaoLoginNotReadyException();
   }
 
-  /// 애플 로그인 — iOS 전용, 개발자 승인 전이라 실기기 테스트 불가(코드만
-  /// 준비). FlutterFire 권장대로 재전송 공격 방지용 nonce를 sha256으로
-  /// 해시해 전달한다.
+  /// 애플 로그인 — iOS 전용(iOS 출시 준비 L-3). FlutterFire 권장대로
+  /// 재전송 공격 방지용 nonce를 sha256으로 해시해 전달한다.
+  ///
+  /// 애플은 이름을 **처음 승인할 때 한 번만** 준다 — 받았으면 Firebase
+  /// 사용자 이름(displayName)으로 저장해 가입 흐름이 그대로 쓰게 하고
+  /// (`SignupPetScreen`이 `displayName`을 users 문서에 넣는다), 이미 이름이
+  /// 있거나 이름을 안 줬으면 건드리지 않는다(지금까지의 가입 흐름 그대로 —
+  /// 이름이 없으면 [accountLabel]이 이메일 앞부분·"회원"으로 부른다).
+  /// 이름 저장이 실패해도 로그인은 그대로 이어간다.
   Future<UserCredential> signInWithApple() async {
     final rawNonce = _generateNonce();
     final nonce = _sha256(rawNonce);
@@ -108,7 +114,18 @@ class AuthRepository {
       idToken: appleCredential.identityToken,
       rawNonce: rawNonce,
     );
-    return _auth.signInWithCredential(oauthCredential);
+    final result = await _auth.signInWithCredential(oauthCredential);
+    final name = appleDisplayName(givenName: appleCredential.givenName, familyName: appleCredential.familyName);
+    final user = result.user;
+    if (name != null && user != null && (user.displayName?.trim().isEmpty ?? true)) {
+      try {
+        await user.updateDisplayName(name);
+        await user.reload();
+      } catch (e) {
+        _log('애플 이름 저장 실패(로그인은 계속): $e');
+      }
+    }
+    return result;
   }
 
   bool get isAppleSignInSupported => Platform.isIOS;
@@ -173,8 +190,10 @@ class AuthRepository {
     await _auth.currentUser?.reauthenticateWithCredential(credential);
   }
 
-  /// 애플 재인증 — [signInWithApple]과 같은 nonce 플로우.
-  Future<void> reauthenticateWithApple() async {
+  /// 애플 재인증 — [signInWithApple]과 같은 nonce 플로우. 이번 승인에서
+  /// 받은 `authorizationCode`를 돌려준다 — 회원 탈퇴 때 애플 토큰을
+  /// 철회하는 데 쓴다([revokeAppleToken]).
+  Future<String?> reauthenticateWithApple() async {
     final rawNonce = _generateNonce();
     final nonce = _sha256(rawNonce);
     final appleCredential = await SignInWithApple.getAppleIDCredential(
@@ -189,6 +208,33 @@ class AuthRepository {
       rawNonce: rawNonce,
     );
     await _auth.currentUser?.reauthenticateWithCredential(oauthCredential);
+    return appleCredential.authorizationCode;
+  }
+
+  /// 애플 토큰 철회(iOS 출시 준비 L-3, 애플 심사 지침 5.1.1(v)) — 탈퇴하는
+  /// 애플 사용자의 토큰을 [FirebaseAuth.revokeTokenWithAuthorizationCode]로
+  /// 철회한다. 코드가 없거나 철회가 실패해도 **로그만 남기고 예외를 던지지
+  /// 않는다** — 탈퇴(데이터·계정 삭제)는 그대로 이어가야 한다.
+  Future<void> revokeAppleToken(String? authorizationCode) async {
+    if (authorizationCode == null || authorizationCode.isEmpty) {
+      _log('애플 토큰 철회 건너뜀: authorizationCode 없음(탈퇴는 계속)');
+      return;
+    }
+    try {
+      await _auth.revokeTokenWithAuthorizationCode(authorizationCode);
+      _log('애플 토큰 철회 완료');
+    } catch (e) {
+      _log('애플 토큰 철회 실패(탈퇴는 계속): $e');
+    }
+  }
+
+  /// 탈퇴 전 애플 준비 — 재인증으로 새 authorizationCode를 받아 토큰을
+  /// 철회한다. 재인증(애플 승인 창) 자체를 취소·실패하면 예외가 그대로
+  /// 올라가 탈퇴가 시작되지 않는다(아무것도 지우기 전이다). 철회 실패는
+  /// [revokeAppleToken]이 삼킨다.
+  Future<void> reauthenticateAndRevokeApple() async {
+    final code = await reauthenticateWithApple();
+    await revokeAppleToken(code);
   }
 
   /// 이메일 재인증 — 비밀번호를 다시 입력받아야 한다(호출부가 다이얼로그로
@@ -196,6 +242,18 @@ class AuthRepository {
   Future<void> reauthenticateWithEmail(String email, String password) async {
     final credential = EmailAuthProvider.credential(email: email, password: password);
     await _auth.currentUser?.reauthenticateWithCredential(credential);
+  }
+
+  /// 애플이 준 이름 조각을 화면에 쓸 한 줄로 — 둘 다 비면 null. 한글
+  /// 이름은 "성이름"(띄어 쓰지 않음), 그 밖에는 "이름 성".
+  @visibleForTesting
+  static String? appleDisplayName({String? givenName, String? familyName}) {
+    final given = givenName?.trim() ?? '';
+    final family = familyName?.trim() ?? '';
+    if (given.isEmpty && family.isEmpty) return null;
+    final hangul = RegExp(r'[가-힣]');
+    if (hangul.hasMatch(given) || hangul.hasMatch(family)) return '$family$given';
+    return [given, family].where((p) => p.isNotEmpty).join(' ');
   }
 
   static String _generateNonce([int length = 32]) {

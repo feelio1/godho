@@ -6,7 +6,9 @@
 /// 무관 — 그건 별도 지시서에서 다룬다).
 const bool kEnableKakaoLogin = false;
 
-const bool kEnableAppleLogin = false;
+/// 애플 로그인 — iOS 출시 준비(L-3)에서 켰다. 버튼은 iOS에서만 보이고
+/// (`showAppleSignIn`), 안드로이드는 이 값과 무관하게 지금처럼 숨긴다.
+const bool kEnableAppleLogin = true;
 
 /// "쇼핑 기초" 지시서 1 — 스토어(직판형, 판매자 = 아깽이상점) 코드의 컴파일 타임 스위치(이중
 /// 스위치 중 하나). 이 값이 false면 쇼핑 탭은 Firestore `config/shop`
