@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kDebugMode, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -73,6 +73,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _diaryReminderEnabled = value);
     final settings = const AppSettings();
     await settings.setDiaryReminderEnabled(value);
+    if (value && defaultTargetPlatform == TargetPlatform.iOS) {
+      // iOS(L-4)는 권한을 한 번도 묻지 않은 채 예약하면 알림이 조용히 안
+      // 뜬다 — 일기 알림을 켜는 이 순간(기능 진입)에 묻는다. 이미 답했으면
+      // 시스템이 다시 묻지 않는다. 안드로이드는 지금까지와 같다.
+      await NotificationService.instance.requestPermission();
+    }
     if (value) {
       await NotificationService.instance.refillDiaryReminderWindow(
         hour: _diaryReminderTime.hour,

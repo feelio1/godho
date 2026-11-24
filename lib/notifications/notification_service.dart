@@ -60,6 +60,47 @@ class NotificationService {
     priority: Priority.defaultPriority,
   );
 
+  /// iOS 알림 구분(iOS 출시 준비 L-4) — 안드로이드 채널 id와 같은 이름을
+  /// 카테고리·스레드 id로 써서, iOS에서도 예약 알림과 일기 알림이 섞이지
+  /// 않는다(알림 센터에서 따로 묶인다).
+  static const appointmentCategoryId = 'appointment_reminders';
+  static const diaryCategoryId = 'diary_reminders';
+
+  /// iOS가 한 앱에 걸어 둘 수 있는 예약 알림 수의 상한(넘치면 가장 가까운
+  /// 64개만 남는다). 지금 구조의 최대치: 일기 14(창) + 앞으로의 예약마다
+  /// 1(예약 화면이 알림을 1개만 저장) + 테스트 1.
+  static const iosPendingNotificationLimit = 64;
+
+  /// 예약 알림 — 안드로이드는 지금까지와 같은 채널, iOS는 예약 카테고리.
+  static const appointmentNotificationDetails = NotificationDetails(
+    android: _reminderChannel,
+    iOS: DarwinNotificationDetails(categoryIdentifier: appointmentCategoryId, threadIdentifier: appointmentCategoryId),
+  );
+
+  /// 일기 알림 — 안드로이드는 일기 채널, iOS는 일기 카테고리.
+  static const diaryNotificationDetails = NotificationDetails(
+    android: _diaryReminderChannel,
+    iOS: DarwinNotificationDetails(categoryIdentifier: diaryCategoryId, threadIdentifier: diaryCategoryId),
+  );
+
+  /// 플러그인 초기화 설정 — iOS는 초기화 때 **아무 권한도 묻지 않는다**
+  /// (기본값은 알림·배지·소리를 앱 시작 때 묻는다). 권한은 예약 알림·일기
+  /// 알림을 처음 켜는 그 순간에만 [requestPermission]으로 묻는다.
+  static const initializationSettings = InitializationSettings(
+    android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    iOS: DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+      requestProvisionalPermission: false,
+      requestCriticalPermission: false,
+      notificationCategories: [
+        DarwinNotificationCategory(appointmentCategoryId),
+        DarwinNotificationCategory(diaryCategoryId),
+      ],
+    ),
+  );
+
   /// 알림을 탭했을 때의 구분값 — 예약 알림은 payload를 쓰지 않으므로
   /// (영향 없음), 일기 알림만 이 값으로 식별한다.
   static const diaryReminderPayload = 'diary_reminder';
@@ -75,10 +116,8 @@ class NotificationService {
       // 이 앱은 국내 동물병원 데이터만 다루므로 한국 표준시로 고정한다
       // (기기 시간대 감지용 별도 패키지 없이 최소 구현).
       tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const settings = InitializationSettings(android: androidSettings);
       final ok = await _plugin.initialize(
-        settings: settings,
+        settings: initializationSettings,
         onDidReceiveNotificationResponse: _onNotificationResponse,
       );
       _initialized = true;
@@ -124,6 +163,9 @@ class NotificationService {
   AndroidFlutterLocalNotificationsPlugin? get _android =>
       _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
 
+  IOSFlutterLocalNotificationsPlugin? get _ios =>
+      _plugin.resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+
   /// Android 13+ 알림 권한 + (가능하면) 정확한 시각 알람 권한을 함께
   /// 요청한다. 예약 알림을 처음 설정하는 시점에만 호출한다(CLAUDE.md 취지
   /// 연장 — 앱 시작 시 강제 요청 금지와 같은 원칙을 알림 권한에도 적용).
@@ -136,6 +178,20 @@ class NotificationService {
   Future<bool> requestPermission() async {
     await _ensureInitialized();
     if (!_initialized) return false;
+    final ios = _ios;
+    if (ios != null) {
+      // iOS(L-4): 알림·소리만 묻는다(배지는 쓰지 않음). 거부·실패해도 예외를
+      // 밖으로 던지지 않고 false — 그 알림만 조용히 꺼진다. 정확한 시각
+      // 권한은 iOS에 없다.
+      try {
+        final granted = await ios.requestPermissions(alert: true, badge: false, sound: true) ?? false;
+        _log('iOS 알림 권한 요청 결과: $granted');
+        return granted;
+      } catch (e) {
+        _log('iOS 알림 권한 요청 실패: $e');
+        return false;
+      }
+    }
     var notificationsGranted = false;
     try {
       notificationsGranted = await _android?.requestNotificationsPermission() ?? false;
@@ -197,7 +253,7 @@ class NotificationService {
           scheduledDate: tz.TZDateTime.from(fireAt, tz.local),
           title: '진료 예약 알림',
           body: _reminderBody(appointment),
-          notificationDetails: const NotificationDetails(android: _reminderChannel),
+          notificationDetails: appointmentNotificationDetails,
           androidScheduleMode: scheduleMode,
         );
         _log('알림 #$i 스케줄 완료 — $fireAt');
@@ -205,6 +261,24 @@ class NotificationService {
         // 이 알림 하나만 건너뛰고 나머지는 계속 예약한다.
         _log('알림 #$i 스케줄 실패: $e\n$st');
       }
+    }
+    await _logIosPendingCount();
+  }
+
+  /// iOS에서만: 지금 걸린 알림 수를 로그로 남기고, 상한(64)에 가까우면
+  /// 경고한다 — 넘치면 iOS가 가장 늦은 것부터 조용히 버리기 때문이다.
+  Future<void> _logIosPendingCount() async {
+    if (_ios == null) return;
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      final count = pending.length;
+      if (count >= iosPendingNotificationLimit - 4) {
+        _log('경고: iOS 예약 알림 $count개 — 상한 $iosPendingNotificationLimit개를 넘으면 가장 늦은 알림부터 빠진다');
+      } else {
+        _log('iOS 예약 알림 $count개 (상한 $iosPendingNotificationLimit)');
+      }
+    } catch (e) {
+      _log('iOS 예약 알림 수 확인 실패(무시): $e');
     }
   }
 
@@ -298,7 +372,7 @@ class NotificationService {
           scheduledDate: tz.TZDateTime.from(fireAt, tz.local),
           title: '일기 알림',
           body: '오늘 하루를 일기로 남겨볼까요?',
-          notificationDetails: const NotificationDetails(android: _diaryReminderChannel),
+          notificationDetails: diaryNotificationDetails,
           androidScheduleMode: scheduleMode,
           payload: diaryReminderPayload,
         );
@@ -310,6 +384,7 @@ class NotificationService {
     }
 
     await settings.setDiaryReminderScheduledDates(remaining);
+    await _logIosPendingCount();
   }
 
   /// 오늘 일기를 저장하면 오늘 알림만 취소한다("일기 보완" 지시서 2) —
@@ -375,7 +450,7 @@ class NotificationService {
         id: _immediateTestNotificationId,
         title: '즉시 테스트 알림',
         body: '이 알림이 보이면 초기화·채널·권한은 정상입니다.',
-        notificationDetails: const NotificationDetails(android: _reminderChannel),
+        notificationDetails: appointmentNotificationDetails,
       );
       _log('즉시 테스트 알림 표시 완료');
       return true;
@@ -407,7 +482,7 @@ class NotificationService {
         title: '테스트 알림',
         body: '이 알림이 보이면 예약 알림도 정상 동작합니다 '
             '(${scheduleMode == AndroidScheduleMode.exactAllowWhileIdle ? '정확한 시각' : '근사 시각'} 모드).',
-        notificationDetails: const NotificationDetails(android: _reminderChannel),
+        notificationDetails: appointmentNotificationDetails,
         androidScheduleMode: scheduleMode,
       );
       _log('1분 뒤 테스트 알림 스케줄 완료 — $fireAt (모드: $scheduleMode)');

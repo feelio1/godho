@@ -2,10 +2,13 @@ import 'dart:io';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:petcliniccheck/config/admob_config.dart';
 import 'package:petcliniccheck/data/auth_repository.dart';
+import 'package:petcliniccheck/notifications/diary_reminder_schedule.dart';
+import 'package:petcliniccheck/notifications/notification_service.dart';
 import 'package:petcliniccheck/screens/info_screens.dart';
 
 class _FakeAuth extends Fake implements FirebaseAuth {
@@ -173,6 +176,47 @@ void main() {
       final pbx = File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
       expect(RegExp(r'CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements;').allMatches(pbx).length, 3);
       expect(pbx, contains('/* Runner.entitlements */ = {isa = PBXFileReference;'));
+    });
+  });
+
+  group('L-4 iOS 알림', () {
+    test('초기화에 iOS 설정이 들어 있고, 시작 때 아무 권한도 묻지 않는다', () {
+      const settings = NotificationService.initializationSettings;
+      final ios = settings.iOS!;
+      expect(ios.requestAlertPermission, isFalse);
+      expect(ios.requestBadgePermission, isFalse);
+      expect(ios.requestSoundPermission, isFalse);
+      expect(ios.requestProvisionalPermission, isFalse);
+      expect(ios.requestCriticalPermission, isFalse);
+      expect(ios.notificationCategories.map((c) => c.identifier), ['appointment_reminders', 'diary_reminders']);
+      // 안드로이드 초기화는 그대로.
+      expect(settings.android!.defaultIcon, '@mipmap/ic_launcher');
+    });
+
+    test('예약 알림과 일기 알림은 iOS에서도 따로(카테고리·스레드), 안드로이드 채널은 그대로', () {
+      const appointment = NotificationService.appointmentNotificationDetails;
+      const diary = NotificationService.diaryNotificationDetails;
+      expect(appointment.android!.channelId, 'appointment_reminders');
+      expect(diary.android!.channelId, 'diary_reminders');
+      expect(appointment.iOS!.categoryIdentifier, 'appointment_reminders');
+      expect(appointment.iOS!.threadIdentifier, 'appointment_reminders');
+      expect(diary.iOS!.categoryIdentifier, 'diary_reminders');
+      expect(diary.iOS!.threadIdentifier, 'diary_reminders');
+      expect(appointment.android!.importance, Importance.high);
+      expect(diary.android!.importance, Importance.defaultImportance);
+    });
+
+    test('iOS 예약 알림 64개 한도: 일기 창 14 + 예약당 1 + 테스트 1', () {
+      expect(NotificationService.iosPendingNotificationLimit, 64);
+      expect(kDiaryReminderWindowDays, 14);
+      // 앞으로의 예약이 49건까지는 상한 안 — 예약 화면은 알림을 1개만 저장한다.
+      expect(kDiaryReminderWindowDays + 49 + 1, lessThanOrEqualTo(NotificationService.iosPendingNotificationLimit));
+    });
+
+    test('AppDelegate는 알림 센터 대리자만 두고 권한은 묻지 않는다', () {
+      final delegate = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+      expect(delegate, contains('UNUserNotificationCenter.current().delegate = self'));
+      expect(delegate, isNot(contains('requestAuthorization')));
     });
   });
 }
